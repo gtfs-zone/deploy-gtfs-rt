@@ -36,15 +36,6 @@ resource "docker_volume" "authelia_data" {
   }
 }
 
-resource "docker_volume" "grafana_data" {
-  name = "${local.prefix}grafana_data"
-
-  lifecycle {
-    prevent_destroy = true
-    ignore_changes  = [labels]
-  }
-}
-
 resource "docker_volume" "prometheus_data" {
   name = "${local.prefix}prometheus_data"
 

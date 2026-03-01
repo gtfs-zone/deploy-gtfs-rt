@@ -72,11 +72,6 @@ variable "api_subdomain" {
   default = "api"
 }
 
-variable "grafana_subdomain" {
-  type    = string
-  default = "grafana"
-}
-
 variable "uptime_subdomain" {
   type    = string
   default = "uptime"
@@ -140,11 +135,6 @@ variable "node_exporter_version" {
 }
 
 variable "prometheus_version" {
-  type    = string
-  default = "latest"
-}
-
-variable "grafana_version" {
   type    = string
   default = "latest"
 }

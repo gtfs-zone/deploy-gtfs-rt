@@ -45,19 +45,3 @@ resource "docker_image" "prometheus" {
     dir_sha1 = sha1(join("", [for f in fileset("${path.root}/../prometheus", "**") : filesha1("${path.root}/../prometheus/${f}")]))
   }
 }
-
-resource "docker_image" "grafana" {
-  name         = "kcfam/grafana:local"
-  keep_locally = true
-
-  build {
-    context = "${path.root}/../grafana"
-    build_args = {
-      GRAFANA_VERSION = var.grafana_version
-    }
-  }
-
-  triggers = {
-    dir_sha1 = sha1(join("", [for f in fileset("${path.root}/../grafana", "**") : filesha1("${path.root}/../grafana/${f}")]))
-  }
-}

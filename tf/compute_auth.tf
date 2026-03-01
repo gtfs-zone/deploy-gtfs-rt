@@ -69,8 +69,6 @@ resource "docker_container" "authelia" {
   env = [
     "AUTHELIA_SERVER_ADDRESS=tcp://0.0.0.0:9091",
     "AUTHELIA_SESSION_SECRET=${random_password.authelia_session_secret.result}",
-    "AUTHELIA_SESSION_COOKIES_0_DOMAIN=${var.domain}",
-    "AUTHELIA_SESSION_COOKIES_0_AUTHELIA_URL=https://${local.auth_fqdn}",
     "AUTHELIA_SESSION_REDIS_HOST=redis",
     "AUTHELIA_SESSION_REDIS_PORT=6379",
     "AUTHELIA_SESSION_REDIS_DATABASE_INDEX=0",
@@ -80,7 +78,6 @@ resource "docker_container" "authelia" {
     "AUTHELIA_STORAGE_POSTGRES_PASSWORD=${random_password.postgres_authelia.result}",
     "AUTHELIA_STORAGE_ENCRYPTION_KEY=${random_password.authelia_storage_key.result}",
     "AUTHELIA_IDENTITY_VALIDATION_RESET_PASSWORD_JWT_SECRET=${random_password.authelia_jwt_secret.result}",
-    "AUTHELIA_IDENTITY_PROVIDERS_OIDC_HMAC_SECRET=${random_password.authelia_session_secret.result}",
     "AUTHELIA_AUTHENTICATION_BACKEND_FILE_PATH=/config/users_database.yml",
     "AUTHELIA_ACCESS_CONTROL_DEFAULT_POLICY=one_factor",
     "AUTHELIA_NOTIFIER_FILESYSTEM_FILENAME=/config/notification.txt",
@@ -150,5 +147,32 @@ resource "docker_container" "authelia" {
   depends_on = [
     docker_container.redis,
     docker_container.postgres_init,
+    docker_container.authelia_config_init,
   ]
+}
+
+# ── Authelia config init ───────────────────────────────────────────────────────
+# Runs once to write configuration.yml into the named volume.
+# session.cookies cannot be set via environment variables in current Authelia.
+
+resource "docker_container" "authelia_config_init" {
+  name     = "${local.prefix}authelia-config-init"
+  image    = "alpine:latest"
+  restart  = "no"
+  must_run = false
+
+  entrypoint = ["/bin/sh", "-c", <<-EOT
+    cat > /config/configuration.yml <<'AUTHELIA_CONFIG'
+    session:
+      cookies:
+        - domain: '${var.domain}'
+          authelia_url: 'https://${local.auth_fqdn}'
+    AUTHELIA_CONFIG
+  EOT
+  ]
+
+  volumes {
+    volume_name    = docker_volume.authelia_data.name
+    container_path = "/config"
+  }
 }
