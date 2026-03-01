@@ -1,0 +1,18 @@
+# Terraform state — contains sensitive outputs
+tf/terraform.tfstate
+tf/terraform.tfstate.backup
+tf/terraform.tfstate.*.backup
+tf/.terraform/
+tf/.terraform.lock.hcl
+
+# Secrets file
+tf/secrets.auto.tfvars
+
+# tf-monitors
+tf-monitors/terraform.tfstate
+tf-monitors/terraform.tfstate.backup
+tf-monitors/terraform.tfstate.*.backup
+tf-monitors/.terraform/
+tf-monitors/.terraform.lock.hcl
+tf-monitors/secrets.auto.tfvars
+
