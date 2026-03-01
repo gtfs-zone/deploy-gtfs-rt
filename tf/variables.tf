@@ -136,21 +136,6 @@ variable "nanomq_version" {
   default = "latest"
 }
 
-variable "cadvisor_version" {
-  type    = string
-  default = "latest"
-}
-
-variable "node_exporter_version" {
-  type    = string
-  default = "latest"
-}
-
-variable "prometheus_version" {
-  type    = string
-  default = "latest"
-}
-
 variable "uptime_kuma_version" {
   type    = string
   default = "latest"

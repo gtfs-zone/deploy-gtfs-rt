@@ -22,38 +22,7 @@ resource "uptimekuma_monitor_http" "api_external" {
   active                = true
 }
 
-resource "uptimekuma_monitor_http" "grafana_external" {
-  name                  = "Grafana"
-  url                   = "https://grafana.${var.domain}"
-  interval              = 60
-  max_retries           = 3
-  max_redirects         = 10
-  accepted_status_codes = ["200"]
-  notification_ids      = local.notification_ids
-  active                = true
-}
-
 # ─── Internal HTTP monitors ───────────────────────────────────────────────────
-
-resource "uptimekuma_monitor_http" "prometheus_internal" {
-  name                  = "Prometheus (internal)"
-  url                   = "http://prometheus:9090/-/healthy"
-  interval              = 60
-  max_retries           = 3
-  accepted_status_codes = ["200"]
-  notification_ids      = local.notification_ids
-  active                = true
-}
-
-resource "uptimekuma_monitor_http" "grafana_internal" {
-  name                  = "Grafana (internal)"
-  url                   = "http://grafana:3000/api/health"
-  interval              = 60
-  max_retries           = 3
-  accepted_status_codes = ["200"]
-  notification_ids      = local.notification_ids
-  active                = true
-}
 
 resource "uptimekuma_monitor_http" "fastapi_internal" {
   name                  = "FastAPI (internal)"
@@ -65,9 +34,9 @@ resource "uptimekuma_monitor_http" "fastapi_internal" {
   active                = true
 }
 
-resource "uptimekuma_monitor_http" "authelia_internal" {
-  name                  = "Authelia (internal)"
-  url                   = "http://authelia:9091/api/health"
+resource "uptimekuma_monitor_http" "oauth2_proxy_internal" {
+  name                  = "oauth2-proxy (internal)"
+  url                   = "http://oauth2-proxy:4180/ping"
   interval              = 60
   max_retries           = 3
   accepted_status_codes = ["200"]
@@ -181,10 +150,10 @@ resource "uptimekuma_monitor_docker" "nanomq" {
 }
 
 # Auth
-resource "uptimekuma_monitor_docker" "authelia" {
-  name             = "authelia"
+resource "uptimekuma_monitor_docker" "oauth2_proxy" {
+  name             = "oauth2-proxy"
   docker_host_id   = uptimekuma_docker_host.local.id
-  docker_container = "${local.p}authelia"
+  docker_container = "${local.p}oauth2-proxy"
   interval         = 60
   max_retries      = 3
   notification_ids = local.notification_ids
@@ -216,47 +185,6 @@ resource "uptimekuma_monitor_docker" "bridge" {
   name             = "bridge"
   docker_host_id   = uptimekuma_docker_host.local.id
   docker_container = "${local.p}bridge"
-  interval         = 60
-  max_retries      = 3
-  notification_ids = local.notification_ids
-  active           = true
-}
-
-# Monitoring stack
-resource "uptimekuma_monitor_docker" "prometheus" {
-  name             = "prometheus"
-  docker_host_id   = uptimekuma_docker_host.local.id
-  docker_container = "${local.p}prometheus"
-  interval         = 60
-  max_retries      = 3
-  notification_ids = local.notification_ids
-  active           = true
-}
-
-resource "uptimekuma_monitor_docker" "grafana" {
-  name             = "grafana"
-  docker_host_id   = uptimekuma_docker_host.local.id
-  docker_container = "${local.p}grafana"
-  interval         = 60
-  max_retries      = 3
-  notification_ids = local.notification_ids
-  active           = true
-}
-
-resource "uptimekuma_monitor_docker" "node_exporter" {
-  name             = "node-exporter"
-  docker_host_id   = uptimekuma_docker_host.local.id
-  docker_container = "${local.p}node-exporter"
-  interval         = 60
-  max_retries      = 3
-  notification_ids = local.notification_ids
-  active           = true
-}
-
-resource "uptimekuma_monitor_docker" "cadvisor" {
-  name             = "cadvisor"
-  docker_host_id   = uptimekuma_docker_host.local.id
-  docker_container = "${local.p}cadvisor"
   interval         = 60
   max_retries      = 3
   notification_ids = local.notification_ids

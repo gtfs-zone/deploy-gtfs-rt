@@ -27,15 +27,6 @@ resource "docker_volume" "traefik_letsencrypt" {
   }
 }
 
-resource "docker_volume" "prometheus_data" {
-  name = "${local.prefix}prometheus_data"
-
-  lifecycle {
-    prevent_destroy = true
-    ignore_changes  = [labels]
-  }
-}
-
 resource "docker_volume" "uptime_kuma_data" {
   name = "${local.prefix}uptime_kuma_data"
 
