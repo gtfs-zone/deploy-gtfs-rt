@@ -5,11 +5,6 @@ resource "random_password" "postgres_admin" {
   special = false
 }
 
-resource "random_password" "postgres_authelia" {
-  length  = 32
-  special = false
-}
-
 resource "random_password" "postgres_dex" {
   length  = 32
   special = false
@@ -20,22 +15,12 @@ resource "random_password" "postgres_fastapi" {
   special = false
 }
 
-resource "random_password" "authelia_jwt_secret" {
-  length  = 64
+resource "random_password" "dex_oauth2_proxy_secret" {
+  length  = 32
   special = false
 }
 
-resource "random_password" "authelia_storage_key" {
-  length  = 64
-  special = false
-}
-
-resource "random_password" "authelia_session_secret" {
-  length  = 64
-  special = false
-}
-
-resource "random_password" "dex_authelia_secret" {
+resource "random_password" "oauth2_proxy_cookie_secret" {
   length  = 32
   special = false
 }

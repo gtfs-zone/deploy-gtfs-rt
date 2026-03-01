@@ -48,7 +48,7 @@ resource "docker_container" "fastapi" {
 
   labels {
     label = "traefik.http.routers.${local.prefix}api.middlewares"
-    value = "${local.prefix}authelia@docker"
+    value = "${local.prefix}oauth2-proxy@docker"
   }
 
   labels {
@@ -59,6 +59,6 @@ resource "docker_container" "fastapi" {
   depends_on = [
     docker_container.redis,
     docker_container.postgres_init,
-    docker_container.authelia,
+    docker_container.oauth2_proxy,
   ]
 }

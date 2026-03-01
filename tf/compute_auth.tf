@@ -10,8 +10,10 @@ resource "docker_container" "dex" {
   env = [
     "DEX_ISSUER=https://${local.dex_fqdn}",
     "DEX_POSTGRES_PASSWORD=${random_password.postgres_dex.result}",
-    "DEX_AUTHELIA_REDIRECT_URI=https://${local.auth_fqdn}/api/oidc/callback",
-    "DEX_AUTHELIA_SECRET=${random_password.dex_authelia_secret.result}",
+    "DEX_GITHUB_CLIENT_ID=${var.github_client_id}",
+    "DEX_GITHUB_CLIENT_SECRET=${var.github_client_secret}",
+    "DEX_OAUTH2_PROXY_REDIRECT_URI=https://${local.auth_fqdn}/oauth2/callback",
+    "DEX_OAUTH2_PROXY_SECRET=${random_password.dex_oauth2_proxy_secret.result}",
   ]
 
   networks_advanced {
@@ -59,43 +61,40 @@ resource "docker_container" "dex" {
   ]
 }
 
-# ── Authelia ──────────────────────────────────────────────────────────────────
+# ── oauth2-proxy ──────────────────────────────────────────────────────────────
 
-resource "docker_container" "authelia" {
-  name    = "${local.prefix}authelia"
-  image   = "authelia/authelia:${var.authelia_version}"
+resource "docker_container" "oauth2_proxy" {
+  name    = "${local.prefix}oauth2-proxy"
+  image   = "quay.io/oauth2-proxy/oauth2-proxy:${var.oauth2_proxy_version}"
   restart = "always"
 
   env = [
-    "AUTHELIA_SERVER_ADDRESS=tcp://0.0.0.0:9091",
-    "AUTHELIA_SESSION_SECRET=${random_password.authelia_session_secret.result}",
-    "AUTHELIA_SESSION_REDIS_HOST=redis",
-    "AUTHELIA_SESSION_REDIS_PORT=6379",
-    "AUTHELIA_SESSION_REDIS_DATABASE_INDEX=0",
-    "AUTHELIA_STORAGE_POSTGRES_ADDRESS=tcp://postgres:5432",
-    "AUTHELIA_STORAGE_POSTGRES_DATABASE=authelia",
-    "AUTHELIA_STORAGE_POSTGRES_USERNAME=authelia",
-    "AUTHELIA_STORAGE_POSTGRES_PASSWORD=${random_password.postgres_authelia.result}",
-    "AUTHELIA_STORAGE_ENCRYPTION_KEY=${random_password.authelia_storage_key.result}",
-    "AUTHELIA_IDENTITY_VALIDATION_RESET_PASSWORD_JWT_SECRET=${random_password.authelia_jwt_secret.result}",
-    "AUTHELIA_AUTHENTICATION_BACKEND_FILE_PATH=/config/users_database.yml",
-    "AUTHELIA_ACCESS_CONTROL_DEFAULT_POLICY=one_factor",
-    "AUTHELIA_NOTIFIER_FILESYSTEM_FILENAME=/config/notification.txt",
+    "OAUTH2_PROXY_HTTP_ADDRESS=0.0.0.0:4180",
+    "OAUTH2_PROXY_PROVIDER=oidc",
+    "OAUTH2_PROXY_OIDC_ISSUER_URL=https://${local.dex_fqdn}",
+    "OAUTH2_PROXY_CLIENT_ID=oauth2-proxy",
+    "OAUTH2_PROXY_CLIENT_SECRET=${random_password.dex_oauth2_proxy_secret.result}",
+    "OAUTH2_PROXY_REDIRECT_URL=https://${local.auth_fqdn}/oauth2/callback",
+    "OAUTH2_PROXY_COOKIE_SECRET=${random_password.oauth2_proxy_cookie_secret.result}",
+    "OAUTH2_PROXY_COOKIE_DOMAINS=.${var.domain}",
+    "OAUTH2_PROXY_WHITELIST_DOMAINS=.${var.domain}",
+    "OAUTH2_PROXY_EMAIL_DOMAINS=*",
+    "OAUTH2_PROXY_SKIP_PROVIDER_BUTTON=true",
+    "OAUTH2_PROXY_UPSTREAM=static://202",
+    "OAUTH2_PROXY_SESSION_STORE_TYPE=redis",
+    "OAUTH2_PROXY_REDIS_CONNECTION_URL=redis://redis:6379/0",
+    "OAUTH2_PROXY_COOKIE_SECURE=true",
+    "OAUTH2_PROXY_REVERSE_PROXY=true",
   ]
-
-  volumes {
-    volume_name    = docker_volume.authelia_data.name
-    container_path = "/config"
-  }
 
   networks_advanced {
     name    = local.proxy_network_name
-    aliases = ["authelia"]
+    aliases = ["oauth2-proxy"]
   }
 
   networks_advanced {
     name    = docker_network.internal.name
-    aliases = ["authelia"]
+    aliases = ["oauth2-proxy"]
   }
 
   labels {
@@ -104,75 +103,48 @@ resource "docker_container" "authelia" {
   }
 
   labels {
-    label = "traefik.http.routers.${local.prefix}authelia.rule"
+    label = "traefik.http.routers.${local.prefix}oauth2-proxy.rule"
     value = "Host(`${local.auth_fqdn}`)"
   }
 
   labels {
-    label = "traefik.http.routers.${local.prefix}authelia.entrypoints"
+    label = "traefik.http.routers.${local.prefix}oauth2-proxy.entrypoints"
     value = "websecure"
   }
 
   labels {
-    label = "traefik.http.routers.${local.prefix}authelia.tls"
+    label = "traefik.http.routers.${local.prefix}oauth2-proxy.tls"
     value = "true"
   }
 
   labels {
-    label = "traefik.http.routers.${local.prefix}authelia.tls.certresolver"
+    label = "traefik.http.routers.${local.prefix}oauth2-proxy.tls.certresolver"
     value = var.traefik_cert_resolver
   }
 
   labels {
-    label = "traefik.http.services.${local.prefix}authelia.loadbalancer.server.port"
-    value = "9091"
+    label = "traefik.http.services.${local.prefix}oauth2-proxy.loadbalancer.server.port"
+    value = "4180"
   }
 
-  # ForwardAuth middleware — referenced by other containers as ${local.prefix}authelia@docker
+  # ForwardAuth middleware — referenced by other containers as ${local.prefix}oauth2-proxy@docker
   labels {
-    label = "traefik.http.middlewares.${local.prefix}authelia.forwardauth.address"
-    value = "http://authelia:9091/api/authz/forward-auth"
+    label = "traefik.http.middlewares.${local.prefix}oauth2-proxy.forwardauth.address"
+    value = "http://oauth2-proxy:4180"
   }
 
   labels {
-    label = "traefik.http.middlewares.${local.prefix}authelia.forwardauth.trustForwardHeader"
+    label = "traefik.http.middlewares.${local.prefix}oauth2-proxy.forwardauth.trustForwardHeader"
     value = "true"
   }
 
   labels {
-    label = "traefik.http.middlewares.${local.prefix}authelia.forwardauth.authResponseHeaders"
-    value = "Remote-User,Remote-Groups,Remote-Name,Remote-Email"
+    label = "traefik.http.middlewares.${local.prefix}oauth2-proxy.forwardauth.authResponseHeaders"
+    value = "X-Auth-Request-User,X-Auth-Request-Email,X-Auth-Request-Access-Token"
   }
 
   depends_on = [
     docker_container.redis,
-    docker_container.postgres_init,
-    docker_container.authelia_config_init,
+    docker_container.dex,
   ]
-}
-
-# ── Authelia config init ───────────────────────────────────────────────────────
-# Runs once to write configuration.yml into the named volume.
-# session.cookies cannot be set via environment variables in current Authelia.
-
-resource "docker_container" "authelia_config_init" {
-  name     = "${local.prefix}authelia-config-init"
-  image    = "alpine:latest"
-  restart  = "no"
-  must_run = false
-
-  entrypoint = ["/bin/sh", "-c", <<-EOT
-    cat > /config/configuration.yml <<'AUTHELIA_CONFIG'
-    session:
-      cookies:
-        - domain: '${var.domain}'
-          authelia_url: 'https://${local.auth_fqdn}'
-    AUTHELIA_CONFIG
-  EOT
-  ]
-
-  volumes {
-    volume_name    = docker_volume.authelia_data.name
-    container_path = "/config"
-  }
 }

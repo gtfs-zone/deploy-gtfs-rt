@@ -17,13 +17,18 @@ web:
 oauth2:
   skipApprovalScreen: true
 
-enablePasswordDB: true
-
-staticPasswords: []
+connectors:
+  - type: github
+    id: github
+    name: GitHub
+    config:
+      clientID: {{ getenv "DEX_GITHUB_CLIENT_ID" }}
+      clientSecret: {{ getenv "DEX_GITHUB_CLIENT_SECRET" }}
+      redirectURI: {{ getenv "DEX_ISSUER" }}/callback
 
 staticClients:
-  - id: authelia
+  - id: oauth2-proxy
     redirectURIs:
-      - '{{ getenv "DEX_AUTHELIA_REDIRECT_URI" }}'
-    name: Authelia
-    secret: {{ getenv "DEX_AUTHELIA_SECRET" }}
+      - '{{ getenv "DEX_OAUTH2_PROXY_REDIRECT_URI" }}'
+    name: oauth2-proxy
+    secret: {{ getenv "DEX_OAUTH2_PROXY_SECRET" }}
