@@ -26,6 +26,18 @@ variable "name_prefix" {
   default     = ""
 }
 
+# ── GitHub OAuth credentials ──────────────────────────────────────────────────
+
+variable "github_client_id" {
+  type      = string
+  sensitive = true
+}
+
+variable "github_client_secret" {
+  type      = string
+  sensitive = true
+}
+
 # ── DNS credentials ──────────────────────────────────────────────────────────
 
 variable "porkbun_api_key" {
@@ -99,7 +111,7 @@ variable "traefik_version" {
   default = "v3.6"
 }
 
-variable "authelia_version" {
+variable "oauth2_proxy_version" {
   type    = string
   default = "latest"
 }

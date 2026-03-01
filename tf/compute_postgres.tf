@@ -37,11 +37,7 @@ resource "docker_container" "postgres_init" {
     "/bin/sh", "-c",
     <<-EOT
       until pg_isready -h postgres -U postgres; do sleep 2; done
-      psql -h postgres -U postgres -tc "SELECT 1 FROM pg_roles WHERE rolname='authelia'" | grep -q 1 || \
-        psql -h postgres -U postgres -c "CREATE USER authelia WITH PASSWORD '${random_password.postgres_authelia.result}'"
-      psql -h postgres -U postgres -tc "SELECT 1 FROM pg_database WHERE datname='authelia'" | grep -q 1 || \
-        psql -h postgres -U postgres -c "CREATE DATABASE authelia OWNER authelia"
-      psql -h postgres -U postgres -tc "SELECT 1 FROM pg_roles WHERE rolname='dex'" | grep -q 1 || \
+psql -h postgres -U postgres -tc "SELECT 1 FROM pg_roles WHERE rolname='dex'" | grep -q 1 || \
         psql -h postgres -U postgres -c "CREATE USER dex WITH PASSWORD '${random_password.postgres_dex.result}'"
       psql -h postgres -U postgres -tc "SELECT 1 FROM pg_database WHERE datname='dex'" | grep -q 1 || \
         psql -h postgres -U postgres -c "CREATE DATABASE dex OWNER dex"
