@@ -30,18 +30,3 @@ resource "docker_image" "dex" {
   }
 }
 
-resource "docker_image" "prometheus" {
-  name         = "kcfam/prometheus:local"
-  keep_locally = true
-
-  build {
-    context = "${path.root}/../prometheus"
-    build_args = {
-      PROMETHEUS_VERSION = var.prometheus_version
-    }
-  }
-
-  triggers = {
-    dir_sha1 = sha1(join("", [for f in fileset("${path.root}/../prometheus", "**") : filesha1("${path.root}/../prometheus/${f}")]))
-  }
-}

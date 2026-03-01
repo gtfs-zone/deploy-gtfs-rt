@@ -49,7 +49,7 @@ resource "docker_container" "traefik" {
 }
 
 # ── Redis ─────────────────────────────────────────────────────────────────────
-# DB 0: Authelia sessions; DB 1: FastAPI; DB 2: bridge pub/sub
+# DB 0: oauth2-proxy sessions; DB 1: FastAPI; DB 2: bridge pub/sub
 
 resource "docker_container" "redis" {
   name    = "${local.prefix}redis"

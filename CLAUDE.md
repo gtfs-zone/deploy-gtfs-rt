@@ -23,7 +23,6 @@ terraform plan
 terraform apply
 
 # Retrieve generated passwords
-terraform output -raw grafana_admin_password
 terraform output -raw postgres_admin_password
 
 # Destroy everything (use with caution - volumes have prevent_destroy)
@@ -41,19 +40,35 @@ terraform destroy
 | Layer | Services |
 |-------|----------|
 | Reverse Proxy | Traefik v3.6 (Let's Encrypt via Porkbun DNS challenge) |
-| Auth | Dex (OIDC provider) + Authelia (forward auth middleware) |
+| Auth | Dex (OIDC provider) + oauth2-proxy (forward auth middleware) |
 | Databases | PostgreSQL (multi-tenant) + Redis (sessions/cache/pub-sub) |
 | Messaging | NanoMQ (MQTT broker, TCP:8883 + WebSocket:8083) |
 | Application | FastAPI (GTFS RT API) + OwnTrack Redis Bridge (MQTT→Redis) |
-| Monitoring | Prometheus + Grafana + node-exporter + cAdvisor + Uptime Kuma |
+| Monitoring | Uptime Kuma |
 
 ### Database Setup Pattern
-PostgreSQL uses a short-lived `postgres-init` container (runs once) to create per-service users and databases for authelia, dex, and fastapi.
+PostgreSQL uses a short-lived `postgres-init` container (runs once) to create per-service users and databases for dex and fastapi.
 
 ### Redis Database Allocation
-- DB 0: Authelia sessions
+- DB 0: oauth2-proxy sessions
 - DB 1: FastAPI caching
 - DB 2: Bridge pub/sub messages
+
+### Monitoring
+
+Uptime Kuma provides two Traefik routes:
+- **Authenticated dashboard** (`uptime.<domain>`) — protected by oauth2-proxy forward auth
+- **Public status page** (`status.<domain>`) — no auth, served by the same Uptime Kuma instance
+
+The `tf-monitors/` directory contains a separate Terraform root for configuring Uptime Kuma via its API (using the `terraform-provider-uptimekuma` provider). Run it after the main stack is up:
+
+```bash
+cd tf-monitors/
+terraform init
+terraform apply
+```
+
+It manages: HTTP monitors (external + internal), TCP port monitors, Docker container monitors, a Telegram notification channel, and the public status page layout.
 
 ## Terraform File Organization
 
@@ -65,10 +80,10 @@ PostgreSQL uses a short-lived `postgres-init` container (runs once) to create pe
 - `dns.tf` - Porkbun DNS records (root A record + CNAME subdomains)
 - `compute_infra.tf` - Traefik, Redis, NanoMQ
 - `compute_postgres.tf` - PostgreSQL + init container
-- `compute_auth.tf` - Dex + Authelia
+- `compute_auth.tf` - Dex + oauth2-proxy
 - `compute_api.tf` - FastAPI
 - `compute_bridge.tf` - OwnTrack Redis bridge
-- `compute_monitoring.tf` - Prometheus, Grafana, node-exporter, cAdvisor, Uptime Kuma
+- `compute_monitoring.tf` - Uptime Kuma (two Traefik routes: authenticated dashboard + public status page)
 - `providers.tf` / `terraform.tf` - Provider config and version requirements
 - `backend.tf` - Local state backend
 - `outputs.tf` - Sensitive password outputs
@@ -97,6 +112,6 @@ Copy `tf/secrets.auto.tfvars.example` to `tf/secrets.auto.tfvars` and populate:
 
 - All passwords are Terraform-managed (`random_password` resources) - never hardcoded
 - Data volumes use `prevent_destroy = true` to protect against accidental data loss
-- Authelia forward auth protects most services; status page is intentionally public
+- oauth2-proxy forward auth protects most services; status page is intentionally public
 - External Traefik mode allows integration with a shared reverse proxy across multiple stacks
 - Private images (`fastapi`, `bridge`) pulled from `git.kcfam.us`

@@ -19,8 +19,7 @@ resource "uptimekuma_status_page" "main" {
       weight = 1
 
       monitor_list = [
-        { id = uptimekuma_monitor_http.api_external.id,     send_url = true },
-        { id = uptimekuma_monitor_http.grafana_external.id, send_url = true },
+        { id = uptimekuma_monitor_http.api_external.id, send_url = true },
       ]
     },
 
@@ -43,8 +42,8 @@ resource "uptimekuma_status_page" "main" {
       weight = 3
 
       monitor_list = [
-        { id = uptimekuma_monitor_http.authelia_internal.id },
-        { id = uptimekuma_monitor_docker.authelia.id },
+        { id = uptimekuma_monitor_http.oauth2_proxy_internal.id },
+        { id = uptimekuma_monitor_docker.oauth2_proxy.id },
         { id = uptimekuma_monitor_docker.dex.id },
       ]
     },
@@ -79,12 +78,6 @@ resource "uptimekuma_status_page" "main" {
       weight = 6
 
       monitor_list = [
-        { id = uptimekuma_monitor_http.prometheus_internal.id },
-        { id = uptimekuma_monitor_http.grafana_internal.id },
-        { id = uptimekuma_monitor_docker.prometheus.id },
-        { id = uptimekuma_monitor_docker.grafana.id },
-        { id = uptimekuma_monitor_docker.node_exporter.id },
-        { id = uptimekuma_monitor_docker.cadvisor.id },
         { id = uptimekuma_monitor_docker.uptime_kuma.id },
       ]
     },
