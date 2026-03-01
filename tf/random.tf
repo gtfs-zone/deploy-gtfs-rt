@@ -44,8 +44,3 @@ resource "random_password" "fastapi_session_secret" {
   length  = 64
   special = false
 }
-
-resource "random_password" "grafana_admin" {
-  length  = 32
-  special = false
-}

@@ -1,9 +1,3 @@
-output "grafana_admin_password" {
-  description = "Generated Grafana admin password"
-  value       = random_password.grafana_admin.result
-  sensitive   = true
-}
-
 output "postgres_admin_password" {
   description = "Generated Postgres superuser password"
   value       = random_password.postgres_admin.result
