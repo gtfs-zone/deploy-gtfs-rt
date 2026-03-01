@@ -1,0 +1,29 @@
+issuer: {{ getenv "DEX_ISSUER" }}
+
+storage:
+  type: postgres
+  config:
+    host: postgres
+    port: 5432
+    database: dex
+    user: dex
+    password: {{ getenv "DEX_POSTGRES_PASSWORD" }}
+    ssl:
+      mode: disable
+
+web:
+  http: 0.0.0.0:5556
+
+oauth2:
+  skipApprovalScreen: true
+
+enablePasswordDB: true
+
+staticPasswords: []
+
+staticClients:
+  - id: authelia
+    redirectURIs:
+      - '{{ getenv "DEX_AUTHELIA_REDIRECT_URI" }}'
+    name: Authelia
+    secret: {{ getenv "DEX_AUTHELIA_SECRET" }}
