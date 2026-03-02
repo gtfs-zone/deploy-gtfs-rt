@@ -7,7 +7,7 @@ resource "docker_container" "bridge" {
 
   env = [
     "MQTT_BROKER=tcp://nanomq:1883",
-    "REDIS_URL=redis://redis:6379/2",
+    "REDIS_URL=redis://redis:6379/1",
   ]
 
   networks_advanced {
