@@ -51,8 +51,7 @@ PostgreSQL uses a short-lived `postgres-init` container (runs once) to create pe
 
 ### Redis Database Allocation
 - DB 0: oauth2-proxy sessions
-- DB 1: FastAPI caching
-- DB 2: Bridge pub/sub messages
+- DB 1: FastAPI + Bridge (shared vehicle position data)
 
 ### Monitoring
 
