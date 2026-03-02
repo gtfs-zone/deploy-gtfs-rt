@@ -30,3 +30,19 @@ resource "docker_image" "dex" {
   }
 }
 
+resource "docker_image" "nanomq" {
+  name         = "kcfam/nanomq:local"
+  keep_locally = true
+
+  build {
+    context = "${path.root}/../nanomq"
+    build_args = {
+      NANOMQ_VERSION = var.nanomq_version
+    }
+  }
+
+  triggers = {
+    dir_sha1 = sha1(join("", [for f in fileset("${path.root}/../nanomq", "**") : filesha1("${path.root}/../nanomq/${f}")]))
+  }
+}
+

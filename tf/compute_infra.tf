@@ -71,7 +71,7 @@ resource "docker_container" "redis" {
 
 resource "docker_container" "nanomq" {
   name    = "${local.prefix}nanomq"
-  image   = "emqx/nanomq:${var.nanomq_version}"
+  image   = docker_image.nanomq.image_id
   restart = "always"
 
   networks_advanced {
