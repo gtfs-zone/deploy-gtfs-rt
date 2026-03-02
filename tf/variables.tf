@@ -81,7 +81,12 @@ variable "dex_subdomain" {
 
 variable "api_subdomain" {
   type    = string
-  default = "api"
+  default = "rt"
+}
+
+variable "api_admin_subdomain" {
+  type    = string
+  default = "manage.rt"
 }
 
 variable "uptime_subdomain" {

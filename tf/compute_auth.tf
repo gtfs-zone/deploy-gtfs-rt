@@ -72,19 +72,24 @@ resource "docker_container" "oauth2_proxy" {
     "OAUTH2_PROXY_HTTP_ADDRESS=0.0.0.0:4180",
     "OAUTH2_PROXY_PROVIDER=oidc",
     "OAUTH2_PROXY_OIDC_ISSUER_URL=https://${local.dex_fqdn}",
+    "OAUTH2_PROXY_SKIP_OIDC_DISCOVERY=true",
+    "OAUTH2_PROXY_LOGIN_URL=https://${local.dex_fqdn}/auth",
+    "OAUTH2_PROXY_REDEEM_URL=http://dex:5556/token",
+    "OAUTH2_PROXY_OIDC_JWKS_URL=http://dex:5556/keys",
     "OAUTH2_PROXY_CLIENT_ID=oauth2-proxy",
     "OAUTH2_PROXY_CLIENT_SECRET=${random_password.dex_oauth2_proxy_secret.result}",
     "OAUTH2_PROXY_REDIRECT_URL=https://${local.auth_fqdn}/oauth2/callback",
-    "OAUTH2_PROXY_COOKIE_SECRET=${random_password.oauth2_proxy_cookie_secret.result}",
+    "OAUTH2_PROXY_COOKIE_SECRET=${base64encode(random_password.oauth2_proxy_cookie_secret.result)}",
     "OAUTH2_PROXY_COOKIE_DOMAINS=.${var.domain}",
     "OAUTH2_PROXY_WHITELIST_DOMAINS=.${var.domain}",
     "OAUTH2_PROXY_EMAIL_DOMAINS=*",
     "OAUTH2_PROXY_SKIP_PROVIDER_BUTTON=true",
-    "OAUTH2_PROXY_UPSTREAM=static://202",
     "OAUTH2_PROXY_SESSION_STORE_TYPE=redis",
     "OAUTH2_PROXY_REDIS_CONNECTION_URL=redis://redis:6379/0",
     "OAUTH2_PROXY_COOKIE_SECURE=true",
     "OAUTH2_PROXY_REVERSE_PROXY=true",
+    "OAUTH2_PROXY_USER_ID_CLAIM=sub",
+    "OAUTH2_PROXY_DEFAULT_REDIRECT_URL=https://${local.api_admin_fqdn}",
   ]
 
   networks_advanced {
@@ -130,7 +135,7 @@ resource "docker_container" "oauth2_proxy" {
   # ForwardAuth middleware — referenced by other containers as ${local.prefix}oauth2-proxy@docker
   labels {
     label = "traefik.http.middlewares.${local.prefix}oauth2-proxy.forwardauth.address"
-    value = "http://oauth2-proxy:4180"
+    value = "http://oauth2-proxy:4180/oauth2/auth"
   }
 
   labels {
@@ -141,6 +146,27 @@ resource "docker_container" "oauth2_proxy" {
   labels {
     label = "traefik.http.middlewares.${local.prefix}oauth2-proxy.forwardauth.authResponseHeaders"
     value = "X-Auth-Request-User,X-Auth-Request-Email,X-Auth-Request-Access-Token"
+  }
+
+  labels {
+    label = "traefik.http.middlewares.${local.prefix}oauth2-proxy.forwardauth.maxResponseBodySize"
+    value = "1048576"
+  }
+
+  # Errors middleware — intercepts 401/403 and redirects to sign-in
+  labels {
+    label = "traefik.http.middlewares.${local.prefix}oauth2-errors.errors.status"
+    value = "401-403"
+  }
+
+  labels {
+    label = "traefik.http.middlewares.${local.prefix}oauth2-errors.errors.service"
+    value = "${local.prefix}oauth2-proxy@docker"
+  }
+
+  labels {
+    label = "traefik.http.middlewares.${local.prefix}oauth2-errors.errors.query"
+    value = "/oauth2/start?rd={url}"
   }
 
   depends_on = [

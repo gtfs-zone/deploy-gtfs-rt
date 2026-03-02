@@ -26,7 +26,7 @@ resource "uptimekuma_monitor_http" "api_external" {
 
 resource "uptimekuma_monitor_http" "fastapi_internal" {
   name                  = "FastAPI (internal)"
-  url                   = "http://fastapi:8000/health"
+  url                   = "http://gtfs-api:8000/health"
   interval              = 60
   max_retries           = 3
   accepted_status_codes = ["200"]
@@ -174,7 +174,7 @@ resource "uptimekuma_monitor_docker" "dex" {
 resource "uptimekuma_monitor_docker" "fastapi" {
   name             = "fastapi"
   docker_host_id   = uptimekuma_docker_host.local.id
-  docker_container = "${local.p}fastapi"
+  docker_container = "${local.p}gtfs-api"
   interval         = 60
   max_retries      = 3
   notification_ids = local.notification_ids
@@ -184,7 +184,7 @@ resource "uptimekuma_monitor_docker" "fastapi" {
 resource "uptimekuma_monitor_docker" "bridge" {
   name             = "bridge"
   docker_host_id   = uptimekuma_docker_host.local.id
-  docker_container = "${local.p}bridge"
+  docker_container = "${local.p}owntrack-redis-bridge"
   interval         = 60
   max_retries      = 3
   notification_ids = local.notification_ids
