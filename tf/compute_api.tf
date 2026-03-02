@@ -9,6 +9,26 @@ locals {
   ]
 }
 
+# ── Init container — runs Alembic migrations then exits ───────────────────────
+# Runs once (restart=no). Re-running is safe: alembic tracks applied versions.
+
+resource "docker_container" "fastapi_migrate" {
+  name     = "${local.prefix}gtfs-migrate"
+  image    = local.fastapi_image
+  restart  = "no"
+  must_run = false
+
+  command = ["alembic", "upgrade", "head"]
+
+  env = local.fastapi_env
+
+  networks_advanced {
+    name = docker_network.internal.name
+  }
+
+  depends_on = [docker_container.postgres_init]
+}
+
 resource "docker_container" "fastapi_public" {
   name    = "${local.prefix}gtfs-api"
   image   = local.fastapi_image
@@ -64,7 +84,7 @@ resource "docker_container" "fastapi_public" {
 
   depends_on = [
     docker_container.redis,
-    docker_container.postgres_init,
+    docker_container.fastapi_migrate,
   ]
 }
 
@@ -128,7 +148,7 @@ resource "docker_container" "fastapi_admin" {
 
   depends_on = [
     docker_container.redis,
-    docker_container.postgres_init,
+    docker_container.fastapi_migrate,
     docker_container.oauth2_proxy,
   ]
 }

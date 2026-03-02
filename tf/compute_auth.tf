@@ -88,6 +88,7 @@ resource "docker_container" "oauth2_proxy" {
     "OAUTH2_PROXY_REDIS_CONNECTION_URL=redis://redis:6379/0",
     "OAUTH2_PROXY_COOKIE_SECURE=true",
     "OAUTH2_PROXY_REVERSE_PROXY=true",
+    "OAUTH2_PROXY_SET_XAUTHREQUEST=true",
     "OAUTH2_PROXY_USER_ID_CLAIM=sub",
     "OAUTH2_PROXY_DEFAULT_REDIRECT_URL=https://${local.api_admin_fqdn}",
   ]
