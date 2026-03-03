@@ -6,6 +6,7 @@ locals {
     "REDIS_URL=redis://redis:6379/1",
     "DATABASE_URL=postgresql://fastapi:${random_password.postgres_fastapi.result}@postgres:5432/fastapi",
     "SESSION_SECRET_KEY=${random_password.fastapi_session_secret.result}",
+    "OAUTH2_PROXY_LOGOUT_URL=https://${local.auth_fqdn}/oauth2/sign_out",
   ]
 }
 
