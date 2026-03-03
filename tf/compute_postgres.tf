@@ -41,10 +41,10 @@ psql -h postgres -U postgres -tc "SELECT 1 FROM pg_roles WHERE rolname='dex'" | 
         psql -h postgres -U postgres -c "CREATE USER dex WITH PASSWORD '${random_password.postgres_dex.result}'"
       psql -h postgres -U postgres -tc "SELECT 1 FROM pg_database WHERE datname='dex'" | grep -q 1 || \
         psql -h postgres -U postgres -c "CREATE DATABASE dex OWNER dex"
-      psql -h postgres -U postgres -tc "SELECT 1 FROM pg_roles WHERE rolname='fastapi'" | grep -q 1 || \
-        psql -h postgres -U postgres -c "CREATE USER fastapi WITH PASSWORD '${random_password.postgres_fastapi.result}'"
-      psql -h postgres -U postgres -tc "SELECT 1 FROM pg_database WHERE datname='fastapi'" | grep -q 1 || \
-        psql -h postgres -U postgres -c "CREATE DATABASE fastapi OWNER fastapi"
+      psql -h postgres -U postgres -tc "SELECT 1 FROM pg_roles WHERE rolname='rt_api'" | grep -q 1 || \
+        psql -h postgres -U postgres -c "CREATE USER rt_api WITH PASSWORD '${random_password.postgres_rt_api.result}'"
+      psql -h postgres -U postgres -tc "SELECT 1 FROM pg_database WHERE datname='rt_api'" | grep -q 1 || \
+        psql -h postgres -U postgres -c "CREATE DATABASE rt_api OWNER rt_api"
     EOT
   ]
 

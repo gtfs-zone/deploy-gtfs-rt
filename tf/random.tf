@@ -10,7 +10,7 @@ resource "random_password" "postgres_dex" {
   special = false
 }
 
-resource "random_password" "postgres_fastapi" {
+resource "random_password" "postgres_rt_api" {
   length  = 32
   special = false
 }
@@ -25,7 +25,7 @@ resource "random_password" "oauth2_proxy_cookie_secret" {
   special = false
 }
 
-resource "random_password" "fastapi_session_secret" {
+resource "random_password" "rt_api_session_secret" {
   length  = 64
   special = false
 }

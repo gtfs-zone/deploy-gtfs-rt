@@ -54,10 +54,10 @@ resource "uptimekuma_status_page" "main" {
       weight = 4
 
       monitor_list = [
-        { id = uptimekuma_monitor_http.fastapi_internal.id },
-        { id = uptimekuma_monitor_docker.fastapi.id },
-        { id = uptimekuma_monitor_http.fastapi_admin_internal.id },
-        { id = uptimekuma_monitor_docker.fastapi_admin.id },
+        { id = uptimekuma_monitor_http.rt_api_internal.id },
+        { id = uptimekuma_monitor_docker.rt_api.id },
+        { id = uptimekuma_monitor_http.rt_api_admin_internal.id },
+        { id = uptimekuma_monitor_docker.rt_api_admin.id },
         { id = uptimekuma_monitor_docker.bridge.id },
       ]
     },

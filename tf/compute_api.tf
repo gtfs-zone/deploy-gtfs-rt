@@ -1,11 +1,11 @@
-# ── FastAPI backend (redis-gtfs-rt-api) ───────────────────────────────────────
+# ── rt-api backend (redis-gtfs-rt-api) ────────────────────────────────────────
 
 locals {
-  fastapi_image = "${local.registry}/gtfs.zone/redis-gtfs-rt-api:${var.redis_gtfs_rt_api_tag}"
-  fastapi_env = [
+  rt_api_image = "${local.registry}/gtfs.zone/redis-gtfs-rt-api:${var.redis_gtfs_rt_api_tag}"
+  rt_api_env = [
     "REDIS_URL=redis://redis:6379/1",
-    "DATABASE_URL=postgresql://fastapi:${random_password.postgres_fastapi.result}@postgres:5432/fastapi",
-    "SESSION_SECRET_KEY=${random_password.fastapi_session_secret.result}",
+    "DATABASE_URL=postgresql://rt_api:${random_password.postgres_rt_api.result}@postgres:5432/rt_api",
+    "SESSION_SECRET_KEY=${random_password.rt_api_session_secret.result}",
     "OAUTH2_PROXY_LOGOUT_URL=https://${local.auth_fqdn}/oauth2/sign_out?rd=https://${local.api_admin_fqdn}",
   ]
 }
@@ -13,15 +13,15 @@ locals {
 # ── Init container — runs Alembic migrations then exits ───────────────────────
 # Runs once (restart=no). Re-running is safe: alembic tracks applied versions.
 
-resource "docker_container" "fastapi_migrate" {
+resource "docker_container" "rt_api_migrate" {
   name     = "${local.prefix}gtfs-migrate"
-  image    = local.fastapi_image
+  image    = local.rt_api_image
   restart  = "no"
   must_run = false
 
   command = ["alembic", "upgrade", "head"]
 
-  env = local.fastapi_env
+  env = local.rt_api_env
 
   networks_advanced {
     name = docker_network.internal.name
@@ -30,13 +30,13 @@ resource "docker_container" "fastapi_migrate" {
   depends_on = [docker_container.postgres_init]
 }
 
-resource "docker_container" "fastapi_public" {
+resource "docker_container" "rt_api_public" {
   name    = "${local.prefix}gtfs-api"
-  image   = local.fastapi_image
+  image   = local.rt_api_image
   restart = "always"
   command = ["fastapi", "run", "src/app/main.py", "--port", "8000"]
 
-  env = local.fastapi_env
+  env = local.rt_api_env
 
   networks_advanced {
     name    = local.proxy_network_name
@@ -85,17 +85,17 @@ resource "docker_container" "fastapi_public" {
 
   depends_on = [
     docker_container.redis,
-    docker_container.fastapi_migrate,
+    docker_container.rt_api_migrate,
   ]
 }
 
-resource "docker_container" "fastapi_admin" {
+resource "docker_container" "rt_api_admin" {
   name    = "${local.prefix}gtfs-manager"
-  image   = local.fastapi_image
+  image   = local.rt_api_image
   restart = "always"
   command = ["fastapi", "run", "src/app/admin_main.py", "--port", "8001", "--proxy-headers", "--forwarded-allow-ips=*"]
 
-  env = local.fastapi_env
+  env = local.rt_api_env
 
   networks_advanced {
     name    = local.proxy_network_name
@@ -149,7 +149,7 @@ resource "docker_container" "fastapi_admin" {
 
   depends_on = [
     docker_container.redis,
-    docker_container.fastapi_migrate,
+    docker_container.rt_api_migrate,
     docker_container.oauth2_proxy,
   ]
 }

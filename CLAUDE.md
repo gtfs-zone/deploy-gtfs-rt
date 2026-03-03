@@ -43,15 +43,15 @@ terraform destroy
 | Auth | Dex (OIDC provider) + oauth2-proxy (forward auth middleware) |
 | Databases | PostgreSQL (multi-tenant) + Redis (sessions/cache/pub-sub) |
 | Messaging | NanoMQ (MQTT broker, TCP:8883 + WebSocket:8083) |
-| Application | FastAPI (GTFS RT API) + OwnTrack Redis Bridge (MQTT→Redis) |
+| Application | rt-api (GTFS RT API, built with FastAPI) + OwnTrack Redis Bridge (MQTT→Redis) |
 | Monitoring | Uptime Kuma |
 
 ### Database Setup Pattern
-PostgreSQL uses a short-lived `postgres-init` container (runs once) to create per-service users and databases for dex and fastapi.
+PostgreSQL uses a short-lived `postgres-init` container (runs once) to create per-service users and databases for dex and rt-api.
 
 ### Redis Database Allocation
 - DB 0: oauth2-proxy sessions
-- DB 1: FastAPI + Bridge (shared vehicle position data)
+- DB 1: rt-api + Bridge (shared vehicle position data)
 
 ### Monitoring
 
@@ -80,7 +80,7 @@ It manages: HTTP monitors (external + internal), TCP port monitors, Docker conta
 - `compute_infra.tf` - Traefik, Redis, NanoMQ
 - `compute_postgres.tf` - PostgreSQL + init container
 - `compute_auth.tf` - Dex + oauth2-proxy
-- `compute_api.tf` - FastAPI
+- `compute_api.tf` - rt-api
 - `compute_bridge.tf` - OwnTrack Redis bridge
 - `compute_monitoring.tf` - Uptime Kuma (two Traefik routes: authenticated dashboard + public status page)
 - `providers.tf` / `terraform.tf` - Provider config and version requirements
@@ -113,4 +113,4 @@ Copy `tf/secrets.auto.tfvars.example` to `tf/secrets.auto.tfvars` and populate:
 - Data volumes use `prevent_destroy = true` to protect against accidental data loss
 - oauth2-proxy forward auth protects most services; status page is intentionally public
 - External Traefik mode allows integration with a shared reverse proxy across multiple stacks
-- Private images (`fastapi`, `bridge`) pulled from `git.kcfam.us`
+- Private images (`rt-api`, `bridge`) pulled from `git.kcfam.us`

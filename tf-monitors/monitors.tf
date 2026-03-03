@@ -24,7 +24,7 @@ resource "uptimekuma_monitor_http" "api_external" {
 
 # ─── Internal HTTP monitors ───────────────────────────────────────────────────
 
-resource "uptimekuma_monitor_http" "fastapi_internal" {
+resource "uptimekuma_monitor_http" "rt_api_internal" {
   name                  = "http://gtfs-api:8000/health"
   url                   = "http://gtfs-api:8000/health"
   interval              = 60
@@ -34,7 +34,7 @@ resource "uptimekuma_monitor_http" "fastapi_internal" {
   active                = true
 }
 
-resource "uptimekuma_monitor_http" "fastapi_admin_internal" {
+resource "uptimekuma_monitor_http" "rt_api_admin_internal" {
   name                  = "http://gtfs-manager:8001/openapi.json"
   url                   = "http://gtfs-manager:8001/openapi.json"
   interval              = 60
@@ -181,7 +181,7 @@ resource "uptimekuma_monitor_docker" "dex" {
 }
 
 # Application
-resource "uptimekuma_monitor_docker" "fastapi" {
+resource "uptimekuma_monitor_docker" "rt_api" {
   name             = "${local.p}gtfs-api"
   docker_host_id   = uptimekuma_docker_host.local.id
   docker_container = "${local.p}gtfs-api"
@@ -191,7 +191,7 @@ resource "uptimekuma_monitor_docker" "fastapi" {
   active           = true
 }
 
-resource "uptimekuma_monitor_docker" "fastapi_admin" {
+resource "uptimekuma_monitor_docker" "rt_api_admin" {
   name             = "${local.p}gtfs-manager"
   docker_host_id   = uptimekuma_docker_host.local.id
   docker_container = "${local.p}gtfs-manager"
