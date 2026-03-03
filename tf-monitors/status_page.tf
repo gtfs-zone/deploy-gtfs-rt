@@ -56,6 +56,8 @@ resource "uptimekuma_status_page" "main" {
       monitor_list = [
         { id = uptimekuma_monitor_http.fastapi_internal.id },
         { id = uptimekuma_monitor_docker.fastapi.id },
+        { id = uptimekuma_monitor_http.fastapi_admin_internal.id },
+        { id = uptimekuma_monitor_docker.fastapi_admin.id },
         { id = uptimekuma_monitor_docker.bridge.id },
       ]
     },

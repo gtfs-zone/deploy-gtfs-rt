@@ -15,6 +15,12 @@ variable "name_prefix" {
   default     = ""
 }
 
+variable "api_subdomain" {
+  type        = string
+  description = "Subdomain for the public RT API — must match the main tf/ stack"
+  default     = "rt"
+}
+
 variable "uptime_kuma_username" {
   type        = string
   description = "Uptime Kuma admin username"

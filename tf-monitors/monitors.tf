@@ -12,8 +12,8 @@ locals {
 # ─── External HTTP monitors ───────────────────────────────────────────────────
 
 resource "uptimekuma_monitor_http" "api_external" {
-  name                  = "GTFS-RT API"
-  url                   = "https://api.${var.domain}"
+  name                  = "https://${var.api_subdomain}.${var.domain}/health"
+  url                   = "https://${var.api_subdomain}.${var.domain}/health"
   interval              = 60
   max_retries           = 3
   max_redirects         = 10
@@ -25,7 +25,7 @@ resource "uptimekuma_monitor_http" "api_external" {
 # ─── Internal HTTP monitors ───────────────────────────────────────────────────
 
 resource "uptimekuma_monitor_http" "fastapi_internal" {
-  name                  = "FastAPI (internal)"
+  name                  = "http://gtfs-api:8000/health"
   url                   = "http://gtfs-api:8000/health"
   interval              = 60
   max_retries           = 3
@@ -34,8 +34,18 @@ resource "uptimekuma_monitor_http" "fastapi_internal" {
   active                = true
 }
 
+resource "uptimekuma_monitor_http" "fastapi_admin_internal" {
+  name                  = "http://gtfs-manager:8001/openapi.json"
+  url                   = "http://gtfs-manager:8001/openapi.json"
+  interval              = 60
+  max_retries           = 3
+  accepted_status_codes = ["200"]
+  notification_ids      = local.notification_ids
+  active                = true
+}
+
 resource "uptimekuma_monitor_http" "oauth2_proxy_internal" {
-  name                  = "oauth2-proxy (internal)"
+  name                  = "http://oauth2-proxy:4180/ping"
   url                   = "http://oauth2-proxy:4180/ping"
   interval              = 60
   max_retries           = 3
@@ -47,7 +57,7 @@ resource "uptimekuma_monitor_http" "oauth2_proxy_internal" {
 # ─── TCP port monitors ────────────────────────────────────────────────────────
 
 resource "uptimekuma_monitor_tcp_port" "traefik_http" {
-  name             = "Traefik HTTP"
+  name             = "traefik:80"
   hostname         = "traefik"
   port             = 80
   interval         = 30
@@ -57,7 +67,7 @@ resource "uptimekuma_monitor_tcp_port" "traefik_http" {
 }
 
 resource "uptimekuma_monitor_tcp_port" "traefik_https" {
-  name             = "Traefik HTTPS"
+  name             = "traefik:443"
   hostname         = "traefik"
   port             = 443
   interval         = 30
@@ -67,7 +77,7 @@ resource "uptimekuma_monitor_tcp_port" "traefik_https" {
 }
 
 resource "uptimekuma_monitor_tcp_port" "postgres" {
-  name             = "PostgreSQL"
+  name             = "postgres:5432"
   hostname         = "postgres"
   port             = 5432
   interval         = 30
@@ -77,7 +87,7 @@ resource "uptimekuma_monitor_tcp_port" "postgres" {
 }
 
 resource "uptimekuma_monitor_tcp_port" "redis" {
-  name             = "Redis"
+  name             = "redis:6379"
   hostname         = "redis"
   port             = 6379
   interval         = 30
@@ -87,7 +97,7 @@ resource "uptimekuma_monitor_tcp_port" "redis" {
 }
 
 resource "uptimekuma_monitor_tcp_port" "nanomq_mqtt" {
-  name             = "NanoMQ MQTT (1883)"
+  name             = "nanomq:1883"
   hostname         = "nanomq"
   port             = 1883
   interval         = 30
@@ -97,7 +107,7 @@ resource "uptimekuma_monitor_tcp_port" "nanomq_mqtt" {
 }
 
 resource "uptimekuma_monitor_tcp_port" "nanomq_ws" {
-  name             = "NanoMQ WebSocket (8083)"
+  name             = "nanomq:8083"
   hostname         = "nanomq"
   port             = 8083
   interval         = 30
@@ -112,7 +122,7 @@ resource "uptimekuma_monitor_tcp_port" "nanomq_ws" {
 resource "uptimekuma_monitor_docker" "traefik" {
   name             = "traefik"
   docker_host_id   = uptimekuma_docker_host.local.id
-  docker_container = "${local.p}traefik"
+  docker_container = "traefik"
   interval         = 60
   max_retries      = 3
   notification_ids = local.notification_ids
@@ -120,7 +130,7 @@ resource "uptimekuma_monitor_docker" "traefik" {
 }
 
 resource "uptimekuma_monitor_docker" "postgres" {
-  name             = "postgres"
+  name             = "${local.p}postgres"
   docker_host_id   = uptimekuma_docker_host.local.id
   docker_container = "${local.p}postgres"
   interval         = 60
@@ -130,7 +140,7 @@ resource "uptimekuma_monitor_docker" "postgres" {
 }
 
 resource "uptimekuma_monitor_docker" "redis" {
-  name             = "redis"
+  name             = "${local.p}redis"
   docker_host_id   = uptimekuma_docker_host.local.id
   docker_container = "${local.p}redis"
   interval         = 60
@@ -140,7 +150,7 @@ resource "uptimekuma_monitor_docker" "redis" {
 }
 
 resource "uptimekuma_monitor_docker" "nanomq" {
-  name             = "nanomq"
+  name             = "${local.p}nanomq"
   docker_host_id   = uptimekuma_docker_host.local.id
   docker_container = "${local.p}nanomq"
   interval         = 60
@@ -151,7 +161,7 @@ resource "uptimekuma_monitor_docker" "nanomq" {
 
 # Auth
 resource "uptimekuma_monitor_docker" "oauth2_proxy" {
-  name             = "oauth2-proxy"
+  name             = "${local.p}oauth2-proxy"
   docker_host_id   = uptimekuma_docker_host.local.id
   docker_container = "${local.p}oauth2-proxy"
   interval         = 60
@@ -161,7 +171,7 @@ resource "uptimekuma_monitor_docker" "oauth2_proxy" {
 }
 
 resource "uptimekuma_monitor_docker" "dex" {
-  name             = "dex"
+  name             = "${local.p}dex"
   docker_host_id   = uptimekuma_docker_host.local.id
   docker_container = "${local.p}dex"
   interval         = 60
@@ -172,7 +182,7 @@ resource "uptimekuma_monitor_docker" "dex" {
 
 # Application
 resource "uptimekuma_monitor_docker" "fastapi" {
-  name             = "fastapi"
+  name             = "${local.p}gtfs-api"
   docker_host_id   = uptimekuma_docker_host.local.id
   docker_container = "${local.p}gtfs-api"
   interval         = 60
@@ -181,8 +191,18 @@ resource "uptimekuma_monitor_docker" "fastapi" {
   active           = true
 }
 
+resource "uptimekuma_monitor_docker" "fastapi_admin" {
+  name             = "${local.p}gtfs-manager"
+  docker_host_id   = uptimekuma_docker_host.local.id
+  docker_container = "${local.p}gtfs-manager"
+  interval         = 60
+  max_retries      = 3
+  notification_ids = local.notification_ids
+  active           = true
+}
+
 resource "uptimekuma_monitor_docker" "bridge" {
-  name             = "bridge"
+  name             = "${local.p}owntrack-redis-bridge"
   docker_host_id   = uptimekuma_docker_host.local.id
   docker_container = "${local.p}owntrack-redis-bridge"
   interval         = 60
@@ -192,7 +212,7 @@ resource "uptimekuma_monitor_docker" "bridge" {
 }
 
 resource "uptimekuma_monitor_docker" "uptime_kuma" {
-  name             = "uptime-kuma"
+  name             = "${local.p}uptime-kuma"
   docker_host_id   = uptimekuma_docker_host.local.id
   docker_container = "${local.p}uptime-kuma"
   interval         = 60
