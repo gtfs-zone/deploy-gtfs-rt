@@ -83,7 +83,7 @@ resource "docker_container" "oauth2_proxy" {
     "OAUTH2_PROXY_COOKIE_DOMAINS=.${var.domain}",
     "OAUTH2_PROXY_WHITELIST_DOMAINS=.${var.domain}",
     "OAUTH2_PROXY_EMAIL_DOMAINS=*",
-    "OAUTH2_PROXY_SKIP_PROVIDER_BUTTON=true",
+    "OAUTH2_PROXY_SKIP_PROVIDER_BUTTON=false",
     "OAUTH2_PROXY_SESSION_STORE_TYPE=redis",
     "OAUTH2_PROXY_REDIS_CONNECTION_URL=redis://redis:6379/0",
     "OAUTH2_PROXY_COOKIE_SECURE=true",
@@ -167,7 +167,35 @@ resource "docker_container" "oauth2_proxy" {
 
   labels {
     label = "traefik.http.middlewares.${local.prefix}oauth2-errors.errors.query"
-    value = "/oauth2/start?rd={url}"
+    value = "/oauth2/sign_in?rd={url}"
+  }
+
+  # Route /oauth2/* on the admin domain to oauth2-proxy without auth middleware,
+  # so the sign-in flow works when the errors middleware serves the sign-in page
+  # inline at manage.<domain> (the sign-in button uses relative /oauth2/start).
+  labels {
+    label = "traefik.http.routers.${local.prefix}oauth2-proxy-admin.rule"
+    value = "Host(`${local.api_admin_fqdn}`) && PathPrefix(`/oauth2/`)"
+  }
+
+  labels {
+    label = "traefik.http.routers.${local.prefix}oauth2-proxy-admin.entrypoints"
+    value = "websecure"
+  }
+
+  labels {
+    label = "traefik.http.routers.${local.prefix}oauth2-proxy-admin.tls"
+    value = "true"
+  }
+
+  labels {
+    label = "traefik.http.routers.${local.prefix}oauth2-proxy-admin.tls.certresolver"
+    value = var.traefik_cert_resolver
+  }
+
+  labels {
+    label = "traefik.http.routers.${local.prefix}oauth2-proxy-admin.service"
+    value = "${local.prefix}oauth2-proxy"
   }
 
   depends_on = [
