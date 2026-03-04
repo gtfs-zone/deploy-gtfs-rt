@@ -70,14 +70,6 @@ resource "docker_container" "oauth2_proxy" {
 
   env = [
     "OAUTH2_PROXY_HTTP_ADDRESS=0.0.0.0:4180",
-    "OAUTH2_PROXY_PROVIDER=oidc",
-    "OAUTH2_PROXY_OIDC_ISSUER_URL=https://${local.dex_fqdn}",
-    "OAUTH2_PROXY_SKIP_OIDC_DISCOVERY=true",
-    "OAUTH2_PROXY_LOGIN_URL=https://${local.dex_fqdn}/auth",
-    "OAUTH2_PROXY_REDEEM_URL=http://dex:5556/token",
-    "OAUTH2_PROXY_OIDC_JWKS_URL=http://dex:5556/keys",
-    "OAUTH2_PROXY_CLIENT_ID=oauth2-proxy",
-    "OAUTH2_PROXY_CLIENT_SECRET=${random_password.dex_oauth2_proxy_secret.result}",
     "OAUTH2_PROXY_REDIRECT_URL=https://${local.auth_fqdn}/oauth2/callback",
     "OAUTH2_PROXY_COOKIE_SECRET=${base64encode(random_password.oauth2_proxy_cookie_secret.result)}",
     "OAUTH2_PROXY_COOKIE_DOMAINS=.${var.domain}",
@@ -88,9 +80,17 @@ resource "docker_container" "oauth2_proxy" {
     "OAUTH2_PROXY_REDIS_CONNECTION_URL=redis://redis:6379/0",
     "OAUTH2_PROXY_COOKIE_SECURE=true",
     "OAUTH2_PROXY_REVERSE_PROXY=true",
-    "OAUTH2_PROXY_SET_XAUTHREQUEST=true",
-    "OAUTH2_PROXY_USER_ID_CLAIM=sub",
     "OAUTH2_PROXY_DEFAULT_REDIRECT_URL=https://${local.api_admin_fqdn}",
+    # OIDC provider
+    "OAUTH2_PROXY_PROVIDER=oidc",
+    "OAUTH2_PROXY_CLIENT_ID=oauth2-proxy",
+    "OAUTH2_PROXY_CLIENT_SECRET=${random_password.dex_oauth2_proxy_secret.result}",
+    "OAUTH2_PROXY_OIDC_ISSUER_URL=https://${local.dex_fqdn}",
+    "OAUTH2_PROXY_OIDC_JWKS_URL=http://dex:5556/keys",
+    "OAUTH2_PROXY_SCOPE=openid email profile",
+    # Pass JWT to upstream so auth.py can decode email/name from it
+    "OAUTH2_PROXY_SET_XAUTHREQUEST=true",
+    "OAUTH2_PROXY_PASS_ACCESS_TOKEN=true",
   ]
 
   networks_advanced {

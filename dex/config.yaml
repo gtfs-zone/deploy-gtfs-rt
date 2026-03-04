@@ -25,6 +25,9 @@ connectors:
       clientID: {{ getenv "DEX_GITHUB_CLIENT_ID" }}
       clientSecret: {{ getenv "DEX_GITHUB_CLIENT_SECRET" }}
       redirectURI: {{ getenv "DEX_ISSUER" }}/callback
+      scopes:
+        - read:user
+        - user:email
 
 staticClients:
   - id: oauth2-proxy

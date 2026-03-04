@@ -4,6 +4,7 @@ tf/terraform.tfstate.backup
 tf/terraform.tfstate.*.backup
 tf/.terraform/
 tf/.terraform.lock.hcl
+tf/.terraform.tfstate.lock.info
 
 # Secrets file
 tf/secrets.auto.tfvars
@@ -14,5 +15,6 @@ tf-monitors/terraform.tfstate.backup
 tf-monitors/terraform.tfstate.*.backup
 tf-monitors/.terraform/
 tf-monitors/.terraform.lock.hcl
+tf-monitors/.terraform.tfstate.lock.info
 tf-monitors/secrets.auto.tfvars
 
