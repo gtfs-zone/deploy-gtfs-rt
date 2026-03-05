@@ -18,6 +18,7 @@ oauth2:
   skipApprovalScreen: true
 
 connectors:
+{{- if getenv "DEX_GITHUB_CLIENT_ID" }}
   - type: github
     id: github
     name: GitHub
@@ -28,6 +29,26 @@ connectors:
       scopes:
         - read:user
         - user:email
+{{- end }}
+{{- if getenv "DEX_GITLAB_CLIENT_ID" }}
+  - type: gitlab
+    id: gitlab
+    name: GitLab
+    config:
+      baseURL: {{ getenv "DEX_GITLAB_BASE_URL" }}
+      clientID: {{ getenv "DEX_GITLAB_CLIENT_ID" }}
+      clientSecret: {{ getenv "DEX_GITLAB_CLIENT_SECRET" }}
+      redirectURI: {{ getenv "DEX_ISSUER" }}/callback
+{{- end }}
+{{- if getenv "DEX_GOOGLE_CLIENT_ID" }}
+  - type: google
+    id: google
+    name: Google
+    config:
+      clientID: {{ getenv "DEX_GOOGLE_CLIENT_ID" }}
+      clientSecret: {{ getenv "DEX_GOOGLE_CLIENT_SECRET" }}
+      redirectURI: {{ getenv "DEX_ISSUER" }}/callback
+{{- end }}
 
 staticClients:
   - id: oauth2-proxy

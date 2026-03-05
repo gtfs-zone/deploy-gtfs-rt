@@ -7,14 +7,27 @@ resource "docker_container" "dex" {
 
   command = ["dex", "serve", "/etc/dex/config.yaml"]
 
-  env = [
-    "DEX_ISSUER=https://${local.dex_fqdn}",
-    "DEX_POSTGRES_PASSWORD=${random_password.postgres_dex.result}",
-    "DEX_GITHUB_CLIENT_ID=${var.github_client_id}",
-    "DEX_GITHUB_CLIENT_SECRET=${var.github_client_secret}",
-    "DEX_OAUTH2_PROXY_REDIRECT_URI=https://${local.auth_fqdn}/oauth2/callback",
-    "DEX_OAUTH2_PROXY_SECRET=${random_password.dex_oauth2_proxy_secret.result}",
-  ]
+  env = concat(
+    [
+      "DEX_ISSUER=https://${local.dex_fqdn}",
+      "DEX_POSTGRES_PASSWORD=${random_password.postgres_dex.result}",
+      "DEX_OAUTH2_PROXY_REDIRECT_URI=https://${local.auth_fqdn}/oauth2/callback",
+      "DEX_OAUTH2_PROXY_SECRET=${random_password.dex_oauth2_proxy_secret.result}",
+    ],
+    var.github_oauth != null ? [
+      "DEX_GITHUB_CLIENT_ID=${var.github_oauth.client_id}",
+      "DEX_GITHUB_CLIENT_SECRET=${var.github_oauth.client_secret}",
+    ] : [],
+    var.gitlab_oauth != null ? [
+      "DEX_GITLAB_CLIENT_ID=${var.gitlab_oauth.client_id}",
+      "DEX_GITLAB_CLIENT_SECRET=${var.gitlab_oauth.client_secret}",
+      "DEX_GITLAB_BASE_URL=${var.gitlab_oauth.base_url}",
+    ] : [],
+    var.google_oauth != null ? [
+      "DEX_GOOGLE_CLIENT_ID=${var.google_oauth.client_id}",
+      "DEX_GOOGLE_CLIENT_SECRET=${var.google_oauth.client_secret}",
+    ] : [],
+  )
 
   networks_advanced {
     name    = local.proxy_network_name

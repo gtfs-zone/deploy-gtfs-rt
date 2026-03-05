@@ -26,16 +26,43 @@ variable "name_prefix" {
   default     = ""
 }
 
-# ── GitHub OAuth credentials ──────────────────────────────────────────────────
+# ── OAuth connector credentials ───────────────────────────────────────────────
+# Each provider block is optional — omit (or set to null) to disable that connector.
 
-variable "github_client_id" {
-  type      = string
-  sensitive = true
+variable "github_oauth" {
+  type = object({
+    client_id     = string
+    client_secret = string
+  })
+  description = "GitHub OAuth app credentials for Dex connector. Omit to disable."
+  default     = null
+  nullable    = true
+  sensitive   = true
 }
 
-variable "github_client_secret" {
-  type      = string
-  sensitive = true
+variable "gitlab_oauth" {
+  type = object({
+    client_id     = string
+    client_secret = string
+    base_url      = optional(string, "https://gitlab.com")
+    groups        = optional(list(string), [])
+  })
+  description = "GitLab OAuth app credentials for Dex connector. Omit to disable."
+  default     = null
+  nullable    = true
+  sensitive   = true
+}
+
+variable "google_oauth" {
+  type = object({
+    client_id      = string
+    client_secret  = string
+    hosted_domains = optional(list(string), [])
+  })
+  description = "Google OAuth credentials for Dex connector. Omit to disable."
+  default     = null
+  nullable    = true
+  sensitive   = true
 }
 
 # ── DNS credentials ──────────────────────────────────────────────────────────
