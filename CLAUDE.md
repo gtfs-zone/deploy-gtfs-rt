@@ -42,16 +42,29 @@ terraform destroy
 | Reverse Proxy | Traefik v3.6 (Let's Encrypt via Porkbun DNS challenge) |
 | Auth | Dex (OIDC provider) + oauth2-proxy (forward auth middleware) |
 | Databases | PostgreSQL (multi-tenant) + Redis (sessions/cache/pub-sub) |
-| Messaging | NanoMQ (MQTT broker, TCP:8883 + WebSocket:8083) |
+| Messaging | NanoMQ (MQTT broker, TLS on :443 via SNI + WebSocket on :443) |
 | Application | rt-api (GTFS RT API, built with FastAPI) + OwnTrack Redis Bridge (MQTT→Redis) |
 | Monitoring | Uptime Kuma |
 
-### Database Setup Pattern
-PostgreSQL uses a short-lived `postgres-init` container (runs once) to create per-service users and databases for dex and rt-api.
+### Init Container Pattern
+PostgreSQL uses a short-lived `postgres-init` container (runs once) to create per-service users and databases for dex and rt-api. rt-api similarly uses a short-lived `gtfs-migrate` container to run Alembic database migrations before the API starts.
 
 ### Redis Database Allocation
 - DB 0: oauth2-proxy sessions
 - DB 1: rt-api + Bridge (shared vehicle position data)
+
+### rt-api Dual Container
+The rt-api image runs as two separate containers:
+- **`gtfs-api`** (public, port 8000) — unauthenticated GTFS-RT feed at `rt.<domain>`
+- **`gtfs-manager`** (admin, port 8001) — protected by oauth2-proxy forward auth at `manage.rt.<domain>`
+
+NanoMQ delegates MQTT authentication to `http://gtfs-api:8000/mqtt/auth`.
+
+### Adding Auth to a New Service
+To protect a new Traefik route with oauth2-proxy, add these two middlewares to its router labels:
+```
+traefik.http.routers.<name>.middlewares = "${local.prefix}oauth2-errors@docker,${local.prefix}oauth2-proxy@docker"
+```
 
 ### Monitoring
 
@@ -71,6 +84,7 @@ It manages: HTTP monitors (external + internal), TCP port monitors, Docker conta
 
 ## Terraform File Organization
 
+- `images.tf` - Local Docker image builds for Traefik, Dex, and NanoMQ (from repo subdirectories; rebuilt automatically when source files change)
 - `locals.tf` - Computed FQDNs and shared values
 - `variables.tf` - All input variables (required and optional)
 - `random.tf` - Auto-generated passwords/secrets for all services
@@ -114,3 +128,5 @@ Copy `tf/secrets.auto.tfvars.example` to `tf/secrets.auto.tfvars` and populate:
 - oauth2-proxy forward auth protects most services; status page is intentionally public
 - External Traefik mode allows integration with a shared reverse proxy across multiple stacks
 - Private images (`rt-api`, `bridge`) pulled from `git.kcfam.us`
+- Traefik, Dex, and NanoMQ are built locally via `images.tf` from the repo's `traefik/`, `dex/`, and `nanomq/` subdirectories; Terraform rebuilds them when source files change
+- The `prometheus/` directory contains a config file but is not currently deployed by Terraform
