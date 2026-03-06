@@ -8,25 +8,25 @@ This is a Terraform-based infrastructure deployment for a GTFS-RT (General Trans
 
 ## Terraform Commands
 
-All Terraform commands run from the `tf/` directory:
+All OpenTofu commands run from the `tf/` directory:
 
 ```bash
 cd tf/
 
 # Initialize providers and backend
-terraform init
+tofu init
 
 # Preview changes
-terraform plan
+tofu plan
 
 # Deploy infrastructure
-terraform apply
+tofu apply
 
 # Retrieve generated passwords
-terraform output -raw postgres_admin_password
+tofu output -raw postgres_admin_password
 
 # Destroy everything (use with caution - volumes have prevent_destroy)
-terraform destroy
+tofu destroy
 ```
 
 ## Architecture
@@ -72,12 +72,12 @@ Uptime Kuma provides two Traefik routes:
 - **Authenticated dashboard** (`uptime.<domain>`) — protected by oauth2-proxy forward auth
 - **Public status page** (`status.<domain>`) — no auth, served by the same Uptime Kuma instance
 
-The `tf-monitors/` directory contains a separate Terraform root for configuring Uptime Kuma via its API (using the `terraform-provider-uptimekuma` provider). Run it after the main stack is up:
+The `tf-monitors/` directory contains a separate OpenTofu root for configuring Uptime Kuma via its API (using the `terraform-provider-uptimekuma` provider). Run it after the main stack is up:
 
 ```bash
 cd tf-monitors/
-terraform init
-terraform apply
+tofu init
+tofu apply
 ```
 
 It manages: HTTP monitors (external + internal), TCP port monitors, Docker container monitors, a Telegram notification channel, and the public status page layout.
@@ -97,7 +97,7 @@ It manages: HTTP monitors (external + internal), TCP port monitors, Docker conta
 - `compute_api.tf` - rt-api
 - `compute_bridge.tf` - OwnTrack Redis bridge
 - `compute_monitoring.tf` - Uptime Kuma (two Traefik routes: authenticated dashboard + public status page)
-- `providers.tf` / `terraform.tf` - Provider config and version requirements
+- `providers.tf` / `terraform.tf` - Provider config and OpenTofu version requirements
 - `backend.tf` - Local state backend
 - `outputs.tf` - Sensitive password outputs
 
@@ -117,7 +117,7 @@ Copy `tf/secrets.auto.tfvars.example` to `tf/secrets.auto.tfvars` and populate:
 - Per-service subdomain overrides and image version pins
 
 ### Gitignored Files
-- `tf/terraform.tfstate` and backups
+- `tf/terraform.tfstate` and backups (OpenTofu state files)
 - `tf/secrets.auto.tfvars`
 - Generated Dex config (`dex/config.yaml`)
 

@@ -40,9 +40,9 @@ This repo provides the Terraform deployment that wires them together with suppor
 
 ## Prerequisites
 
-- **A server** running Docker with a public IP (any VPS works)
-- **A domain on Porkbun** with API access enabled
-- **OpenTofu** (or Terraform) installed locally
+- **A server** running [Docker](https://docs.docker.com/engine/install/) with a public IP (any VPS works)
+- **A domain on [Porkbun](https://porkbun.com/)** with API access enabled
+- **[OpenTofu](https://opentofu.org/docs/intro/install/)** installed locally
 - **At least one OAuth provider** (GitHub, GitLab, or Google) for user login
 - **Credentials** for the private registry at `git.kcfam.us` (to pull `rt-api` and `bridge` images)
 
@@ -98,8 +98,8 @@ docker_host = "ssh://myserver"
 
 ```bash
 cd tf/
-terraform init
-terraform apply
+tofu init
+tofu apply
 ```
 
 Terraform will:
@@ -111,8 +111,8 @@ Terraform will:
 Retrieve auto-generated passwords if needed:
 
 ```bash
-terraform output -raw postgres_admin_password
-terraform output -raw uptime_kuma_password
+tofu output -raw postgres_admin_password
+tofu output -raw uptime_kuma_password
 ```
 
 ## Step 5 — Configure monitors
@@ -128,14 +128,14 @@ Fill in `tf-monitors/secrets.auto.tfvars`:
 
 ```hcl
 domain               = "yourdomain.com"   # must match tf/
-uptime_kuma_password = "..."              # from: terraform -chdir=../tf output -raw uptime_kuma_password
+uptime_kuma_password = "..."              # from: tofu -chdir=../tf output -raw uptime_kuma_password
 telegram_bot_token   = "..."             # optional, for alert notifications
 telegram_chat_id     = "..."
 ```
 
 ```bash
-terraform init
-terraform apply
+tofu init
+tofu apply
 ```
 
 ## Updating
@@ -144,7 +144,7 @@ To redeploy after an image update:
 
 ```bash
 cd tf/
-terraform apply -replace=docker_container.rt_api_public -replace=docker_container.rt_api_admin
+tofu apply -replace=docker_container.rt_api_public -replace=docker_container.rt_api_admin
 ```
 
 To rebuild a locally-built image (Traefik/Dex/NanoMQ), edit any file in its
