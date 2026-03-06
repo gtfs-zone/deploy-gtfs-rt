@@ -38,6 +38,13 @@ This repo provides the Terraform deployment that wires them together with suppor
 | `status.<domain>` | Public status page |
 
 
+## Development
+
+```bash
+# Install git hooks (required once per clone)
+pre-commit install
+```
+
 ## Prerequisites
 
 - **A server** running [Docker](https://docs.docker.com/engine/install/) with a public IP (any VPS works)
