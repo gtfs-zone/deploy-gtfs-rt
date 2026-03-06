@@ -129,4 +129,3 @@ Copy `tf/secrets.auto.tfvars.example` to `tf/secrets.auto.tfvars` and populate:
 - External Traefik mode allows integration with a shared reverse proxy across multiple stacks
 - Private images (`rt-api`, `bridge`) pulled from `git.kcfam.us`
 - Traefik, Dex, and NanoMQ are built locally via `images.tf` from the repo's `traefik/`, `dex/`, and `nanomq/` subdirectories; Terraform rebuilds them when source files change
-- The `prometheus/` directory contains a config file but is not currently deployed by Terraform
