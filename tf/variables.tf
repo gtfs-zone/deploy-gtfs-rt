@@ -178,7 +178,12 @@ variable "redis_gtfs_rt_api_tag" {
   default = "latest"
 }
 
-variable "owntrack_redis_bridge_tag" {
+variable "vehicle_poser_tag" {
+  type    = string
+  default = "latest"
+}
+
+variable "trip_updogger_tag" {
   type    = string
   default = "latest"
 }

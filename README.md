@@ -15,8 +15,8 @@ The stack is built from three open-source projects:
 | Project | Role |
 |---------|------|
 | [redis-gtfs-rt-api](https://git.kcfam.us/gtfs.zone/redis-gtfs-rt-api) | Core API — serves GTFS-RT feeds and handles admin |
-| [owntrack-redis-bridge](https://git.kcfam.us/gtfs.zone/owntrack-redis-bridge) | Ingests vehicle positions from OwnTracks via MQTT → Redis |
-| *(planned)* trip updates service | Predicted arrival/departure times for stops, plus canceled, added, or rerouted trips |
+| [vehicle-poser](https://git.kcfam.us/gtfs.zone/vehicle-poser) | Ingests vehicle positions from OwnTracks via MQTT → Redis |
+| [trip-updogger](https://git.kcfam.us/gtfs.zone/trip-updogger) | Computes trip update delays from OwnTracks locations via MQTT → Redis |
 
 This repo provides the Terraform deployment that wires them together with supporting infrastructure.
 
@@ -51,7 +51,7 @@ pre-commit install
 - **A domain on [Porkbun](https://porkbun.com/)** with API access enabled
 - **[OpenTofu](https://opentofu.org/docs/intro/install/)** installed locally
 - **At least one OAuth provider** (GitHub, GitLab, or Google) for user login
-- **Credentials** for the private registry at `git.kcfam.us` (to pull `rt-api` and `bridge` images)
+- **Credentials** for the private registry at `git.kcfam.us` (to pull `rt-api`, `vehicle-poser`, and `trip-updogger` images)
 
 ## Step 1 — Domain and DNS API
 
@@ -90,7 +90,7 @@ github_oauth = {
   client_secret = "..."
 }
 
-# Private registry (for rt-api and bridge images)
+# Private registry (for rt-api, vehicle-poser, and trip-updogger images)
 registry_username = "..."
 registry_password = "..."
 ```
@@ -112,7 +112,7 @@ tofu apply
 Terraform will:
 - Create DNS records on Porkbun
 - Build local images for Traefik, Dex, and NanoMQ from this repo
-- Pull `rt-api` and `bridge` from the private registry
+- Pull `rt-api`, `vehicle-poser`, and `trip-updogger` from the private registry
 - Start all containers; Traefik obtains TLS certificates automatically via DNS challenge
 
 Retrieve auto-generated passwords if needed:

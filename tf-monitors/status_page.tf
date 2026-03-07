@@ -59,6 +59,7 @@ resource "uptimekuma_status_page" "main" {
         { id = uptimekuma_monitor_http.rt_api_admin_internal.id },
         { id = uptimekuma_monitor_docker.rt_api_admin.id },
         { id = uptimekuma_monitor_docker.bridge.id },
+        { id = uptimekuma_monitor_docker.trip_updogger.id },
       ]
     },
 

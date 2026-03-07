@@ -202,9 +202,19 @@ resource "uptimekuma_monitor_docker" "rt_api_admin" {
 }
 
 resource "uptimekuma_monitor_docker" "bridge" {
-  name             = "${local.p}owntrack-redis-bridge"
+  name             = "${local.p}vehicle-poser"
   docker_host_id   = uptimekuma_docker_host.local.id
-  docker_container = "${local.p}owntrack-redis-bridge"
+  docker_container = "${local.p}vehicle-poser"
+  interval         = 60
+  max_retries      = 3
+  notification_ids = local.notification_ids
+  active           = true
+}
+
+resource "uptimekuma_monitor_docker" "trip_updogger" {
+  name             = "${local.p}trip-updogger"
+  docker_host_id   = uptimekuma_docker_host.local.id
+  docker_container = "${local.p}trip-updogger"
   interval         = 60
   max_retries      = 3
   notification_ids = local.notification_ids
