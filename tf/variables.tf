@@ -188,6 +188,11 @@ variable "trip_updogger_tag" {
   default = "latest"
 }
 
+variable "schedule_foamer_tag" {
+  type    = string
+  default = "latest"
+}
+
 # ── External Traefik ──────────────────────────────────────────────────────────
 
 variable "use_external_traefik" {

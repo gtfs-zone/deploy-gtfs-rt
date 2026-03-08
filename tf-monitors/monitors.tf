@@ -221,6 +221,26 @@ resource "uptimekuma_monitor_docker" "trip_updogger" {
   active           = true
 }
 
+resource "uptimekuma_monitor_docker" "celery_worker" {
+  name             = "${local.p}celery-worker"
+  docker_host_id   = uptimekuma_docker_host.local.id
+  docker_container = "${local.p}celery-worker"
+  interval         = 60
+  max_retries      = 3
+  notification_ids = local.notification_ids
+  active           = true
+}
+
+resource "uptimekuma_monitor_docker" "celery_beat" {
+  name             = "${local.p}celery-beat"
+  docker_host_id   = uptimekuma_docker_host.local.id
+  docker_container = "${local.p}celery-beat"
+  interval         = 60
+  max_retries      = 3
+  notification_ids = local.notification_ids
+  active           = true
+}
+
 resource "uptimekuma_monitor_docker" "uptime_kuma" {
   name             = "${local.p}uptime-kuma"
   docker_host_id   = uptimekuma_docker_host.local.id

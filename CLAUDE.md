@@ -43,7 +43,7 @@ tofu destroy
 | Auth | Dex (OIDC provider) + oauth2-proxy (forward auth middleware) |
 | Databases | PostgreSQL (multi-tenant) + Redis (sessions/cache/pub-sub) |
 | Messaging | NanoMQ (MQTT broker, TLS on :443 via SNI + WebSocket on :443) |
-| Application | rt-api (GTFS RT API, built with FastAPI) + OwnTrack Redis Bridge (MQTT→Redis) |
+| Application | rt-api (GTFS RT API, built with FastAPI) + OwnTrack Redis Bridge (MQTT→Redis) + schedule-foamer (Celery worker + beat) |
 | Monitoring | Uptime Kuma |
 
 ### Init Container Pattern
@@ -52,6 +52,8 @@ PostgreSQL uses a short-lived `postgres-init` container (runs once) to create pe
 ### Redis Database Allocation
 - DB 0: oauth2-proxy sessions
 - DB 1: rt-api + Bridge (shared vehicle position data)
+- DB 3: Celery broker (schedule-foamer tasks)
+- DB 4: Celery result backend
 
 ### rt-api Dual Container
 The rt-api image runs as two separate containers:
@@ -95,6 +97,7 @@ It manages: HTTP monitors (external + internal), TCP port monitors, Docker conta
 - `compute_postgres.tf` - PostgreSQL + init container
 - `compute_auth.tf` - Dex + oauth2-proxy
 - `compute_api.tf` - rt-api
+- `compute_celery.tf` - schedule-foamer Celery worker + beat scheduler
 - `compute_bridge.tf` - OwnTrack Redis bridge
 - `compute_monitoring.tf` - Uptime Kuma (two Traefik routes: authenticated dashboard + public status page)
 - `providers.tf` / `terraform.tf` - Provider config and OpenTofu version requirements

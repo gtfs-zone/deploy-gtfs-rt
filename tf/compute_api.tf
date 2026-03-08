@@ -7,6 +7,7 @@ locals {
     "DATABASE_URL=postgresql://rt_api:${random_password.postgres_rt_api.result}@postgres:5432/rt_api",
     "SESSION_SECRET_KEY=${random_password.rt_api_session_secret.result}",
     "OAUTH2_PROXY_LOGOUT_URL=https://${local.auth_fqdn}/oauth2/sign_out?rd=https://${local.api_admin_fqdn}",
+    "CELERY_BROKER_URL=redis://redis:6379/3",
   ]
 }
 

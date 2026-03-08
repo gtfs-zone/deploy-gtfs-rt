@@ -60,6 +60,8 @@ resource "uptimekuma_status_page" "main" {
         { id = uptimekuma_monitor_docker.rt_api_admin.id },
         { id = uptimekuma_monitor_docker.bridge.id },
         { id = uptimekuma_monitor_docker.trip_updogger.id },
+        { id = uptimekuma_monitor_docker.celery_worker.id },
+        { id = uptimekuma_monitor_docker.celery_beat.id },
       ]
     },
 
