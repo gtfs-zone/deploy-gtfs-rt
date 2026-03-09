@@ -9,6 +9,7 @@ resource "docker_container" "trip_updogger" {
     "MQTT_BROKER=tcp://nanomq:1883",
     "REDIS_URL=redis://redis:6379/1",
     "GTFS_FEED_URLS_ENDPOINT=http://gtfs-api:8000/feed_urls",
+    "DATABASE_URL=postgresql://rt_api:${random_password.postgres_rt_api.result}@postgres:5432/rt_api",
   ]
 
   networks_advanced {
