@@ -193,6 +193,20 @@ variable "schedule_foamer_tag" {
   default = "latest"
 }
 
+# ── Celery ───────────────────────────────────────────────────────────────────
+
+variable "celery_worker_concurrency" {
+  type        = number
+  default     = 2
+  description = "Number of Celery worker processes (concurrency). Lower = less RAM, fewer parallel feed loads."
+}
+
+variable "celery_max_tasks_per_child" {
+  type        = number
+  default     = 10
+  description = "Celery worker processes are recycled after this many tasks, preventing memory growth."
+}
+
 # ── External Traefik ──────────────────────────────────────────────────────────
 
 variable "use_external_traefik" {

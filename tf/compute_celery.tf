@@ -6,6 +6,8 @@ locals {
     "DATABASE_URL=postgresql+psycopg2://rt_api:${random_password.postgres_rt_api.result}@postgres:5432/rt_api",
     "CELERY_BROKER_URL=redis://redis:6379/3",
     "CELERY_RESULT_BACKEND=redis://redis:6379/4",
+    "CELERY_WORKER_CONCURRENCY=${var.celery_worker_concurrency}",
+    "CELERY_MAX_TASKS_PER_CHILD=${var.celery_max_tasks_per_child}",
   ]
 }
 

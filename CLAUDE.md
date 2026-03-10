@@ -119,6 +119,9 @@ Copy `tf/secrets.auto.tfvars.example` to `tf/secrets.auto.tfvars` and populate:
 - `use_external_traefik` / `external_traefik_network` - Skip internal Traefik deployment
 - Per-service subdomain overrides and image version pins
 
+### Adding Variables
+Whenever a new variable is added to `variables.tf`, it **must** also be added to `tf/secrets.auto.tfvars.example` (commented out with its default shown if optional, or with a placeholder value if required).
+
 ### Gitignored Files
 - `tf/terraform.tfstate` and backups (OpenTofu state files)
 - `tf/secrets.auto.tfvars`
