@@ -20,8 +20,41 @@ The stack is built from these open-source projects:
 | [schedule-foamer](https://git.kcfam.us/gtfs.zone/schedule-foamer) | Celery worker + beat scheduler for async static GTFS fetching |
 | [railroad-club](https://git.kcfam.us/gtfs.zone/railroad-club) | Shared SQLAlchemy models and Alembic migrations |
 | [music-student](https://git.kcfam.us/gtfs.zone/music-student) | Docker Compose stack for local development and testing |
+| [landing-zone](https://git.kcfam.us/gtfs.zone/landing-zone) | Static homepage at gtfs.zone |
 
 This repo provides the Terraform deployment that wires them together with supporting infrastructure.
+
+```mermaid
+graph LR
+    lz["landing-zone\nstatic homepage\nat gtfs.zone"]
+
+    subgraph repo["deploy-gtfs-rt"]
+        direction TB
+        local["local builds\ntraefik/ · dex/ · nanomq/"]
+        tf["tf/\nmain OpenTofu root"]
+        tfm["tf-monitors/\nUptime Kuma config"]
+        local -->|builds| tf
+        tfm -.-|configures after| tf
+    end
+
+    cc["cafe-car\nGTFS-RT API + admin"]
+    vp["vehicle-poser\nMQTT → Redis bridge"]
+    tu["trip-updogger\ntrip delay engine"]
+    sf["schedule-foamer\nCelery worker + beat"]
+    rc["railroad-club\nSQLAlchemy models + migrations"]
+    ms["music-student\nlocal dev Compose"]
+
+    rc -->|models + migrations| cc
+    rc -->|models| sf
+
+    cc -->|image| tf
+    vp -->|image| tf
+    tu -->|image| tf
+    sf -->|image| tf
+
+    ms -.->|mirrors for local dev| repo
+    lz -.->|links to deployed services| repo
+```
 
 **Issues & roadmap:** [issue tracker](https://git.kcfam.us/gtfs.zone/deploy-gtfs-rt/issues) · [project kanban](https://git.kcfam.us/gtfs.zone/-/projects/3)
 

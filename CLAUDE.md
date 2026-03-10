@@ -49,6 +49,7 @@ tofu destroy
 ### Related Repositories
 - **[railroad-club](https://git.kcfam.us/gtfs.zone/railroad-club)** — shared SQLAlchemy models and Alembic migrations used by cafe-car and other services
 - **[music-student](https://git.kcfam.us/gtfs.zone/music-student)** — Docker Compose stack for local development and testing
+- **[landing-zone](https://git.kcfam.us/gtfs.zone/landing-zone)** — static homepage at gtfs.zone (bare domain)
 
 ### Init Container Pattern
 PostgreSQL uses a short-lived `postgres-init` container (runs once) to create per-service users and databases for dex and rt-api. rt-api similarly uses a short-lived `gtfs-migrate` container to run Alembic database migrations before the API starts.
