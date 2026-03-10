@@ -173,7 +173,7 @@ variable "uptime_kuma_version" {
   default = "latest"
 }
 
-variable "redis_gtfs_rt_api_tag" {
+variable "cafe_car_tag" {
   type    = string
   default = "latest"
 }

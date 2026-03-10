@@ -1,7 +1,7 @@
-# ── rt-api backend (redis-gtfs-rt-api) ────────────────────────────────────────
+# ── rt-api backend (cafe-car) ────────────────────────────────────────
 
 locals {
-  rt_api_image = "${local.registry}/gtfs.zone/redis-gtfs-rt-api:${var.redis_gtfs_rt_api_tag}"
+  rt_api_image = "${local.registry}/gtfs.zone/cafe-car:${var.cafe_car_tag}"
   rt_api_env = [
     "REDIS_URL=redis://redis:6379/1",
     "DATABASE_URL=postgresql://rt_api:${random_password.postgres_rt_api.result}@postgres:5432/rt_api",

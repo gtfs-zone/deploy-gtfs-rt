@@ -10,13 +10,16 @@ without touching any of this. This repo is for those who want to run their own.
 
 ### How it fits together
 
-The stack is built from three open-source projects:
+The stack is built from these open-source projects:
 
 | Project | Role |
 |---------|------|
-| [redis-gtfs-rt-api](https://git.kcfam.us/gtfs.zone/redis-gtfs-rt-api) | Core API — serves GTFS-RT feeds and handles admin |
+| [cafe-car](https://git.kcfam.us/gtfs.zone/cafe-car) | Core API — serves GTFS-RT feeds and handles admin |
 | [vehicle-poser](https://git.kcfam.us/gtfs.zone/vehicle-poser) | Ingests vehicle positions from OwnTracks via MQTT → Redis |
 | [trip-updogger](https://git.kcfam.us/gtfs.zone/trip-updogger) | Computes trip update delays from OwnTracks locations via MQTT → Redis |
+| [schedule-foamer](https://git.kcfam.us/gtfs.zone/schedule-foamer) | Celery worker + beat scheduler for async static GTFS fetching |
+| [railroad-club](https://git.kcfam.us/gtfs.zone/railroad-club) | Shared SQLAlchemy models and Alembic migrations |
+| [music-student](https://git.kcfam.us/gtfs.zone/music-student) | Docker Compose stack for local development and testing |
 
 This repo provides the Terraform deployment that wires them together with supporting infrastructure.
 
@@ -51,7 +54,7 @@ pre-commit install
 - **A domain on [Porkbun](https://porkbun.com/)** with API access enabled
 - **[OpenTofu](https://opentofu.org/docs/intro/install/)** installed locally
 - **At least one OAuth provider** (GitHub, GitLab, or Google) for user login
-- **Credentials** for the private registry at `git.kcfam.us` (to pull `rt-api`, `vehicle-poser`, and `trip-updogger` images)
+- **Credentials** for the private registry at `git.kcfam.us` (to pull `cafe-car`, `vehicle-poser`, and `trip-updogger` images)
 
 ## Step 1 — Domain and DNS API
 
@@ -90,7 +93,7 @@ github_oauth = {
   client_secret = "..."
 }
 
-# Private registry (for rt-api, vehicle-poser, and trip-updogger images)
+# Private registry (for cafe-car, vehicle-poser, and trip-updogger images)
 registry_username = "..."
 registry_password = "..."
 ```
@@ -112,7 +115,7 @@ tofu apply
 Terraform will:
 - Create DNS records on Porkbun
 - Build local images for Traefik, Dex, and NanoMQ from this repo
-- Pull `rt-api`, `vehicle-poser`, and `trip-updogger` from the private registry
+- Pull `cafe-car`, `vehicle-poser`, and `trip-updogger` from the private registry
 - Start all containers; Traefik obtains TLS certificates automatically via DNS challenge
 
 Retrieve auto-generated passwords if needed:

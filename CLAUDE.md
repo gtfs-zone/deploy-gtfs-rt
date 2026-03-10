@@ -43,8 +43,12 @@ tofu destroy
 | Auth | Dex (OIDC provider) + oauth2-proxy (forward auth middleware) |
 | Databases | PostgreSQL (multi-tenant) + Redis (sessions/cache/pub-sub) |
 | Messaging | NanoMQ (MQTT broker, TLS on :443 via SNI + WebSocket on :443) |
-| Application | rt-api (GTFS RT API, built with FastAPI) + OwnTrack Redis Bridge (MQTT→Redis) + schedule-foamer (Celery worker + beat) |
+| Application | cafe-car (GTFS RT API) + vehicle-poser (MQTT→Redis bridge) + trip-updogger (trip delays) + schedule-foamer (Celery worker + beat) |
 | Monitoring | Uptime Kuma |
+
+### Related Repositories
+- **[railroad-club](https://git.kcfam.us/gtfs.zone/railroad-club)** — shared SQLAlchemy models and Alembic migrations used by cafe-car and other services
+- **[music-student](https://git.kcfam.us/gtfs.zone/music-student)** — Docker Compose stack for local development and testing
 
 ### Init Container Pattern
 PostgreSQL uses a short-lived `postgres-init` container (runs once) to create per-service users and databases for dex and rt-api. rt-api similarly uses a short-lived `gtfs-migrate` container to run Alembic database migrations before the API starts.
@@ -55,8 +59,8 @@ PostgreSQL uses a short-lived `postgres-init` container (runs once) to create pe
 - DB 3: Celery broker (schedule-foamer tasks)
 - DB 4: Celery result backend
 
-### rt-api Dual Container
-The rt-api image runs as two separate containers:
+### cafe-car Dual Container
+The cafe-car image runs as two separate containers:
 - **`gtfs-api`** (public, port 8000) — unauthenticated GTFS-RT feed at `rt.<domain>`
 - **`gtfs-manager`** (admin, port 8001) — protected by oauth2-proxy forward auth at `manage.rt.<domain>`
 
@@ -133,5 +137,7 @@ Whenever a new variable is added to `variables.tf`, it **must** also be added to
 - Data volumes use `prevent_destroy = true` to protect against accidental data loss
 - oauth2-proxy forward auth protects most services; status page is intentionally public
 - External Traefik mode allows integration with a shared reverse proxy across multiple stacks
-- Private images (`rt-api`, `bridge`) pulled from `git.kcfam.us`
+- Private images (`cafe-car`, `vehicle-poser`, `trip-updogger`, `schedule-foamer`) pulled from `git.kcfam.us`
+- Models and migrations live in `railroad-club`; `gtfs-migrate` init container applies them on startup
+- `music-student` provides a Docker Compose equivalent for local development
 - Traefik, Dex, and NanoMQ are built locally via `images.tf` from the repo's `traefik/`, `dex/`, and `nanomq/` subdirectories; Terraform rebuilds them when source files change
