@@ -20,7 +20,7 @@ resource "docker_container" "rt_api_migrate" {
   restart  = "no"
   must_run = false
 
-  command = ["alembic", "upgrade", "head"]
+  command = ["railroad-club-migrate"]
 
   env = local.rt_api_env
 
