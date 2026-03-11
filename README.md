@@ -1,9 +1,9 @@
 # deploy-gtfs-rt
 
-**GTFS.Zone** is a public-option platform for transit operators to publish
-real-time GTFS feeds. The goal is to make it as simple, lightweight, and
-inexpensive as possible — a small agency with minimal technical resources
-should be able to get a live feed running in an afternoon.
+**GTFS.Zone** is a "public option" for transit operators to publish real-time
+GTFS feeds. The goal is to make it as simple, lightweight, and inexpensive as
+possible — a small agency with minimal technical resources should be able to
+get a live feed running in an afternoon.
 
 Operators who don't want to self-host can use an already-running instance
 without touching any of this. This repo is for those who want to run their own.
@@ -25,35 +25,39 @@ The stack is built from these open-source projects:
 This repo provides the Terraform deployment that wires them together with supporting infrastructure.
 
 ```mermaid
-graph LR
-    lz["landing-zone\nstatic homepage\nat gtfs.zone"]
+flowchart LR
+    classDef repo fill:#dbeafe,stroke:#3b82f6,color:#1e3a5f
+    classDef dir fill:#fef9c3,stroke:#d97706,color:#5c3d00
+    classDef tf fill:#dcfce7,stroke:#16a34a,color:#14532d
 
-    subgraph repo["deploy-gtfs-rt"]
-        direction TB
-        local["local builds\ntraefik/ · dex/ · nanomq/"]
-        tf["tf/\nmain OpenTofu root"]
-        tfm["tf-monitors/\nUptime Kuma config"]
-        local -->|builds| tf
-        tfm -.-|configures after| tf
+    traefik_dir["`**traefik/**`"]:::dir
+    dex_dir["`**dex/**`"]:::dir
+    nanomq_dir["`**nanomq/**`"]:::dir
+    tf[["`**tf/**<br>OpenTofu root`"]]:::tf
+    tfm[["`**tf-monitors/**<br>Uptime Kuma config`"]]:::tf
+    traefik_dir & dex_dir & nanomq_dir -->|"local build"| tf
+    tf -.-|"runs after"| tfm
+
+    subgraph registry["Container Registry"]
+        cc(["**cafe-car**<br>GTFS-RT API + admin"]):::repo
+        vp(["**vehicle-poser**<br>relay vehicle position"]):::repo
+        tu(["**trip-updogger**<br>trip delay engine"]):::repo
+        sf(["**schedule-foamer**<br>GTFS Static Downloader"]):::repo
     end
 
-    cc["cafe-car\nGTFS-RT API + admin"]
-    vp["vehicle-poser\nMQTT → Redis bridge"]
-    tu["trip-updogger\ntrip delay engine"]
-    sf["schedule-foamer\nCelery worker + beat"]
-    rc["railroad-club\nSQLAlchemy models + migrations"]
-    ms["music-student\nlocal dev Compose"]
+    rc(["**railroad-club**<br>SQLAlchemy models + migrations"]):::repo
+    ms(["**music-student**<br>local dev Compose"]):::repo
 
-    rc -->|models + migrations| cc
-    rc -->|models| sf
+    rc -->|"models + migrations"| cc
+    rc -->|"models"| tu
+    rc -->|"models"| sf
 
-    cc -->|image| tf
-    vp -->|image| tf
-    tu -->|image| tf
-    sf -->|image| tf
+    cc -->|"container image"| tf
+    vp -->|"container image"| tf
+    tu -->|"container image"| tf
+    sf -->|"container image"| tf
 
-    ms -.->|mirrors for local dev| repo
-    lz -.->|links to deployed services| repo
+    tf -.-|"mirrors for local dev"| ms
 ```
 
 **Issues & roadmap:** [issue tracker](https://git.kcfam.us/gtfs.zone/deploy-gtfs-rt/issues) · [project kanban](https://git.kcfam.us/gtfs.zone/-/projects/3)
@@ -72,6 +76,319 @@ graph LR
 | `ws.mqtt.<domain>` | MQTT over WebSocket |
 | `uptime.<domain>` | Uptime Kuma dashboard (auth-gated) |
 | `status.<domain>` | Public status page |
+
+
+## System Diagrams
+
+### Real-time data flow
+
+A position update travels from a driver's phone to a GTFS-RT consumer in under a second.
+
+```mermaid
+sequenceDiagram
+    actor driver as Driver<br>(OwnTracks app)
+    actor operator as Operator
+    participant mgr as cafe-car admin
+    participant NanoMQ@{ "type": "queue" }
+    participant vp as vehicle-poser
+    participant tu as trip-updogger
+    participant Redis@{ "type": "database" }
+    participant postgres@{ "type": "database" }
+    participant pub as cafe-car public
+    actor consumer as GTFS Consumer<br>(Google Maps, etc.)
+
+    Note over driver,NanoMQ: MQTT connection & auth
+    driver->>NanoMQ: MQTT CONNECT (TLS :443, SNI)
+    NanoMQ->>pub: POST /mqtt/auth
+    pub-->>NanoMQ: 200 OK
+
+    Note over driver,Redis: Real-time position update
+    driver->>NanoMQ: PUBLISH owntracks/username/device
+    NanoMQ->>vp: subscribe
+    vp->>Redis: HSET vehicle_positions
+    NanoMQ->>tu: subscribe
+    tu->>Redis: HSET trip_delays
+
+    Note over operator,mgr: Admin
+    operator->>mgr: POST /alerts
+    mgr->>postgres: INSERT service_alert
+    postgres-->>mgr: ok
+    mgr-->>operator: 201 Created
+
+    Note over pub,consumer: Vehicle Positions
+    consumer->>pub: GET /rt/vehicle-positions.pb
+    pub->>Redis: HGETALL vehicle_positions
+    Redis-->>pub: positions
+    pub-->>consumer: VehiclePosition FeedMessage
+
+    Note over pub,consumer: Trip Updates
+    consumer->>pub: GET /rt/trip-updates.pb
+    pub->>Redis: HGETALL trip_delays
+    Redis-->>pub: delays
+    pub-->>consumer: TripUpdate FeedMessage
+
+    Note over pub,consumer: Service Alerts
+    consumer->>pub: GET /rt/service-alerts.pb
+    pub->>postgres: SELECT service_alerts
+    postgres-->>pub: alerts
+    pub-->>consumer: Alert FeedMessage
+```
+
+### System context
+
+External actors and systems the stack integrates with.
+
+```mermaid
+flowchart LR
+    driver(["Driver<br>(OwnTracks app)"])
+    operator(["Transit Operator"])
+    consumer(["GTFS Consumer<br>(Google Maps, etc.)"])
+
+    owntracks["OwnTracks<br>Free & open source location app"]
+    oauth["OAuth Provider<br>GitHub / GitLab / Google"]
+    porkbun["Porkbun DNS<br>TLS via DNS-01 challenge"]
+    gtfs_src["Static GTFS Source<br>Agency schedule ZIP files"]
+
+    stack["GTFS.Zone Stack"]
+
+    driver -->|"drives with"| owntracks
+    owntracks -->|"MQTT/TLS :443"| stack
+    operator -->|"admin UI"| stack
+    stack -->|"GTFS-RT protobuf"| consumer
+    stack -->|"DNS + cert management"| porkbun
+    oauth -->|"OIDC tokens"| stack
+    stack -->|"fetch schedule"| gtfs_src
+```
+
+### Core data model
+
+All models defined in [railroad-club](https://git.kcfam.us/gtfs.zone/railroad-club) and shared across services.
+
+```mermaid
+erDiagram
+    USER {
+        int id PK
+        string provider
+        string provider_subject
+        string email
+        string display_name
+    }
+    FEED {
+        int id PK
+        string feed_name
+        string static_feed_url
+        int owner_id FK
+        int gtfs_static_feed_id FK
+    }
+    DRIVER {
+        int id PK
+        string username
+        string password
+        int feed_id FK
+    }
+    TRIP_ALIAS {
+        int id PK
+        int feed_id FK
+        string alias
+        string trip_id
+    }
+    SERVICE_ALERT {
+        int id PK
+        int feed_id FK
+        string header_text
+        string description_text
+        string url
+        string cause
+        string effect
+        string severity_level
+        datetime active_period_start
+        datetime active_period_end
+    }
+    INFORMED_ENTITY {
+        int id PK
+        int service_alert_id FK
+        string agency_id
+        string route_id
+        int route_type
+        int direction_id
+        string stop_id
+        string trip_id
+        string trip_route_id
+        int trip_direction_id
+        string trip_start_time
+        string trip_start_date
+    }
+    GTFS_STATIC_FEED {
+        int id PK
+        string timezone
+        string status
+        string error_message
+        datetime last_loaded_at
+        datetime started_at
+        datetime next_retry_at
+    }
+    GTFS_STOP {
+        int id PK
+        int gtfs_static_feed_id FK
+        string stop_id
+        string stop_name
+        float stop_lat
+        float stop_lon
+        string stop_code
+        string stop_desc
+    }
+    GTFS_ROUTE {
+        int id PK
+        int gtfs_static_feed_id FK
+        string route_id
+        string agency_id
+        string route_short_name
+        string route_long_name
+        int route_type
+    }
+    GTFS_TRIP {
+        int id PK
+        int gtfs_static_feed_id FK
+        string trip_id
+        string route_id
+        string service_id
+        string trip_headsign
+        int direction_id
+    }
+    GTFS_STOP_TIME {
+        int id PK
+        int gtfs_static_feed_id FK
+        string trip_id
+        string stop_id
+        string arrival_time
+        string departure_time
+        int stop_sequence
+    }
+
+    USER ||--o{ FEED : owns
+    FEED }o--o| GTFS_STATIC_FEED : "loaded from"
+    FEED ||--o{ DRIVER : has
+    FEED ||--o{ TRIP_ALIAS : has
+    FEED ||--o{ SERVICE_ALERT : has
+    SERVICE_ALERT ||--o{ INFORMED_ENTITY : targets
+    GTFS_STATIC_FEED ||--o{ GTFS_STOP : contains
+    GTFS_STATIC_FEED ||--o{ GTFS_ROUTE : contains
+    GTFS_STATIC_FEED ||--o{ GTFS_TRIP : contains
+    GTFS_STATIC_FEED ||--o{ GTFS_STOP_TIME : contains
+```
+
+### Service routing
+
+Subdomain routing from the internet through Traefik to each service, with data-layer connections.
+
+```mermaid
+stateDiagram-v2
+    Internet : Internet
+    tr : Traefik<br>TLS termination · Let's Encrypt via Porkbun DNS
+    nm : NanoMQ<br>MQTT broker · TLS 443 via SNI · WebSocket
+    uk : Uptime Kuma
+
+    state "Auth" as auth {
+        op : oauth2-proxy<br>Forward auth middleware
+        dx : Dex<br>OIDC provider
+    }
+
+    state "cafe-car" as application {
+        cp : gtfs-api<br>public GTFS-RT feed
+        ca : gtfs-manager<br>admin interface
+    }
+
+    state "Workers" as workers {
+        vp : vehicle-poser
+        tu : trip-updogger
+        sf : schedule-foamer<br>Celery worker + beat
+    }
+
+    [*] --> Internet
+    Internet --> tr
+
+    tr --> cp : rt.&ltdomain&gt
+    tr --> op : manage.rt / auth.&ltdomain&gt
+    tr --> dx : dex.&ltdomain&gt
+    tr --> nm : mqtt.&ltdomain&gt 443 · ws.mqtt.&ltdomain&gt
+    tr --> uk : status.&ltdomain&gt (public)
+
+    op --> ca : manage.rt.&ltdomain&gt (authed)
+    op --> uk : uptime.&ltdomain&gt (authed)
+    op --> dx : OIDC token check
+
+    nm --> cp : /mqtt/auth
+    nm --> vp : position events
+    nm --> tu : position events
+```
+
+### Real-time data pipeline
+
+MQTT message from a driver's phone arriving as a GTFS-RT protobuf response.
+
+```mermaid
+flowchart TD
+    driver(["Driver<br>OwnTracks app"])
+
+    subgraph mqtt["NanoMQ · MQTT broker"]
+        nanomq["TLS :443 (SNI)<br>WebSocket on ws.mqtt.&ltdomain&gt"]
+    end
+
+    subgraph ingestion["Ingestion workers"]
+        vp["vehicle-poser"]
+        tu["trip-updogger"]
+    end
+
+    subgraph store["Redis DB 1"]
+        positions[["vehicle_positions"]]
+        delays[["trip_delays"]]
+    end
+
+    subgraph api["cafe-car · gtfs-api"]
+        cafe_pub["public GTFS-RT feed"]
+    end
+
+    consumer(["GTFS Consumer<br>Google Maps, etc."])
+
+    driver -->|"PUBLISH owntracks/user/device"| nanomq
+    nanomq --> vp & tu
+    vp -->|"HSET"| positions
+    tu -->|"HSET"| delays
+    positions & delays -->|"HGETALL"| cafe_pub
+    cafe_pub -->|"VehiclePosition · TripUpdate"| consumer
+```
+
+### Auth flow
+
+How an operator reaches a protected service via Dex and oauth2-proxy.
+
+```mermaid
+stateDiagram-v2
+    [*] --> Requesting: operator visits manage.rt.&ltdomain&gt
+
+    state Requesting {
+        [*] --> ForwardAuth: Traefik → oauth2-proxy
+        ForwardAuth --> [*]: session valid
+        ForwardAuth --> Login: no session
+        Login --> [*]: cookie set
+    }
+
+    state Login {
+        [*] --> Dex
+        Dex --> OAuthProvider: redirect
+        OAuthProvider --> Dex: auth code
+        Dex --> [*]: ID token → session
+    }
+
+    Requesting --> Serving: authenticated
+
+    state Serving {
+        [*] --> Protected: cafe-car admin
+        Protected --> [*]: 200 OK
+    }
+
+    Serving --> [*]
+```
 
 
 ## Development
