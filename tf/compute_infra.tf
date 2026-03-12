@@ -145,4 +145,12 @@ resource "docker_container" "nanomq" {
     label = "traefik.http.services.${local.prefix}mqtt-ws.loadbalancer.server.port"
     value = "8083"
   }
+
+  volumes {
+    volume_name    = docker_volume.nanomq_passwd.name
+    container_path = "/run/nanomq"
+    read_only      = true
+  }
+
+  depends_on = [docker_container.rt_api_public]
 }

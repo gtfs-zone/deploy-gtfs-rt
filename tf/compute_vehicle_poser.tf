@@ -7,6 +7,8 @@ resource "docker_container" "bridge" {
 
   env = [
     "MQTT_BROKER=tcp://nanomq:1883",
+    "MQTT_USERNAME=public",
+    "MQTT_PASSWORD=public",
     "REDIS_URL=redis://redis:6379/1",
   ]
 

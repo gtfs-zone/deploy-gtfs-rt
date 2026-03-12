@@ -8,6 +8,7 @@ locals {
     "SESSION_SECRET_KEY=${random_password.rt_api_session_secret.result}",
     "OAUTH2_PROXY_LOGOUT_URL=https://${local.auth_fqdn}/oauth2/sign_out?rd=https://${local.api_admin_fqdn}",
     "CELERY_BROKER_URL=redis://redis:6379/3",
+    "MQTT_PUBLIC_PASSWORD=public",
   ]
 }
 
@@ -84,6 +85,19 @@ resource "docker_container" "rt_api_public" {
     value = "8000"
   }
 
+  volumes {
+    volume_name    = docker_volume.nanomq_passwd.name
+    container_path = "/run/nanomq"
+  }
+
+  healthcheck {
+    test         = ["CMD-SHELL", "python -c \"import urllib.request; urllib.request.urlopen('http://localhost:8000/health')\""]
+    interval     = "5s"
+    timeout      = "5s"
+    start_period = "10s"
+    retries      = 10
+  }
+
   depends_on = [
     docker_container.redis,
     docker_container.rt_api_migrate,
@@ -146,6 +160,11 @@ resource "docker_container" "rt_api_admin" {
   labels {
     label = "traefik.http.services.${local.prefix}rt-api-admin.loadbalancer.server.port"
     value = "8001"
+  }
+
+  volumes {
+    volume_name    = docker_volume.nanomq_passwd.name
+    container_path = "/run/nanomq"
   }
 
   depends_on = [

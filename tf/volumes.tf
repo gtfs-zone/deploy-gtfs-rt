@@ -35,3 +35,11 @@ resource "docker_volume" "uptime_kuma_data" {
     ignore_changes  = [labels]
   }
 }
+
+resource "docker_volume" "nanomq_passwd" {
+  name = "${local.prefix}nanomq_passwd"
+
+  lifecycle {
+    ignore_changes = [labels]
+  }
+}
