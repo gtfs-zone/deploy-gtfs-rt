@@ -12,7 +12,7 @@ resource "porkbun_dns_record" "subdomains" {
     var.dex_subdomain,
     var.api_subdomain,
     var.api_admin_subdomain,
-var.uptime_subdomain,
+    var.uptime_subdomain,
     var.status_subdomain,
     var.mqtt_subdomain,
     var.mqtt_ws_subdomain,
