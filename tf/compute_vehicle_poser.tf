@@ -10,6 +10,7 @@ resource "docker_container" "bridge" {
     "MQTT_USERNAME=public",
     "MQTT_PASSWORD=public",
     "REDIS_URL=redis://redis:6379/1",
+    "DATABASE_URL=postgresql://rt_api:${random_password.postgres_rt_api.result}@postgres:5432/rt_api",
   ]
 
   networks_advanced {
@@ -20,5 +21,6 @@ resource "docker_container" "bridge" {
   depends_on = [
     docker_container.nanomq,
     docker_container.redis,
+    docker_container.postgres_init,
   ]
 }
