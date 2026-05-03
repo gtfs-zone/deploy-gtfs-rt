@@ -7,7 +7,7 @@ resource "porkbun_dns_record" "root" {
 }
 
 resource "porkbun_dns_record" "subdomains" {
-  for_each  = toset([
+  for_each = toset([
     var.auth_subdomain,
     var.dex_subdomain,
     var.api_subdomain,

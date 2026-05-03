@@ -24,10 +24,10 @@ resource "docker_container" "postgres" {
 # Runs once (restart=no). Re-running is safe: CREATE IF NOT EXISTS semantics.
 
 resource "docker_container" "postgres_init" {
-  name      = "${local.prefix}postgres-init"
-  image     = "postgres:${var.postgres_version}"
-  restart   = "no"
-  must_run  = false
+  name     = "${local.prefix}postgres-init"
+  image    = "postgres:${var.postgres_version}"
+  restart  = "no"
+  must_run = false
 
   env = [
     "PGPASSWORD=${random_password.postgres_admin.result}",

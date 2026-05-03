@@ -1,0 +1,26 @@
+name: Validate
+
+on:
+  push:
+    branches:
+      - main
+
+jobs:
+  validate:
+    runs-on: alpine-3.23
+
+    steps:
+      - name: Install OpenTofu
+        run: apk add --no-cache opentofu
+
+      - name: Checkout
+        uses: actions/checkout@v6
+        with:
+          github-server-url: https://git.kcfam.us
+
+      - name: Format check
+        run: tofu fmt -check -recursive
+
+      - name: Validate
+        run: tofu init -backend=false && tofu validate
+        working-directory: tf
