@@ -163,20 +163,43 @@ the `server:` field to the server's reachable IP. Verify: `kubectl get nodes`.
 - ServiceLB will bind whatever host port our Traefik `LoadBalancer` Service requests
   — we request **8443** (never 80/443) so we never collide with the Docker Traefik.
 
-### Phase 2 — Bootstrap ArgoCD  (partly MANUAL first time)
+### Phase 2 — Bootstrap ArgoCD  ✅ DONE
 ```bash
 kubectl create namespace argocd
+kubectl -n argocd create secret generic sops-age --from-file=keys.txt=age.key  # root of trust
 helm repo add argo https://argoproj.github.io/argo-helm
-helm install argocd argo/argo-cd -n argocd -f infra/argocd/values.yaml
+helm install argocd argo/argo-cd -n argocd --version 10.1.4 -f infra/argocd/values.yaml
+kubectl apply -f apps/root.yaml     # bootstrap app-of-apps
 ```
-- Configure **KSOPS** as a Config Management Plugin sidecar on the argocd-repo-server
+- Configured **KSOPS** as a Config Management Plugin sidecar on the argocd-repo-server
   (via `infra/argocd/values.yaml`), with the age private key mounted from a Secret.
-  - ⚠️ MANUAL (root of trust, out-of-band): 
-    `kubectl -n argocd create secret generic sops-age --from-file=keys.txt=age.key`
-- Bootstrap app-of-apps once, then ArgoCD self-manages from git:
-  `kubectl apply -f apps/root.yaml`
-- ArgoCD served at `argocd.gtfs.zone` via its own IngressRoute (`infra/argocd/`).
-  Access initially via `kubectl -n argocd port-forward svc/argocd-server 8080:443`.
+- Bootstrapped app-of-apps once; ArgoCD now self-manages from git.
+- ArgoCD served at `argocd.gtfs.zone` via its own IngressRoute (`infra/argocd/`) — **deferred to
+  Phase 7** (needs Traefik + cert-manager). Access initially via
+  `kubectl -n argocd port-forward svc/argocd-server 8080:443`.
+
+**Phase 2 outputs:**
+- **Workstation tools installed:** `helm` v4.2.3, `argocd` v3.4.5. (`sops`/`age`/`kustomize`
+  still not installed — not needed until Phase 4; KSOPS runs inside the sidecar, not locally.)
+  `kubectl` reaches the API server through an SSH tunnel: `ssh -fN -L 6443:localhost:6443 kcfam`.
+- **Chart:** `argo/argo-cd` **10.1.4** (appVersion **v3.4.5**), namespace `argocd`. All pods
+  Running; `argocd-repo-server` is **2/2** (main + `ksops` sidecar).
+- **KSOPS sidecar** (`infra/argocd/values.yaml`): `viaductoss/ksops:v4.3.3` initContainer copies
+  `ksops` + a ksops-enabled `kustomize` (**v5.3.0+ksops.v4.3.3**) into the sidecar; sidecar runs
+  `argocd-cmp-server` with `SOPS_AGE_KEY_FILE=/home/argocd/.config/sops/age/keys.txt`. Plugin
+  `ksops` discovers any app tree containing `*.enc.yaml` and renders via
+  `kustomize build --enable-alpha-plugins --enable-exec`. Verified inside the pod (binary present,
+  plugin.yaml mounted, age key readable).
+- **`sops-age` Secret** created in `argocd` from `age.key` (key `keys.txt`) — out-of-band root of
+  trust, not in git.
+- **`server.insecure: true`** set (TLS terminated upstream by Traefik in Phase 7).
+- **app-of-apps** (`apps/root.yaml`): root `Application` → **HTTPS** repo
+  `https://git.kcfam.us/gtfs.zone/deploy-gtfs-rt.git`, path `apps/`, `targetRevision: k3s-init`,
+  automated sync + prune + selfHeal. ⚠️ **Deviation:** repo is **anonymously readable over HTTPS**,
+  so we use the HTTPS URL and need **no ArgoCD repo credential** (the plan's SSH assumption is moot).
+  Status: **Synced + Healthy** at commit `80dd80f`, 0 child resources (empty until Phase 3).
+- ⚠️ **TODO:** flip `targetRevision` `k3s-init` → `main` once the migration is merged.
+- **Initial admin password:** `kubectl -n argocd get secret argocd-initial-admin-secret -o jsonpath="{.data.password}" | base64 -d`
 
 ### Phase 3 — Infra layer (via ArgoCD)
 Add these `Application`s under `apps/`:
