@@ -1,0 +1,102 @@
+## infra/argocd/values.yaml
+## Helm values for Argo CD (chart argo/argo-cd, appVersion v3.4.5).
+##
+## Adds a **KSOPS** Config Management Plugin (CMP) sidecar to the repo-server so
+## that SOPS-encrypted Secrets (`*.enc.yaml`, referenced by a ksops kustomize
+## generator) are decrypted at manifest-render time using the age private key
+## mounted from the `sops-age` Secret (created out-of-band in Phase 2).
+##
+## Pattern per https://github.com/viaduct-ai/kustomize-sops#argo-cd-integration
+## - initContainer copies the `ksops` + `kustomize` binaries from the ksops image
+##   into an emptyDir shared with the sidecar.
+## - sidecar runs argocd-cmp-server with SOPS_AGE_KEY_FILE pointing at the key.
+
+global:
+  # Single node: no anti-affinity spreading needed.
+  affinity:
+    podAntiAffinity: soft
+
+configs:
+  params:
+    # TLS is terminated upstream (home-docker Traefik → k3s Traefik). Run the
+    # API/UI server in insecure (HTTP) mode so it sits cleanly behind a proxy.
+    # Until the IngressRoute exists (Phase 7) access is via `kubectl port-forward`.
+    server.insecure: true
+
+  # Create the ConfigMap `argocd-cmp-cm` holding the KSOPS plugin spec. The
+  # sidecar below mounts data key `ksops.yaml` at cmp-server/config/plugin.yaml.
+  cmp:
+    create: true
+    plugins:
+      ksops:
+        allowConcurrency: true
+        generate:
+          command:
+            - sh
+            - -c
+            - kustomize build --enable-alpha-plugins --enable-exec .
+        discover:
+          # Any app tree containing an encrypted Secret routes through KSOPS.
+          find:
+            command:
+              - sh
+              - -c
+              - "find . -name '*.enc.yaml' -print -quit | grep -q . && echo ksops"
+        lockRepo: false
+
+repoServer:
+  initContainers:
+    - name: install-ksops
+      image: viaductoss/ksops:v4.3.3
+      command: ["/bin/sh", "-c"]
+      args:
+        - echo "Installing KSOPS...";
+          mv ksops /custom-tools/;
+          mv "$(which kustomize)" /custom-tools/;
+          echo "Done.";
+      volumeMounts:
+        - mountPath: /custom-tools
+          name: custom-tools
+  extraContainers:
+    - name: ksops
+      command:
+        - /var/run/argocd/argocd-cmp-server
+      image: quay.io/argoproj/argocd:v3.4.5
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 999
+      env:
+        - name: SOPS_AGE_KEY_FILE
+          value: /home/argocd/.config/sops/age/keys.txt
+      volumeMounts:
+        # cmp-server plumbing (these volumes are provided by the chart).
+        - mountPath: /var/run/argocd
+          name: var-files
+        - mountPath: /home/argocd/cmp-server/plugins
+          name: plugins
+        - mountPath: /tmp
+          name: tmp
+        # KSOPS plugin spec (from configs.cmp above).
+        - mountPath: /home/argocd/cmp-server/config/plugin.yaml
+          subPath: ksops.yaml
+          name: argocd-cmp-cm
+        # ksops + kustomize binaries copied by the initContainer.
+        - mountPath: /usr/local/bin/kustomize
+          name: custom-tools
+          subPath: kustomize
+        - mountPath: /usr/local/bin/ksops
+          name: custom-tools
+          subPath: ksops
+        # age private key for SOPS decryption.
+        - mountPath: /home/argocd/.config/sops/age/keys.txt
+          name: sops-age
+          subPath: keys.txt
+  volumes:
+    - name: custom-tools
+      emptyDir: {}
+    - name: argocd-cmp-cm
+      configMap:
+        name: argocd-cmp-cm
+    - name: sops-age
+      secret:
+        secretName: sops-age

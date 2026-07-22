@@ -1,0 +1,38 @@
+## apps/root.yaml — the "app of apps".
+##
+## Bootstrapped once by hand (`kubectl apply -f apps/root.yaml`); thereafter Argo
+## CD self-manages: every other file in `apps/` is an Application, and adding a
+## component to the platform is just adding one more file here.
+##
+## Uses the plain directory source (no plugin) — the files in apps/ are ordinary
+## Application manifests, not encrypted, so they need no KSOPS rendering.
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: root
+  namespace: argocd
+  finalizers:
+    - resources-finalizer.argocd.argoproj.io
+spec:
+  project: default
+  source:
+    # Repo is anonymously readable over HTTPS, so no ArgoCD repo credential is
+    # needed. (Switch to an SSH/token creds Secret here if the repo goes private.)
+    repoURL: https://git.kcfam.us/gtfs.zone/deploy-gtfs-rt.git
+    # TODO: switch to `main` once the k3s migration is merged.
+    targetRevision: k3s-init
+    path: apps
+    directory:
+      recurse: false
+      include: "*.yaml"
+      # Don't treat root.yaml as a child app of itself.
+      exclude: "root.yaml"
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: argocd
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=true
