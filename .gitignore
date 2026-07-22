@@ -18,3 +18,7 @@ tf-monitors/.terraform.lock.hcl
 tf-monitors/.terraform.tfstate.lock.info
 tf-monitors/secrets.auto.tfvars
 
+# SOPS age private key — NEVER commit. Public recipient lives in .sops.yaml.
+age.key
+*.agekey
+

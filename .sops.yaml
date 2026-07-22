@@ -1,0 +1,8 @@
+# SOPS + age encryption rules.
+# The matching age private key lives OUTSIDE git (age.key, gitignored) and is
+# mounted into ArgoCD's repo-server as the `sops-age` Secret (see Phase 2).
+creation_rules:
+  - path_regex: (^|/)secrets/.*\.enc\.yaml$
+    age: age16mxws3n4s0my6k5jzy225shmpa36ag35v975xg4j6u7k3rjqn5dqvxw27c
+  - path_regex: ^infra/.*\.enc\.yaml$
+    age: age16mxws3n4s0my6k5jzy225shmpa36ag35v975xg4j6u7k3rjqn5dqvxw27c
