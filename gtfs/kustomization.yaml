@@ -2,9 +2,9 @@
 # `secrets` base contains *.enc.yaml, so ArgoCD routes the whole tree through the
 # KSOPS CMP (`kustomize build --enable-alpha-plugins --enable-exec`).
 #
-# Phase 5 wires the stateful layer (Postgres + Redis) + secrets. The application
-# layer (Dex, oauth2-proxy, rt-api, celery, uptime-kuma, IngressRoutes) is added
-# to `resources` in Phases 6-7.
+# Phase 5 wired the stateful layer (Postgres + Redis) + secrets. Phase 6 adds the
+# application layer (Dex, oauth2-proxy, rt-api + migrate hook, celery, uptime-kuma).
+# The IngressRoutes that expose these are added in Phase 7.
 apiVersion: kustomize.config.k8s.io/v1beta1
 kind: Kustomization
 resources:
@@ -12,3 +12,9 @@ resources:
   - secrets
   - postgres-cluster.yaml
   - redis.yaml
+  - dex
+  - oauth2-proxy.yaml
+  - rt-api.yaml
+  - rt-api-migrate.yaml
+  - celery.yaml
+  - uptime-kuma.yaml

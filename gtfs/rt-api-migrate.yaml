@@ -1,0 +1,43 @@
+# ── rt-api migrate (Alembic) ──────────────────────────────────────────────────
+# Replaces the TF `gtfs-migrate` init container. Runs `railroad-club-migrate`
+# (Alembic) against the rt_api database as an ArgoCD **PreSync hook** — it
+# completes before the gtfs-api/gtfs-manager Deployments roll. Re-running is safe:
+# Alembic tracks applied versions. HookDeletePolicy replaces the Job each sync so
+# the hook name stays stable.
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: gtfs-migrate
+  namespace: gtfs
+  annotations:
+    argocd.argoproj.io/hook: PreSync
+    argocd.argoproj.io/hook-delete-policy: BeforeHookCreation
+spec:
+  backoffLimit: 3
+  template:
+    metadata:
+      labels:
+        app: gtfs-migrate
+    spec:
+      restartPolicy: Never
+      imagePullSecrets:
+        - name: registry-git-kcfam
+      containers:
+        - name: gtfs-migrate
+          image: git.kcfam.us/gtfs.zone/cafe-car:1bc7074
+          command: ["railroad-club-migrate"]
+          env:
+            - name: REDIS_URL
+              value: redis://redis:6379/1
+            - name: POSTGRES_RT_API_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: postgres-rt-api
+                  key: password
+            - name: DATABASE_URL
+              value: postgresql://rt_api:$(POSTGRES_RT_API_PASSWORD)@postgres-rw:5432/rt_api
+            - name: SESSION_SECRET_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: gtfs-app-secrets
+                  key: SESSION_SECRET_KEY

@@ -1,0 +1,71 @@
+# ── Uptime Kuma ───────────────────────────────────────────────────────────────
+# Replaces the TF `uptime-kuma` container. Deployment + Longhorn PVC + Service
+# (:3001). Serves both the authenticated dashboard (uptime.gtfs.zone) and the
+# public status page (status.gtfs.zone); the two routes + the oauth2 middleware on
+# the dashboard are wired in Phase 7 IngressRoutes. The TF `docker.sock` mount
+# (Docker container monitors) is dropped — not applicable on k8s.
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: uptime-kuma-data
+  namespace: gtfs
+spec:
+  accessModes:
+    - ReadWriteOnce
+  storageClassName: longhorn
+  resources:
+    requests:
+      storage: 2Gi
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: uptime-kuma
+  namespace: gtfs
+  labels:
+    app: uptime-kuma
+spec:
+  replicas: 1
+  # Owns a single RWO PVC; never run two pods against it at once.
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app: uptime-kuma
+  template:
+    metadata:
+      labels:
+        app: uptime-kuma
+    spec:
+      containers:
+        - name: uptime-kuma
+          image: louislam/uptime-kuma:1
+          ports:
+            - name: http
+              containerPort: 3001
+          volumeMounts:
+            - name: data
+              mountPath: /app/data
+          readinessProbe:
+            httpGet:
+              path: /
+              port: http
+            initialDelaySeconds: 10
+            periodSeconds: 10
+      volumes:
+        - name: data
+          persistentVolumeClaim:
+            claimName: uptime-kuma-data
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: uptime-kuma
+  namespace: gtfs
+spec:
+  selector:
+    app: uptime-kuma
+  ports:
+    - name: http
+      port: 3001
+      targetPort: http

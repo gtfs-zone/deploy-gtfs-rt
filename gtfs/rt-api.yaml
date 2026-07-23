@@ -1,0 +1,149 @@
+# ── rt-api (cafe-car) ─────────────────────────────────────────────────────────
+# The single cafe-car image runs as two Deployments, matching the TF split:
+#   gtfs-api      (:8000, public)  — unauthenticated GTFS-RT feed at rt.gtfs.zone
+#   gtfs-manager  (:8001, admin)   — oauth2-protected UI at manage.rt.gtfs.zone
+# Shared env mirrors the TF `local.rt_api_env`. The DATABASE_URL password is
+# injected via a dependent env var ($(POSTGRES_RT_API_PASSWORD)); Postgres host is
+# CNPG's read-write Service `postgres-rw`. Alembic migrations run separately as the
+# PreSync Job in rt-api-migrate.yaml. The `/run/nanomq` shared volume is gone with
+# the MQTT drop.
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: gtfs-api
+  namespace: gtfs
+  labels:
+    app: gtfs-api
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: gtfs-api
+  template:
+    metadata:
+      labels:
+        app: gtfs-api
+    spec:
+      imagePullSecrets:
+        - name: registry-git-kcfam
+      containers:
+        - name: gtfs-api
+          image: git.kcfam.us/gtfs.zone/cafe-car:1bc7074
+          command: ["fastapi", "run", "src/app/main.py", "--port", "8000"]
+          ports:
+            - name: http
+              containerPort: 8000
+          env:
+            - name: REDIS_URL
+              value: redis://redis:6379/1
+            - name: CELERY_BROKER_URL
+              value: redis://redis:6379/3
+            - name: MQTT_PUBLIC_PASSWORD
+              value: public
+            - name: OAUTH2_PROXY_LOGOUT_URL
+              value: https://auth.gtfs.zone/oauth2/sign_out?rd=https://manage.rt.gtfs.zone
+            - name: POSTGRES_RT_API_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: postgres-rt-api
+                  key: password
+            - name: DATABASE_URL
+              value: postgresql://rt_api:$(POSTGRES_RT_API_PASSWORD)@postgres-rw:5432/rt_api
+            - name: SESSION_SECRET_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: gtfs-app-secrets
+                  key: SESSION_SECRET_KEY
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: http
+            initialDelaySeconds: 10
+            periodSeconds: 10
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: http
+            initialDelaySeconds: 20
+            periodSeconds: 20
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: gtfs-api
+  namespace: gtfs
+spec:
+  selector:
+    app: gtfs-api
+  ports:
+    - name: http
+      port: 8000
+      targetPort: http
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: gtfs-manager
+  namespace: gtfs
+  labels:
+    app: gtfs-manager
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: gtfs-manager
+  template:
+    metadata:
+      labels:
+        app: gtfs-manager
+    spec:
+      imagePullSecrets:
+        - name: registry-git-kcfam
+      containers:
+        - name: gtfs-manager
+          image: git.kcfam.us/gtfs.zone/cafe-car:1bc7074
+          command:
+            - fastapi
+            - run
+            - src/app/admin_main.py
+            - --port
+            - "8001"
+            - --proxy-headers
+            - --forwarded-allow-ips=*
+          ports:
+            - name: http
+              containerPort: 8001
+          env:
+            - name: REDIS_URL
+              value: redis://redis:6379/1
+            - name: CELERY_BROKER_URL
+              value: redis://redis:6379/3
+            - name: MQTT_PUBLIC_PASSWORD
+              value: public
+            - name: OAUTH2_PROXY_LOGOUT_URL
+              value: https://auth.gtfs.zone/oauth2/sign_out?rd=https://manage.rt.gtfs.zone
+            - name: POSTGRES_RT_API_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: postgres-rt-api
+                  key: password
+            - name: DATABASE_URL
+              value: postgresql://rt_api:$(POSTGRES_RT_API_PASSWORD)@postgres-rw:5432/rt_api
+            - name: SESSION_SECRET_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: gtfs-app-secrets
+                  key: SESSION_SECRET_KEY
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: gtfs-manager
+  namespace: gtfs
+spec:
+  selector:
+    app: gtfs-manager
+  ports:
+    - name: http
+      port: 8001
+      targetPort: http

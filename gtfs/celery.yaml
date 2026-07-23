@@ -1,0 +1,89 @@
+# ── Celery (schedule-foamer) ──────────────────────────────────────────────────
+# Replaces the TF `celery-worker` + `celery-beat` containers. Two Deployments off
+# the schedule-foamer image, internal only (no Service). Env mirrors the TF
+# `local.schedule_foamer_env`; DATABASE_URL uses the psycopg2 driver and CNPG's
+# `postgres-rw` Service, password injected via dependent env var.
+#   worker → executes feed download/parse tasks (concurrency 2, recycle every 10)
+#   beat   → periodic scheduler, enqueues stale/failed feeds
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: celery-worker
+  namespace: gtfs
+  labels:
+    app: celery-worker
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: celery-worker
+  template:
+    metadata:
+      labels:
+        app: celery-worker
+    spec:
+      imagePullSecrets:
+        - name: registry-git-kcfam
+      containers:
+        - name: celery-worker
+          image: git.kcfam.us/gtfs.zone/schedule-foamer:1deff09
+          command: ["celery", "-A", "schedule_foamer.celery_app", "worker", "-l", "info"]
+          env:
+            - name: CELERY_BROKER_URL
+              value: redis://redis:6379/3
+            - name: CELERY_RESULT_BACKEND
+              value: redis://redis:6379/4
+            - name: CELERY_WORKER_CONCURRENCY
+              value: "2"
+            - name: CELERY_MAX_TASKS_PER_CHILD
+              value: "10"
+            - name: POSTGRES_RT_API_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: postgres-rt-api
+                  key: password
+            - name: DATABASE_URL
+              value: postgresql+psycopg2://rt_api:$(POSTGRES_RT_API_PASSWORD)@postgres-rw:5432/rt_api
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: celery-beat
+  namespace: gtfs
+  labels:
+    app: celery-beat
+spec:
+  replicas: 1
+  # Only ever one beat scheduler; never double-enqueue.
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app: celery-beat
+  template:
+    metadata:
+      labels:
+        app: celery-beat
+    spec:
+      imagePullSecrets:
+        - name: registry-git-kcfam
+      containers:
+        - name: celery-beat
+          image: git.kcfam.us/gtfs.zone/schedule-foamer:1deff09
+          command: ["celery", "-A", "schedule_foamer.celery_app", "beat", "-l", "info"]
+          env:
+            - name: CELERY_BROKER_URL
+              value: redis://redis:6379/3
+            - name: CELERY_RESULT_BACKEND
+              value: redis://redis:6379/4
+            - name: CELERY_WORKER_CONCURRENCY
+              value: "2"
+            - name: CELERY_MAX_TASKS_PER_CHILD
+              value: "10"
+            - name: POSTGRES_RT_API_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: postgres-rt-api
+                  key: password
+            - name: DATABASE_URL
+              value: postgresql+psycopg2://rt_api:$(POSTGRES_RT_API_PASSWORD)@postgres-rw:5432/rt_api

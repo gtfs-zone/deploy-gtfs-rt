@@ -1,0 +1,135 @@
+# ── oauth2-proxy ──────────────────────────────────────────────────────────────
+# Replaces the TF `oauth2-proxy` container. Deployment + Service (:4180). The
+# Traefik ForwardAuth that TF expressed as container labels becomes two
+# Middleware CRDs below; Phase 7 IngressRoutes attach them to protected routes
+# (manage.rt, uptime) as: middlewares: [oauth2-errors, oauth2-proxy].
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: oauth2-proxy
+  namespace: gtfs
+  labels:
+    app: oauth2-proxy
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: oauth2-proxy
+  template:
+    metadata:
+      labels:
+        app: oauth2-proxy
+    spec:
+      containers:
+        - name: oauth2-proxy
+          image: quay.io/oauth2-proxy/oauth2-proxy:v7.8.2
+          ports:
+            - name: http
+              containerPort: 4180
+          env:
+            - name: OAUTH2_PROXY_HTTP_ADDRESS
+              value: "0.0.0.0:4180"
+            - name: OAUTH2_PROXY_REDIRECT_URL
+              value: https://auth.gtfs.zone/oauth2/callback
+            - name: OAUTH2_PROXY_COOKIE_DOMAINS
+              value: .gtfs.zone
+            - name: OAUTH2_PROXY_WHITELIST_DOMAINS
+              value: .gtfs.zone
+            - name: OAUTH2_PROXY_EMAIL_DOMAINS
+              value: "*"
+            - name: OAUTH2_PROXY_SKIP_PROVIDER_BUTTON
+              value: "false"
+            - name: OAUTH2_PROXY_SESSION_STORE_TYPE
+              value: redis
+            - name: OAUTH2_PROXY_REDIS_CONNECTION_URL
+              value: redis://redis:6379/0
+            - name: OAUTH2_PROXY_COOKIE_SECURE
+              value: "true"
+            - name: OAUTH2_PROXY_REVERSE_PROXY
+              value: "true"
+            - name: OAUTH2_PROXY_DEFAULT_REDIRECT_URL
+              value: https://manage.rt.gtfs.zone
+            - name: OAUTH2_PROXY_PROVIDER
+              value: oidc
+            - name: OAUTH2_PROXY_CLIENT_ID
+              value: oauth2-proxy
+            - name: OAUTH2_PROXY_OIDC_ISSUER_URL
+              value: https://dex.gtfs.zone
+            - name: OAUTH2_PROXY_OIDC_JWKS_URL
+              value: http://dex:5556/keys
+            - name: OAUTH2_PROXY_SCOPE
+              value: openid email profile
+            # Pass JWT to upstream so cafe-car's auth.py can decode email/name
+            - name: OAUTH2_PROXY_SET_XAUTHREQUEST
+              value: "true"
+            - name: OAUTH2_PROXY_PASS_ACCESS_TOKEN
+              value: "true"
+            - name: OAUTH2_PROXY_CLIENT_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: gtfs-app-secrets
+                  key: DEX_OAUTH2_PROXY_CLIENT_SECRET
+            - name: OAUTH2_PROXY_COOKIE_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: gtfs-app-secrets
+                  key: OAUTH2_PROXY_COOKIE_SECRET
+          readinessProbe:
+            httpGet:
+              path: /ping
+              port: http
+            initialDelaySeconds: 5
+            periodSeconds: 10
+          livenessProbe:
+            httpGet:
+              path: /ping
+              port: http
+            initialDelaySeconds: 15
+            periodSeconds: 20
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: oauth2-proxy
+  namespace: gtfs
+spec:
+  selector:
+    app: oauth2-proxy
+  ports:
+    - name: http
+      port: 4180
+      targetPort: http
+---
+# ForwardAuth middleware — protected routes send each request to oauth2-proxy's
+# /oauth2/auth; on 2xx the auth headers are copied to the upstream. Equivalent to
+# the TF `oauth2-proxy.forwardauth.*` labels.
+apiVersion: traefik.io/v1alpha1
+kind: Middleware
+metadata:
+  name: oauth2-proxy
+  namespace: gtfs
+spec:
+  forwardAuth:
+    address: http://oauth2-proxy.gtfs.svc.cluster.local:4180/oauth2/auth
+    trustForwardHeader: true
+    authResponseHeaders:
+      - X-Auth-Request-User
+      - X-Auth-Request-Email
+      - X-Auth-Request-Access-Token
+---
+# Errors middleware — intercepts 401/403 and serves oauth2-proxy's sign-in page
+# inline (redirecting back after login). Equivalent to the TF `oauth2-errors.*`
+# labels; the service is the oauth2-proxy Service in this namespace.
+apiVersion: traefik.io/v1alpha1
+kind: Middleware
+metadata:
+  name: oauth2-errors
+  namespace: gtfs
+spec:
+  errors:
+    status:
+      - "401-403"
+    service:
+      name: oauth2-proxy
+      port: 4180
+    query: /oauth2/sign_in?rd={url}

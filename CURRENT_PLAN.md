@@ -342,7 +342,7 @@ Add these `Application`s under `apps/`:
   `git.kcfam.us` (ksops runs in the repo-server sidecar). CNPG operator must be
   Healthy first (wave 0) — it is, per Phase 3.
 
-### Phase 6 — gtfs application layer
+### Phase 6 — gtfs application layer  ✅ DONE (authored; syncs on push)
 Translate each remaining container to a `Deployment` + `Service`:
 - **Dex** — upstream `dexidp/dex` + ConfigMap; Deployment + Service (:5556).
 - **oauth2-proxy** — Deployment + Service (:4180); its ForwardAuth becomes a Traefik
@@ -353,6 +353,59 @@ Translate each remaining container to a `Deployment` + `Service`:
   PreSync hook `Job`** (`gtfs/rt-api-migrate.yaml`), running before the Deployments roll.
 - **celery worker + beat** — two Deployments off `schedule-foamer`, internal only.
 - **uptime-kuma** — Deployment + Longhorn PVC.
+
+**Phase 6 outputs:**
+- **Six manifests added** to the gtfs Kustomize tree (all appended to
+  `gtfs/kustomization.yaml`): `dex/` (component dir), `oauth2-proxy.yaml`,
+  `rt-api.yaml`, `rt-api-migrate.yaml`, `celery.yaml`, `uptime-kuma.yaml`. Verified
+  the whole tree builds + decrypts with
+  `kustomize build --enable-alpha-plugins --enable-exec gtfs` (28 objects; the dex
+  ConfigMap hash reference is correctly rewritten into the dex Deployment).
+- **Dex** (`gtfs/dex/`): upstream `ghcr.io/dexidp/dex:v2.44.0` (drops the custom
+  `kcfam/dex:local` image — the upstream image natively expands the config's
+  `{{ getenv }}` templates). Config lives in `gtfs/dex/config.yaml`, rendered into a
+  hash-suffixed `dex-config` ConfigMap by a **`configMapGenerator`** (a `dex/`
+  sub-kustomization) so a config edit rolls the Deployment. Only change vs. the TF
+  config: Postgres host `postgres` → **`postgres-rw`** (CNPG's read-write Service).
+  DB password from the `postgres-dex` basic-auth Secret; issuer/redirect/connector
+  env from `gtfs-app-secrets` (all three GitHub/GitLab/Google connectors, GitLab
+  `baseURL` literal `https://gitlab.com`). TCP-socket probes on :5556 (dex's
+  `/healthz` lives only on the unconfigured telemetry port).
+- **oauth2-proxy** (`gtfs/oauth2-proxy.yaml`): `quay.io/oauth2-proxy/oauth2-proxy:v7.8.2`,
+  Deployment + Service (:4180), `/ping` probes. The TF ForwardAuth **labels become two
+  Traefik `Middleware` CRDs** in ns `gtfs` — `oauth2-proxy` (forwardAuth →
+  `oauth2-proxy.gtfs.svc:4180/oauth2/auth`, copies the three `X-Auth-Request-*`
+  headers) and `oauth2-errors` (401-403 → inline sign-in via the oauth2-proxy
+  Service). Phase 7 IngressRoutes attach them to `manage.rt` + `uptime`.
+- **rt-api** (`gtfs/rt-api.yaml`): two Deployments + Services off
+  `git.kcfam.us/gtfs.zone/cafe-car:1bc7074` — `gtfs-api` (:8000, `/health` probes)
+  and `gtfs-manager` (:8001). Shared env mirrors TF `local.rt_api_env`.
+- **rt-api migrate** (`gtfs/rt-api-migrate.yaml`): `railroad-club-migrate` as an
+  ArgoCD **PreSync hook `Job`** (`hook-delete-policy: BeforeHookCreation`,
+  `backoffLimit: 3`, `restartPolicy: Never`).
+- **celery** (`gtfs/celery.yaml`): `celery-worker` + `celery-beat` Deployments off
+  `schedule-foamer:1deff09`, internal (no Service). beat uses `Recreate` (single
+  scheduler). Env mirrors TF `local.schedule_foamer_env` (concurrency 2, recycle 10;
+  psycopg2 driver DSN).
+- **uptime-kuma** (`gtfs/uptime-kuma.yaml`): `louislam/uptime-kuma:1`, Deployment +
+  Longhorn PVC (2Gi, `Recreate`) + Service (:3001).
+- ⚠️ **Deviations from the TF stack:**
+  - **DATABASE_URL password injected via a dependent env var** — `POSTGRES_RT_API_PASSWORD`
+    (secretKeyRef → `postgres-rt-api`) referenced as `$(POSTGRES_RT_API_PASSWORD)`
+    inside the DSN, since the password lives in a Secret, not the manifest. Same
+    pattern in rt-api, migrate Job, and celery.
+  - **oauth2-proxy cookie secret passed raw** (32-byte value from `gtfs-app-secrets`),
+    not `base64encode`d as the TF did — oauth2-proxy accepts a 32-byte string directly.
+  - **`/run/nanomq` shared volume dropped** from rt-api (MQTT subsystem gone);
+    `MQTT_PUBLIC_PASSWORD=public` env kept (harmless, image may read it).
+  - **uptime-kuma `docker.sock` mount dropped** (Docker container monitors don't
+    apply on k8s).
+  - **Private images use `imagePullSecrets: [registry-git-kcfam]`** (the Phase 4
+    dockerconfigjson Secret) on rt-api, migrate, and celery pods.
+- **Not yet exposed:** no `IngressRoute`s or DNS — Dex/oauth2-proxy/rt-api/uptime are
+  reachable only in-cluster until **Phase 7** wires the edge.
+- **Activation:** ArgoCD renders/syncs only after the branch is **pushed** to
+  `git.kcfam.us`. On sync the PreSync migrate Job runs first, then the Deployments roll.
 
 ### Phase 7 — Ingress & edge cutover
 1. `gtfs/ingressroutes.yaml`: an `IngressRoute` (websecure) per HTTP host — `rt`,

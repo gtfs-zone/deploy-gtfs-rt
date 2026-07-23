@@ -1,0 +1,63 @@
+# Dex config — rendered into a ConfigMap by the configMapGenerator in this dir's
+# kustomization. The upstream dexidp/dex image natively expands the `{{ getenv }}`
+# template calls at startup, so this is the same config the old custom `dex` image
+# shipped, with one change for k8s: the Postgres host is CNPG's read-write service
+# `postgres-rw` (was the `postgres` container).
+issuer: {{ getenv "DEX_ISSUER" }}
+
+storage:
+  type: postgres
+  config:
+    host: postgres-rw
+    port: 5432
+    database: dex
+    user: dex
+    password: {{ getenv "DEX_POSTGRES_PASSWORD" }}
+    ssl:
+      mode: disable
+
+web:
+  http: 0.0.0.0:5556
+
+oauth2:
+  skipApprovalScreen: true
+
+connectors:
+{{- if getenv "DEX_GITHUB_CLIENT_ID" }}
+  - type: github
+    id: github
+    name: GitHub
+    config:
+      clientID: {{ getenv "DEX_GITHUB_CLIENT_ID" }}
+      clientSecret: {{ getenv "DEX_GITHUB_CLIENT_SECRET" }}
+      redirectURI: {{ getenv "DEX_ISSUER" }}/callback
+      scopes:
+        - read:user
+        - user:email
+{{- end }}
+{{- if getenv "DEX_GITLAB_CLIENT_ID" }}
+  - type: gitlab
+    id: gitlab
+    name: GitLab
+    config:
+      baseURL: {{ getenv "DEX_GITLAB_BASE_URL" }}
+      clientID: {{ getenv "DEX_GITLAB_CLIENT_ID" }}
+      clientSecret: {{ getenv "DEX_GITLAB_CLIENT_SECRET" }}
+      redirectURI: {{ getenv "DEX_ISSUER" }}/callback
+{{- end }}
+{{- if getenv "DEX_GOOGLE_CLIENT_ID" }}
+  - type: google
+    id: google
+    name: Google
+    config:
+      clientID: {{ getenv "DEX_GOOGLE_CLIENT_ID" }}
+      clientSecret: {{ getenv "DEX_GOOGLE_CLIENT_SECRET" }}
+      redirectURI: {{ getenv "DEX_ISSUER" }}/callback
+{{- end }}
+
+staticClients:
+  - id: oauth2-proxy
+    redirectURIs:
+      - '{{ getenv "DEX_OAUTH2_PROXY_REDIRECT_URI" }}'
+    name: oauth2-proxy
+    secret: {{ getenv "DEX_OAUTH2_PROXY_SECRET" }}
