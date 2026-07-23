@@ -6,6 +6,42 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 This is a Terraform-based infrastructure deployment for a GTFS-RT (General Transit Feed Specification - Real Time) system. It deploys a complete microservices stack using the Docker provider on a single host, including authentication, monitoring, MQTT messaging, and APIs.
 
+> ⚠️ **Migration in progress (branch `k3s-init`).** The stack is being migrated
+> from OpenTofu-managed Docker containers to a GitOps-managed **k3s + ArgoCD**
+> deployment. The Terraform stack in `tf/` remains the **live system** until the
+> cutover; the new Kubernetes manifests live in `apps/`, `infra/`, and `gtfs/`.
+> See **`CURRENT_PLAN.md`** for the full plan and phase status. This document
+> still describes the Docker/Terraform system; it will be rewritten once the
+> migration cuts over (plan Phase 9). See "k3s Migration Layout" below for the
+> new-world directory map.
+
+## k3s Migration Layout
+
+The Kubernetes deployment is GitOps-managed by ArgoCD watching this repo
+(app-of-apps). Third-party components are upstream **Helm charts** referenced from
+ArgoCD `Application`s; our own workloads are plain manifests assembled with
+**Kustomize**. Secrets are **SOPS + age**, decrypted at render time by a **KSOPS**
+plugin sidecar on the argocd-repo-server.
+
+- `apps/` — ArgoCD `Application` manifests. `root.yaml` is the app-of-apps root
+  (points ArgoCD at `apps/`); each other file is one `Application`. Adding a
+  platform component = adding one file here. Infra charts use the multi-source
+  pattern: upstream chart + `$values/infra/<comp>/values.yaml` from this repo.
+- `infra/` — cluster platform pieces (Helm value overlays + a few raw CRs):
+  `longhorn/` (storage), `traefik/` (edge, host :8443), `cert-manager/`
+  (operator + Porkbun DNS-01 webhook-values + `manifests/` ClusterIssuer &
+  Certificate), `external-dns/` (Porkbun webhook provider), `cnpg/` (CloudNativePG
+  operator), `argocd/` (ArgoCD's own Helm values + KSOPS sidecar).
+- `gtfs/` — the application stack (Kustomize): Postgres (CNPG), Redis, Dex,
+  oauth2-proxy, rt-api, celery, uptime-kuma, IngressRoutes, and SOPS-encrypted
+  `secrets/*.enc.yaml`. (Populated in later phases.)
+- `.sops.yaml` — age recipient + encryption rules for `**/secrets/*.enc.yaml`
+  and `infra/**/*.enc.yaml`. The private key (`age.key`) is gitignored.
+
+Namespaces: `gtfs`, `argocd`, `cert-manager`, `traefik`, `external-dns`,
+`cnpg-system`, `longhorn-system`. The MQTT subsystem (NanoMQ, vehicle-poser,
+trip-updogger) is **dropped** in the k3s target — see `CURRENT_PLAN.md`.
+
 ## Terraform Commands
 
 All OpenTofu commands run from the `tf/` directory:
