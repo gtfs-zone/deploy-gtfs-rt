@@ -16,7 +16,7 @@ resource "docker_container" "celery_worker" {
   name    = "${local.prefix}celery-worker"
   image   = local.schedule_foamer_image
   restart = "always"
-  command = ["celery", "-A", "worker.celery_app", "worker", "-l", "info"]
+  command = ["celery", "-A", "schedule_foamer.celery_app", "worker", "-l", "info"]
 
   env = local.schedule_foamer_env
 
@@ -35,7 +35,7 @@ resource "docker_container" "celery_beat" {
   name    = "${local.prefix}celery-beat"
   image   = local.schedule_foamer_image
   restart = "always"
-  command = ["celery", "-A", "worker.celery_app", "beat", "-l", "info"]
+  command = ["celery", "-A", "schedule_foamer.celery_app", "beat", "-l", "info"]
 
   env = local.schedule_foamer_env
 
