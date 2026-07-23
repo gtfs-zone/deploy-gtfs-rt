@@ -1,0 +1,7 @@
+# The gtfs application namespace. Already created early by
+# infra-cert-manager-config (Phase 3) so the *.gtfs.zone Certificate could land;
+# this manifest formally declares it as part of the gtfs stack and adopts it.
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: gtfs

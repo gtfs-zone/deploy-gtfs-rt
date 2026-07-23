@@ -1,0 +1,34 @@
+## apps/gtfs.yaml — the gtfs application stack (Kustomize + KSOPS).
+##
+## Wave 3 — after the infra layer (Longhorn/CNPG/cert-manager at wave 0, Traefik/
+## external-dns at wave 1, secrets at wave 2), so the CNPG operator, the longhorn
+## StorageClass, and the gtfs namespace all exist before this Cluster/PVCs apply.
+##
+## No `directory:`/`helm:` source block: the tree contains *.enc.yaml, so ArgoCD's
+## plugin discovery routes it through the ksops CMP (same pattern as infra-secrets),
+## which runs `kustomize build --enable-alpha-plugins --enable-exec`.
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: gtfs
+  namespace: argocd
+  annotations:
+    argocd.argoproj.io/sync-wave: "3"
+  finalizers:
+    - resources-finalizer.argocd.argoproj.io
+spec:
+  project: default
+  source:
+    repoURL: https://git.kcfam.us/gtfs.zone/deploy-gtfs-rt.git
+    targetRevision: k3s-init
+    path: gtfs
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: gtfs
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=true
+      - ServerSideApply=true

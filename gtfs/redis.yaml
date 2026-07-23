@@ -1,0 +1,77 @@
+# ── Redis ─────────────────────────────────────────────────────────────────────
+# Replaces the TF `redis` container. Single instance, no auth (internal-only, as
+# in the Docker stack). Logical DB allocation is unchanged and set by clients:
+#   DB 0 oauth2-proxy sessions · DB 1 rt-api · DB 3 celery broker · DB 4 celery result
+# Longhorn-backed /data (start fresh — no data migration).
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: redis-data
+  namespace: gtfs
+spec:
+  accessModes:
+    - ReadWriteOnce
+  storageClassName: longhorn
+  resources:
+    requests:
+      storage: 2Gi
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: redis
+  namespace: gtfs
+  labels:
+    app: redis
+spec:
+  replicas: 1
+  # Redis owns a single RWO PVC; never run two pods against it at once.
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app: redis
+  template:
+    metadata:
+      labels:
+        app: redis
+    spec:
+      containers:
+        - name: redis
+          image: redis:8.6-alpine
+          args:
+            - --appendonly
+            - "yes"
+          ports:
+            - name: redis
+              containerPort: 6379
+          volumeMounts:
+            - name: data
+              mountPath: /data
+          readinessProbe:
+            exec:
+              command: ["redis-cli", "ping"]
+            initialDelaySeconds: 5
+            periodSeconds: 10
+          livenessProbe:
+            exec:
+              command: ["redis-cli", "ping"]
+            initialDelaySeconds: 15
+            periodSeconds: 20
+      volumes:
+        - name: data
+          persistentVolumeClaim:
+            claimName: redis-data
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: redis
+  namespace: gtfs
+spec:
+  selector:
+    app: redis
+  ports:
+    - name: redis
+      port: 6379
+      targetPort: redis

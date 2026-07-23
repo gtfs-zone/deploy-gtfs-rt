@@ -249,7 +249,7 @@ Add these `Application`s under `apps/`:
 - **Activation:** ArgoCD watches git, so these only take effect once the branch is
   **pushed** to `git.kcfam.us` (root app tracks `k3s-init`). No `kubectl apply` needed.
 
-### Phase 4 — Secrets (SOPS)
+### Phase 4 — Secrets (SOPS)  ✅ DONE (authored + encrypted; syncs on push)
 - Create `.sops.yaml` with the age recipient + rules matching `**/secrets/*.enc.yaml`
   and `infra/**/*.enc.yaml`.
 - Author encrypted Secrets (`sops secrets/foo.enc.yaml`):
@@ -262,12 +262,85 @@ Add these `Application`s under `apps/`:
 - Circular-dependency note: the imagePullSecret targets `git.kcfam.us` (home-docker
   Forgejo) — fine, home-docker stays up throughout.
 
-### Phase 5 — gtfs stateful layer
+**Phase 4 outputs:**
+- **`.sops.yaml`** already existed from Phase 0/2 (age recipient
+  `age16mxws3n4s0my6k5jzy225shmpa36ag35v975xg4j6u7k3rjqn5dqvxw27c`, rules for
+  `(^|/)secrets/.*\.enc\.yaml$` and `^infra/.*\.enc\.yaml$`) — reused, not recreated.
+- **Pattern:** each secret tree is a KSOPS-rendered Kustomize dir — a
+  `kustomization.yaml` (`generators: [./secret-generator.yaml]`) + a `ksops`
+  `secret-generator.yaml` listing the `*.enc.yaml` files. The plain presence of
+  `*.enc.yaml` triggers ArgoCD's ksops CMP discovery, which runs
+  `kustomize build --enable-alpha-plugins --enable-exec .`. Verified locally with
+  that exact command (sops 3.9.4 / kustomize 5.3.0 / ksops 4.3.3) — all four
+  Secrets decrypt + render correctly.
+- **`porkbun` split into two Secrets** (deviation): each consumer wants different
+  key names in a different namespace, so `porkbun-secret` exists twice —
+  `infra/secrets/porkbun-cert-manager.enc.yaml` (ns `cert-manager`, keys
+  `PORKBUN_API_KEY`/`PORKBUN_SECRET_API_KEY`) and
+  `infra/secrets/porkbun-external-dns.enc.yaml` (ns `external-dns`, keys
+  `API_KEY`/`API_SECRET`). Both wrapped by `infra/secrets/kustomization.yaml`.
+- **New Application** `apps/infra-secrets.yaml` (wave 2, ksops CMP source at
+  `infra/secrets`) applies both Porkbun Secrets. Wave 2 = after cert-manager (0)
+  and external-dns (1) create their namespaces. Once synced, external-dns stops
+  CrashLooping and the `gtfs-zone-tls` Certificate can issue — closing the Phase 3
+  secret dependency.
+- **gtfs Secrets authored** under `gtfs/secrets/` (encrypted now; wired into the
+  gtfs Kustomize app in Phase 5/6, so **no** Application yet):
+  - `gtfs-app-secrets.enc.yaml` (ns `gtfs`, 12 keys): `POSTGRES_ADMIN_PASSWORD`,
+    `POSTGRES_DEX_PASSWORD`, `POSTGRES_RT_API_PASSWORD` (fresh `openssl rand`),
+    `DEX_OAUTH2_PROXY_CLIENT_SECRET`, `OAUTH2_PROXY_COOKIE_SECRET` (32-byte),
+    `SESSION_SECRET_KEY` (fresh), and the six GitHub/GitLab/Google connector
+    `CLIENT_ID`/`CLIENT_SECRET` values carried over from `tf/secrets.auto.tfvars`.
+  - `registry-git-kcfam.enc.yaml` (ns `gtfs`, `dockerconfigjson` for `git.kcfam.us`).
+  - `gtfs/secrets/{kustomization,secret-generator}.yaml` reference both.
+- ⚠️ **Local tooling:** `sops`/`age`/`kustomize`/`ksops` were installed to
+  `~/.local/bin` (no sudo on this workstation). Re-encrypting/rotating secrets needs
+  `PATH="$HOME/.local/bin:$PATH"` and `SOPS_AGE_KEY_FILE=<repo>/age.key`.
+- **Activation:** ArgoCD renders these only after the branch is **pushed** to
+  `git.kcfam.us` (KSOPS runs in the repo-server sidecar, not locally).
+
+### Phase 5 — gtfs stateful layer  ✅ DONE (authored; syncs on push)
 1. **Postgres via CNPG** (`gtfs/postgres-cluster.yaml`): a `Cluster` on Longhorn
    storage, with declarative bootstrap creating `dex` and `rt_api` roles+databases
    (replaces the `postgres-init` shell Job). Passwords from the SOPS Secret.
 2. **Redis** (`gtfs/redis.yaml`): Deployment + Service + Longhorn PVC. Single Redis,
    DBs 0 (oauth2 sessions) / 1 (rt-api) / 3 (celery broker) / 4 (celery result).
+
+**Phase 5 outputs:**
+- **gtfs stack wired up.** Created the Kustomize root (`gtfs/kustomization.yaml` →
+  `namespace.yaml` + `secrets` base + `postgres-cluster.yaml` + `redis.yaml`),
+  `gtfs/namespace.yaml` (adopts the ns already made in Phase 3), and the **`gtfs`
+  ArgoCD Application** (`apps/gtfs.yaml`, **wave 3** — after infra 0-2). Like
+  `infra-secrets`, the Application sets **no** source type so ArgoCD's ksops CMP
+  discovery renders the tree (`*.enc.yaml` present) via
+  `kustomize build --enable-alpha-plugins --enable-exec`. Verified locally: the
+  full tree builds and every Secret decrypts.
+- **Postgres = CNPG `Cluster`** `postgres` (ns `gtfs`), **1 instance** on Longhorn
+  (10Gi), image pinned `ghcr.io/cloudnative-pg/postgresql:18.3` (matches TF
+  `postgres:18.3-alpine`; tag confirmed present on ghcr). Declarative replacement
+  for the `postgres-init` Job:
+  - `enableSuperuserAccess: true` + `superuserSecret: postgres-superuser` → the
+    `postgres` superuser.
+  - `bootstrap.initdb` (`database/owner: rt_api`, `secret: postgres-rt-api`) → the
+    `rt_api` role **and** `rt_api` database.
+  - `managed.roles: [dex]` (`passwordSecret: postgres-dex`) → the `dex` login role;
+    a **`Database` CR** (`postgresql.cnpg.io/v1`, `owner: dex`) makes the `dex`
+    database. (Split because `initdb` seeds only one database/owner.)
+- **Redis** = Deployment (`redis:8.6-alpine`, `--appendonly yes`, `Recreate`
+  strategy since it owns one RWO PVC) + Service (:6379) + Longhorn PVC `redis-data`
+  (2Gi). No auth — internal-only, as in the Docker stack. Logical DB split (0/1/3/4)
+  is unchanged and set by clients.
+- ⚠️ **Deviation — Postgres passwords restructured into CNPG basic-auth Secrets.**
+  CNPG's `superuserSecret` / `initdb.secret` / role `passwordSecret` all require
+  `kubernetes.io/basic-auth` Secrets (`username`+`password`), so the three
+  `POSTGRES_*_PASSWORD` keys were **removed** from `gtfs-app-secrets.enc.yaml`
+  (via `sops unset`) and re-authored as dedicated SOPS Secrets in `gtfs/secrets/`:
+  `postgres-superuser` (postgres), `postgres-dex` (dex), `postgres-rt-api` (rt_api)
+  — same fresh password values, now single-source-of-truth. Phase 6 Dex/rt-api
+  consume these directly. All three added to `gtfs/secrets/secret-generator.yaml`.
+- **Activation:** ArgoCD renders/syncs only after the branch is **pushed** to
+  `git.kcfam.us` (ksops runs in the repo-server sidecar). CNPG operator must be
+  Healthy first (wave 0) — it is, per Phase 3.
 
 ### Phase 6 — gtfs application layer
 Translate each remaining container to a `Deployment` + `Service`:

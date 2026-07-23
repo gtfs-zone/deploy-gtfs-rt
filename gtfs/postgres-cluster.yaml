@@ -1,0 +1,62 @@
+# ── Postgres (CloudNativePG) ──────────────────────────────────────────────────
+# Replaces the TF `postgres` container + the `postgres-init` shell Job. The
+# operator (infra-cnpg, Phase 3) reconciles this Cluster; declarative roles and
+# databases replace the init container's psql CREATE USER/DATABASE loop.
+#
+#   superuser  postgres            ← superuserSecret (postgres-superuser)
+#   role+db    rt_api / rt_api     ← bootstrap.initdb (owner role + its database)
+#   role       dex                 ← managed.roles (passwordSecret)
+#   db         dex (owner dex)     ← Database CR below
+#
+# Single instance on Longhorn (start fresh — no data migration). Image pinned to
+# CNPG's Postgres 18.3 build to match the TF `postgres:18.3-alpine`.
+apiVersion: postgresql.cnpg.io/v1
+kind: Cluster
+metadata:
+  name: postgres
+  namespace: gtfs
+spec:
+  instances: 1
+  imageName: ghcr.io/cloudnative-pg/postgresql:18.3
+
+  storage:
+    storageClass: longhorn
+    size: 10Gi
+
+  # Expose the `postgres` superuser (password from the SOPS Secret) so admin
+  # tasks work as they did against the TF container.
+  enableSuperuserAccess: true
+  superuserSecret:
+    name: postgres-superuser
+
+  bootstrap:
+    initdb:
+      # Create the rt_api owner role + rt_api database in one shot. The owner
+      # role's credential comes from the basic-auth Secret below.
+      database: rt_api
+      owner: rt_api
+      secret:
+        name: postgres-rt-api
+
+  managed:
+    roles:
+      # Dex's login role. Its database is created by the Database CR below (CNPG
+      # bootstrap.initdb can only seed one database/owner).
+      - name: dex
+        ensure: present
+        login: true
+        passwordSecret:
+          name: postgres-dex
+---
+# The dex database, owned by the managed `dex` role. Declarative equivalent of
+# the init container's `CREATE DATABASE dex OWNER dex`.
+apiVersion: postgresql.cnpg.io/v1
+kind: Database
+metadata:
+  name: dex
+  namespace: gtfs
+spec:
+  cluster:
+    name: postgres
+  name: dex
+  owner: dex
