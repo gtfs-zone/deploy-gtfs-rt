@@ -1,0 +1,36 @@
+## apps/infra-cert-manager-webhook-porkbun.yaml — ACME DNS-01 solver webhook for
+## Porkbun (Talinx chart). Registers an APIService in the `porkbun.talinx.dev`
+## group that the ClusterIssuer's dns01.webhook solver calls.
+##
+## Wave 1 — after cert-manager (its CRDs/APIService machinery) is up.
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: infra-cert-manager-webhook-porkbun
+  namespace: argocd
+  annotations:
+    argocd.argoproj.io/sync-wave: "1"
+  finalizers:
+    - resources-finalizer.argocd.argoproj.io
+spec:
+  project: default
+  sources:
+    - repoURL: https://talinx.github.io/cert-manager-webhook-porkbun
+      chart: cert-manager-webhook-porkbun
+      targetRevision: 1.0.0
+      helm:
+        valueFiles:
+          - $values/infra/cert-manager/webhook-values.yaml
+    - repoURL: https://git.kcfam.us/gtfs.zone/deploy-gtfs-rt.git
+      targetRevision: k3s-init
+      ref: values
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: cert-manager
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=true
+      - ServerSideApply=true

@@ -1,0 +1,35 @@
+## apps/infra-cert-manager-config.yaml — cert-manager configuration objects:
+## the Porkbun Let's Encrypt `ClusterIssuer` and the `*.gtfs.zone` `Certificate`
+## (raw manifests under infra/cert-manager/manifests/).
+##
+## Wave 2 — after both cert-manager and the Porkbun webhook exist, so the
+## ClusterIssuer's webhook solver group resolves. The Certificate targets the
+## `gtfs` namespace (CreateNamespace makes it early); issuance stays Pending until
+## the Porkbun Secret is authored in Phase 4 — expected during the phased rollout.
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: infra-cert-manager-config
+  namespace: argocd
+  annotations:
+    argocd.argoproj.io/sync-wave: "2"
+  finalizers:
+    - resources-finalizer.argocd.argoproj.io
+spec:
+  project: default
+  source:
+    repoURL: https://git.kcfam.us/gtfs.zone/deploy-gtfs-rt.git
+    targetRevision: k3s-init
+    path: infra/cert-manager/manifests
+    directory:
+      recurse: false
+      include: "*.yaml"
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: gtfs
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=true

@@ -1,0 +1,36 @@
+## apps/infra-traefik.yaml — Traefik edge (websecure entrypoint on host :8443).
+##
+## Wave 1 — after cert-manager exists (routes will reference cert-manager Secrets),
+## and so the IngressRoute/Middleware CRDs this chart installs are available to the
+## gtfs stack (Phase 7).
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: infra-traefik
+  namespace: argocd
+  annotations:
+    argocd.argoproj.io/sync-wave: "1"
+  finalizers:
+    - resources-finalizer.argocd.argoproj.io
+spec:
+  project: default
+  sources:
+    - repoURL: https://traefik.github.io/charts
+      chart: traefik
+      targetRevision: 35.2.0
+      helm:
+        valueFiles:
+          - $values/infra/traefik/values.yaml
+    - repoURL: https://git.kcfam.us/gtfs.zone/deploy-gtfs-rt.git
+      targetRevision: k3s-init
+      ref: values
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: traefik
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=true
+      - ServerSideApply=true

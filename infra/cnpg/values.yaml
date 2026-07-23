@@ -1,0 +1,7 @@
+## infra/cnpg/values.yaml — Helm values for the CloudNativePG **operator**.
+##
+## Operator only — the actual Postgres `Cluster` (declarative dex/rt_api roles and
+## databases on Longhorn storage) is defined in the gtfs stack (Phase 5). Chart
+## defaults are fine for a single-node install; kept as an explicit file so the
+## ArgoCD Application has a values source to point at.
+replicaCount: 1

@@ -1,0 +1,55 @@
+## infra/traefik/values.yaml — Helm values for the Traefik chart.
+##
+## This is the k3s edge that terminates TLS for *.gtfs.zone. home-docker Traefik
+## still owns the host's 80/443 and SNI-passthroughs *.gtfs.zone to us on host
+## port **8443** (see CURRENT_PLAN.md Phase 7). Therefore:
+##   - We expose ONLY a `websecure` entrypoint, and only on host **8443**.
+##   - We MUST NOT expose :80 or :443 on the host (would collide with the Docker
+##     Traefik). k3s ServiceLB (klipper) binds the Service port on the host, so
+##     the LoadBalancer Service must publish 8443 and nothing else.
+##   - No ACME here — certificates come from cert-manager as Secrets.
+
+deployment:
+  kind: Deployment
+  replicas: 1
+
+# Only the websecure entrypoint is exposed to the host; klipper binds `exposedPort`
+# (8443) on the node. `web` (:80) is kept internal-only so it never claims host :80.
+ports:
+  web:
+    expose:
+      default: false
+  websecure:
+    port: 8443
+    exposedPort: 8443
+    expose:
+      default: true
+    tls:
+      enabled: true
+  # Internal dashboard/ping entrypoint — never exposed on the host.
+  traefik:
+    expose:
+      default: false
+
+service:
+  type: LoadBalancer
+
+providers:
+  # Our routing is driven by IngressRoute / Middleware CRDs (Phase 7).
+  kubernetesCRD:
+    enabled: true
+    # Allow IngressRoutes to reference Middlewares/TLS Secrets across namespaces
+    # (e.g. the argocd route lives in the argocd namespace).
+    allowCrossNamespace: true
+  # We do not use plain Ingress objects.
+  kubernetesIngress:
+    enabled: false
+
+# No built-in dashboard IngressRoute; we add routes explicitly where wanted.
+ingressRoute:
+  dashboard:
+    enabled: false
+
+logs:
+  general:
+    level: INFO

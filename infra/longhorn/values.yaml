@@ -1,0 +1,16 @@
+## infra/longhorn/values.yaml — Helm values for the Longhorn chart.
+##
+## Single-node cluster: keep 1 replica per volume (scales up automatically when
+## more nodes join). Longhorn becomes the cluster's **default** StorageClass so
+## every PVC (CNPG, Redis, uptime-kuma) lands on replicated Longhorn storage.
+persistence:
+  # Make `longhorn` the default StorageClass.
+  defaultClass: true
+  # One replica per volume on a single node (raise when nodes are added).
+  defaultClassReplicaCount: 1
+  # Keep the underlying volume if a PVC is deleted (we can reclaim manually).
+  reclaimPolicy: Retain
+
+defaultSettings:
+  # Match the StorageClass default; new volumes get 1 replica.
+  defaultReplicaCount: 1

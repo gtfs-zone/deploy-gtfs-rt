@@ -1,0 +1,17 @@
+## infra/cert-manager/webhook-values.yaml — Helm values for the Talinx
+## cert-manager-webhook-porkbun chart (ACME DNS-01 solver for Porkbun).
+##
+## The `groupName` here MUST match the ClusterIssuer's dns01.webhook.groupName
+## (manifests/clusterissuer.yaml). The Porkbun API credentials are read at solve
+## time from the `porkbun-secret` Secret in the cert-manager namespace (authored
+## as a SOPS Secret in Phase 4).
+groupName: porkbun.talinx.dev
+
+certManager:
+  namespace: cert-manager
+  serviceAccountName: cert-manager
+
+image:
+  repository: talinx/cert-manager-webhook-porkbun
+  # Pin to the chart's appVersion rather than floating on `latest`.
+  tag: "1.0.0"

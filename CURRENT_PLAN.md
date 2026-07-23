@@ -201,7 +201,7 @@ kubectl apply -f apps/root.yaml     # bootstrap app-of-apps
 - ⚠️ **TODO:** flip `targetRevision` `k3s-init` → `main` once the migration is merged.
 - **Initial admin password:** `kubectl -n argocd get secret argocd-initial-admin-secret -o jsonpath="{.data.password}" | base64 -d`
 
-### Phase 3 — Infra layer (via ArgoCD)
+### Phase 3 — Infra layer (via ArgoCD)  ✅ DONE (authored; syncs on push)
 Add these `Application`s under `apps/`:
 1. **Longhorn** (`infra/longhorn/`): Helm install; set as **default StorageClass**.
    On a single node it keeps 1 replica; scales when nodes are added.
@@ -215,6 +215,39 @@ Add these `Application`s under `apps/`:
    provider**; source = Traefik `IngressRoute`; target = `server_ip`. Manages all
    `*.gtfs.zone` records from annotations, retiring `dns.tf`.
 5. **CloudNativePG operator** (`infra/cnpg/`): Helm install of the operator only.
+
+**Phase 3 outputs:**
+- **Pattern:** every infra chart is an ArgoCD **multi-source** `Application` — the
+  upstream Helm chart + `$values/infra/<comp>/values.yaml` read from THIS git repo
+  (the standard "Helm chart + in-repo values" pattern). Raw CRs (ClusterIssuer,
+  Certificate) go through a plain directory-source `Application`. All carry
+  `ServerSideApply=true` (large CRDs) + `CreateNamespace=true` and automated
+  sync/prune/selfHeal.
+- **Applications added** under `apps/` (with `sync-wave` ordering):
+  - `infra-longhorn` (wave 0) → `longhorn` **1.8.1**, ns `longhorn-system`, default SC, 1 replica.
+  - `infra-cnpg` (wave 0) → `cloudnative-pg` **0.28.0** (operator only), ns `cnpg-system`.
+  - `infra-cert-manager` (wave 0) → `cert-manager` **v1.17.4**, ns `cert-manager`, CRDs kept.
+  - `infra-traefik` (wave 1) → `traefik` **35.2.0**, ns `traefik`; **only** websecure
+    exposed, `LoadBalancer` publishing host **8443** (klipper); web(:80) kept internal so
+    it never collides with the Docker Traefik; CRD provider on, Ingress provider off.
+  - `infra-cert-manager-webhook-porkbun` (wave 1) → Talinx `cert-manager-webhook-porkbun`
+    **1.0.0** (image pinned `1.0.0`), group `porkbun.talinx.dev`.
+  - `infra-external-dns` (wave 1) → sigs `external-dns` **1.16.1**, ns `external-dns`,
+    Porkbun **webhook provider** `ghcr.io/konnektr-io/external-dns-porkbun-webhook:v0.2.19`,
+    source `traefik-proxy`, `domainFilters: [gtfs.zone]`, `policy: sync`, owner `gtfs-k3s`.
+  - `infra-cert-manager-config` (wave 2) → directory source `infra/cert-manager/manifests/`:
+    `ClusterIssuer letsencrypt-porkbun` (LE prod, DNS-01 webhook) + `Certificate gtfs-zone-tls`
+    (`gtfs.zone` + `*.gtfs.zone` → Secret `gtfs-zone-tls` in ns `gtfs`).
+- ⚠️ **Deviations from the plan's file list:** cert-manager is split into **three**
+  Applications (operator / webhook / config) instead of one, so each is a single-purpose
+  sync unit. The `gtfs` namespace is created early (by `infra-cert-manager-config`) rather
+  than only in Phase 5 — the later gtfs `Namespace` manifest adopts it.
+- **Secret dependencies (Phase 4):** both the cert-manager webhook and external-dns
+  reference a `porkbun-secret` Secret (in `cert-manager` / `external-dns` namespaces
+  respectively) that does **not exist yet**. Until Phase 4 authors it, external-dns
+  CrashLoops and the `gtfs-zone-tls` Certificate stays Pending — expected.
+- **Activation:** ArgoCD watches git, so these only take effect once the branch is
+  **pushed** to `git.kcfam.us` (root app tracks `k3s-init`). No `kubectl apply` needed.
 
 ### Phase 4 — Secrets (SOPS)
 - Create `.sops.yaml` with the age recipient + rules matching `**/secrets/*.enc.yaml`

@@ -1,0 +1,40 @@
+## infra/external-dns/values.yaml — Helm values for the kubernetes-sigs
+## external-dns chart, using the Porkbun **webhook provider** (Porkbun has no
+## native external-dns provider).
+##
+## Source = Traefik IngressRoute (traefik-proxy). Each gtfs IngressRoute (Phase 7)
+## carries an `external-dns.alpha.kubernetes.io/target: <server_ip>` annotation, so
+## external-dns creates the matching *.gtfs.zone records at Porkbun — retiring the
+## old dns.tf. Porkbun creds come from the `porkbun-secret` Secret in the
+## external-dns namespace (SOPS Secret, Phase 4; keys API_KEY / API_SECRET).
+provider:
+  name: webhook
+  webhook:
+    image:
+      repository: ghcr.io/konnektr-io/external-dns-porkbun-webhook
+      tag: v0.2.19
+    env:
+      - name: API_KEY
+        valueFrom:
+          secretKeyRef:
+            name: porkbun-secret
+            key: API_KEY
+      - name: API_SECRET
+        valueFrom:
+          secretKeyRef:
+            name: porkbun-secret
+            key: API_SECRET
+
+# Only manage records under gtfs.zone.
+domainFilters:
+  - gtfs.zone
+
+# Watch Traefik IngressRoute CRDs (adds the needed RBAC).
+sources:
+  - traefik-proxy
+
+# Full ownership: create AND delete records to match cluster state, tagged with a
+# TXT owner record so external-dns only touches records it created.
+policy: sync
+registry: txt
+txtOwnerId: gtfs-k3s

@@ -1,0 +1,19 @@
+## infra/cert-manager/manifests/certificate.yaml
+##
+## Wildcard cert for the gtfs stack. The resulting `gtfs-zone-tls` Secret lives in
+## the `gtfs` namespace so the app's IngressRoutes (Phase 7) can reference it.
+## Issuance stays Pending until the Porkbun secret exists (Phase 4) and the
+## webhook APIService is Ready — that's expected during the phased rollout.
+apiVersion: cert-manager.io/v1
+kind: Certificate
+metadata:
+  name: gtfs-zone-tls
+  namespace: gtfs
+spec:
+  secretName: gtfs-zone-tls
+  dnsNames:
+    - "gtfs.zone"
+    - "*.gtfs.zone"
+  issuerRef:
+    name: letsencrypt-porkbun
+    kind: ClusterIssuer

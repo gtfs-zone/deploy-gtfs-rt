@@ -1,0 +1,37 @@
+## apps/infra-cert-manager.yaml — cert-manager operator + CRDs.
+##
+## The Porkbun DNS-01 webhook and the ClusterIssuer/Certificate live in their own
+## Applications (infra-cert-manager-webhook-porkbun.yaml, infra-cert-manager-config.yaml)
+## so each is a single-purpose sync unit. Wave 0 — CRDs must exist before the
+## webhook and the ClusterIssuer that depend on them.
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: infra-cert-manager
+  namespace: argocd
+  annotations:
+    argocd.argoproj.io/sync-wave: "0"
+  finalizers:
+    - resources-finalizer.argocd.argoproj.io
+spec:
+  project: default
+  sources:
+    - repoURL: https://charts.jetstack.io
+      chart: cert-manager
+      targetRevision: v1.17.4
+      helm:
+        valueFiles:
+          - $values/infra/cert-manager/values.yaml
+    - repoURL: https://git.kcfam.us/gtfs.zone/deploy-gtfs-rt.git
+      targetRevision: k3s-init
+      ref: values
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: cert-manager
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=true
+      - ServerSideApply=true

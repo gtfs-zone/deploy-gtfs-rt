@@ -1,0 +1,35 @@
+## apps/infra-cnpg.yaml — CloudNativePG operator (Postgres-on-k8s operator).
+##
+## Operator only; the gtfs Postgres Cluster is defined in the gtfs stack (Phase 5).
+## Wave 0 — the operator/CRDs should exist before the gtfs Cluster is applied.
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: infra-cnpg
+  namespace: argocd
+  annotations:
+    argocd.argoproj.io/sync-wave: "0"
+  finalizers:
+    - resources-finalizer.argocd.argoproj.io
+spec:
+  project: default
+  sources:
+    - repoURL: https://cloudnative-pg.github.io/charts
+      chart: cloudnative-pg
+      targetRevision: 0.28.0
+      helm:
+        valueFiles:
+          - $values/infra/cnpg/values.yaml
+    - repoURL: https://git.kcfam.us/gtfs.zone/deploy-gtfs-rt.git
+      targetRevision: k3s-init
+      ref: values
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: cnpg-system
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=true
+      - ServerSideApply=true

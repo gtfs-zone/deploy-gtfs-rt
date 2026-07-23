@@ -1,0 +1,9 @@
+## infra/cert-manager/values.yaml — Helm values for the cert-manager chart.
+##
+## Operator + CRDs. DNS-01 solving for Porkbun is provided by a separate webhook
+## (see webhook-values.yaml and manifests/clusterissuer.yaml).
+crds:
+  # Install and manage the cert-manager CRDs via the chart.
+  enabled: true
+  # Don't delete CRDs (and issued-cert state) if the release is removed.
+  keep: true

@@ -1,0 +1,28 @@
+## infra/cert-manager/manifests/clusterissuer.yaml
+##
+## Let's Encrypt production issuer that solves DNS-01 challenges through the
+## Porkbun webhook. The `config.apiKey`/`config.secretApiKey` point at the
+## `porkbun-secret` Secret in the cert-manager namespace (SOPS Secret, Phase 4).
+apiVersion: cert-manager.io/v1
+kind: ClusterIssuer
+metadata:
+  name: letsencrypt-porkbun
+spec:
+  acme:
+    email: maxkatzchristy@gmail.com
+    server: https://acme-v02.api.letsencrypt.org/directory
+    privateKeySecretRef:
+      name: letsencrypt-porkbun-account-key
+    solvers:
+      - dns01:
+          webhook:
+            # Must match webhook-values.yaml `groupName`.
+            groupName: porkbun.talinx.dev
+            solverName: porkbun
+            config:
+              apiKey:
+                name: porkbun-secret
+                key: PORKBUN_API_KEY
+              secretApiKey:
+                name: porkbun-secret
+                key: PORKBUN_SECRET_API_KEY

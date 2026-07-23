@@ -1,0 +1,37 @@
+## apps/infra-longhorn.yaml — Longhorn replicated storage (default StorageClass).
+##
+## Multi-source: the Helm chart from the Longhorn repo, with its values file read
+## from THIS git repo via the `$values` ref (industry-standard "Helm chart +
+## in-repo values" ArgoCD pattern). Wave 0 so storage exists before anything that
+## needs a PVC.
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: infra-longhorn
+  namespace: argocd
+  annotations:
+    argocd.argoproj.io/sync-wave: "0"
+  finalizers:
+    - resources-finalizer.argocd.argoproj.io
+spec:
+  project: default
+  sources:
+    - repoURL: https://charts.longhorn.io
+      chart: longhorn
+      targetRevision: 1.8.1
+      helm:
+        valueFiles:
+          - $values/infra/longhorn/values.yaml
+    - repoURL: https://git.kcfam.us/gtfs.zone/deploy-gtfs-rt.git
+      targetRevision: k3s-init
+      ref: values
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: longhorn-system
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=true
+      - ServerSideApply=true
