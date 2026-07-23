@@ -31,7 +31,9 @@ plugin sidecar on the argocd-repo-server.
   `longhorn/` (storage), `traefik/` (edge, host :8443), `cert-manager/`
   (operator + Porkbun DNS-01 webhook-values + `manifests/` ClusterIssuer &
   Certificate), `external-dns/` (Porkbun webhook provider), `cnpg/` (CloudNativePG
-  operator), `argocd/` (ArgoCD's own Helm values + KSOPS sidecar).
+  operator), `argocd/` (ArgoCD's own Helm values + KSOPS sidecar), and
+  `secrets/` (SOPS-encrypted Porkbun creds — one `porkbun-secret` per consuming
+  namespace, rendered by the KSOPS CMP via the `infra-secrets` Application).
 - `gtfs/` — the application stack (Kustomize): Postgres (CNPG), Redis, Dex,
   oauth2-proxy, rt-api, celery, uptime-kuma, IngressRoutes, and SOPS-encrypted
   `secrets/*.enc.yaml`. (Populated in later phases.)
