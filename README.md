@@ -180,17 +180,24 @@ erDiagram
         int owner_id FK
         int gtfs_static_feed_id FK
     }
-    DRIVER {
-        int id PK
-        string username
-        string password
+    TRACKER {
+        string id PK
+        string nickname
         int feed_id FK
     }
-    TRIP_ALIAS {
+    TRACKER_RULE {
         int id PK
-        int feed_id FK
-        string alias
+        string tracker_id FK
         string trip_id
+        boolean monday
+        boolean tuesday
+        boolean wednesday
+        boolean thursday
+        boolean friday
+        boolean saturday
+        boolean sunday
+        time start_time
+        time end_time
     }
     SERVICE_ALERT {
         int id PK
@@ -267,8 +274,8 @@ erDiagram
 
     USER ||--o{ FEED : owns
     FEED }o--o| GTFS_STATIC_FEED : "loaded from"
-    FEED ||--o{ DRIVER : has
-    FEED ||--o{ TRIP_ALIAS : has
+    FEED ||--o{ TRACKER : has
+    TRACKER ||--o{ TRACKER_RULE : has
     FEED ||--o{ SERVICE_ALERT : has
     SERVICE_ALERT ||--o{ INFORMED_ENTITY : targets
     GTFS_STATIC_FEED ||--o{ GTFS_STOP : contains
