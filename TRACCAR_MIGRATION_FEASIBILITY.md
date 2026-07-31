@@ -1,5 +1,17 @@
 # Feasibility Study: Migrating from OwnTracks to Traccar
 
+> ⚠️ **SUPERSEDED — kept for historical context only.**
+>
+> The migration this study evaluates has **shipped**. Traccar is deployed and
+> running in the k3s cluster; OwnTracks, NanoMQ and `trip-updogger` are retired.
+> Nothing here should be treated as a description of the current system, and its
+> open questions have all been answered in practice.
+>
+> For how the stack actually works now, read **`CLAUDE.md`**. For the shipped
+> design and the decisions behind it, read **`CURRENT_PLAN.md`** (Phases 5a/6a
+> for the ingest layer, Phase 8 for what went wrong in reality) and
+> `music-student`'s `docs/traccar.md`.
+
 **Status:** Research / feasibility only — nothing here is built or committed to.
 **Date:** 2026-07
 **Author:** drafted with Claude Code from web research + current-stack knowledge
