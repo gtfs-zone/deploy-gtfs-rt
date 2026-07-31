@@ -535,10 +535,11 @@ therefore gated on Phase 9 and should be run immediately after it:
    confirm a position lands in `vehicle:{tracker_id}:*` and reaches the feed.
 5. Confirm celery beat enqueues static GTFS loads and the worker processes them.
 
-⚠️ Note `static-sites@docker` also serves `edit.gtfs.zone` and `viz.rt.gtfs.zone`
-alongside the apex, and `cors-proxy@docker` serves `cors.gtfs.zone`. Those are
-**not** part of the rt stack and have no k3s equivalent — check whether they are
-still wanted before assuming `tofu destroy` should take them.
+Note `static-sites@docker` also serves `edit.gtfs.zone` and `viz.rt.gtfs.zone`
+alongside the apex, and `cors-proxy@docker` serves `cors.gtfs.zone`. These have
+no k3s equivalent, but they are **defined in `home-docker`, not in this repo's
+`tf/`** (every resource in the gtfs stack carries the `rt-` name prefix), so
+`tofu destroy` here leaves them alone. They keep working exactly as they do now.
 
 #### Known issues (not blockers)
 
