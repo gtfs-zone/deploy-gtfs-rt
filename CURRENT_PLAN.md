@@ -18,6 +18,14 @@ patterns now even though the project is small.
 > 6a below capture that delta. See `TRACCAR_MIGRATION_FEASIBILITY.md` for the
 > original study and `music-student`'s `docs/traccar.md` for the shipped design.
 
+> **Revision 2026-07-31 (later).** Phases 5a, 6a and 7 are **authored and
+> pushed** (`3f1cc67`); all four app repos are merged to `main` with images
+> published. The two open risks this plan carried — Traccar's env-var config
+> override and the `/osmand` path split — were **tested against
+> `traccar/traccar:6.14.5` and both resolved favourably**; details in the phases
+> below. What remains is Phase 8 (bring-up, currently blocked on Longhorn),
+> Phase 9 and Phase 10.
+
 ---
 
 ## Locked decisions
@@ -86,13 +94,17 @@ patterns now even though the project is small.
 
 **Traccar exposure — one hostname, path-split.** `traccar.gtfs.zone` serves the
 web/REST console from `:8082`; `traccar.gtfs.zone/osmand` routes to `:5055` (the
-phone-report protocol port) behind a `StripPrefix` middleware. The Traccar Client
-takes a full URL from the QR code, so the path is ours to choose. This avoids a
-second, confusable hostname. ⚠️ **Verify in Phase 7** that the osmand decoder is
-happy after StripPrefix (it parses query params, not the path); if not, fall back
-to a distinct host such as `gps.gtfs.zone`. The web console is **not** behind
-oauth2-proxy — Traccar does its own Dex OIDC — and `/osmand` must stay
-unauthenticated (phones authenticate by device `uniqueId` only).
+phone-report protocol port). The Traccar Client takes a full URL from the QR code,
+so the path is ours to choose. This avoids a second, confusable hostname.
+
+✅ **No `StripPrefix` needed** — verified against 6.14.5 that the osmand decoder
+ignores the request path entirely and reads only query parameters (`POST
+/osmand?id=…` and `POST /?id=…` both store the position). The `gps.gtfs.zone`
+fallback is not needed.
+
+The web console is **not** behind oauth2-proxy — Traccar does its own Dex OIDC —
+and `/osmand` must stay unauthenticated (phones authenticate by device `uniqueId`
+only, and have no browser session).
 
 ---
 
@@ -140,21 +152,26 @@ Namespaces: `gtfs`, `argocd`, `cert-manager`, `traefik`, `external-dns`,
 - Workstation tools: `kubectl`, `helm`, `kustomize`, `sops`, `age`, `argocd`
   (`sops`/`age`/`kustomize`/`ksops` are in `~/.local/bin` on this workstation).
 
-⚠️ **Upstream app-repo prerequisite (blocking for Phase 6a).** Three of the four
-application repos are on feature branches whose work is not yet on `main`, so no
-`:main` image exists for them:
+✅ **Upstream app-repo prerequisite — DONE (2026-07-31).** All four repos are
+merged to `main`, all four images verified pullable from the registry:
 
-| Repo | Branch | Needs |
-|---|---|---|
-| `cafe-car` | `traccar-driver-provisioning` | merge to main → CI publishes image |
-| `vehicle-poser` | `retire-driver-add-tracker` | merge to main → CI publishes image |
-| `schedule-foamer` | `52-copier-apply` | merge to main → CI publishes image |
-| `hell-gate-bridge` | `main` ✅ | confirm `.forgejo/workflows/build.yml` has published a tag |
-| `railroad-club` | `main` ✅ | migrations already include Tracker/TrackerRule |
+| Repo | Image tag pinned in manifests |
+|---|---|
+| `cafe-car` | `git.kcfam.us/gtfs.zone/cafe-car:b190bb0` |
+| `vehicle-poser` | `git.kcfam.us/gtfs.zone/vehicle-poser:0135419` |
+| `schedule-foamer` | `git.kcfam.us/gtfs.zone/schedule-foamer:348af9f` |
+| `hell-gate-bridge` | `git.kcfam.us/gtfs.zone/hell-gate-bridge:57f2581` |
+| `railroad-club` | `main` — migrations already include Tracker/TrackerRule |
 
-Each repo has `.forgejo/workflows/build.yml`; pin the resulting digests/tags in
-the manifests. All `random_password` values are **regenerated fresh** — we are
-not migrating data.
+⚠️ **CI publishes `:latest` + `:<short-sha>` only — there is no `:main` tag.**
+Don't reach for one. Bumping an image is a manifest edit + commit.
+
+**Copier is retired.** `.copier-answers.yml` removed from every app repo;
+`.mcp.json` kept (it is a working forgejo-mcp config, not template bookkeeping).
+`forgejo-mcp` is installed at `~/go/bin/forgejo-mcp` — useful for opening the
+Phase 10 PR, since `gh` only knows github.com and `tea` is not installed.
+
+All `random_password` values are **regenerated fresh** — we are not migrating data.
 
 ---
 
@@ -165,9 +182,9 @@ not migrating data.
   `age16mxws3n4s0my6k5jzy225shmpa36ag35v975xg4j6u7k3rjqn5dqvxw27c`.
   Private key `age.key` at repo root — **gitignored**; back it up out-of-band.
 - Skeleton `apps/ infra/ gtfs/` created on branch `k3s-init`.
-- ⚠️ **host-gateway IP must be re-confirmed on the server** in Phase 7:
-  `docker network inspect bridge --format '{{range .IPAM.Config}}{{.Gateway}}{{end}}'`
-  on the home-docker host (the workstation's `192.168.222.1` is *not* it).
+- ✅ **host-gateway IP confirmed:** `172.18.0.1` — the **proxy-tier** bridge
+  gateway (the network home-docker's Traefik is attached to), *not* the
+  `172.17.0.1` default bridge this note originally pointed at.
 
 ### Phase 1 — Install k3s ⚠️ MANUAL / sudo on the server
 ```bash
@@ -233,18 +250,15 @@ Every infra chart is an ArgoCD **multi-source** Application (upstream chart +
 - **Redis** — `redis:8.6-alpine` Deployment (`--appendonly yes`, `Recreate`) +
   Service :6379 + Longhorn PVC 2Gi. No auth (internal only). DBs 0/1/3/4 as before.
 
-### Phase 5a — stateful layer delta for Traccar ⬜ TODO
-1. Add a **`traccar` role + database** to the CNPG cluster, exactly like `dex`:
-   a `postgres-traccar` basic-auth SOPS Secret, a `managed.roles` entry, and a
-   `Database` CR (`owner: traccar`). Traccar owns and migrates its own schema.
-2. Size the Postgres PVC for position history — `tc_positions` grows without
-   bound (see the retention CronJob in Phase 6a). 10Gi is fine to start; note it.
-3. Add the new secret values to `gtfs/secrets/gtfs-app-secrets.enc.yaml`:
-   - `INGEST_API_TOKEN` — shared bearer for cafe-car `/ingest/*`; consumed by both
-     hell-gate-bridge pollers.
-   - `TRACCAR_ADMIN_EMAIL` / `TRACCAR_ADMIN_PASSWORD` — cafe-car's REST account for
-     device auto-creation. **Not** `admin@local` / `admin`; generate fresh.
-   - `DEX_TRACCAR_CLIENT_SECRET` — Traccar's Dex OIDC client secret.
+### Phase 5a — stateful layer delta for Traccar ✅ DONE (authored, `3f1cc67`)
+1. **`traccar` role + database** on the CNPG cluster, mirroring `dex`:
+   `gtfs/secrets/postgres-traccar.enc.yaml` (basic-auth), a `managed.roles`
+   entry, and a `Database` CR (`owner: traccar`). Traccar migrates its own schema.
+2. Postgres PVC stays **10Gi**; `tc_positions` growth is bounded by the retention
+   CronJob (Phase 6a), not by sizing.
+3. Added to `gtfs/secrets/gtfs-app-secrets.enc.yaml`, all freshly generated:
+   `INGEST_API_TOKEN`, `TRACCAR_ADMIN_EMAIL` (`admin@gtfs.zone`),
+   `TRACCAR_ADMIN_PASSWORD`, `DEX_TRACCAR_CLIENT_SECRET`.
 
 ### Phase 6 — gtfs application layer ✅ DONE (authored)
 - **Dex** (`gtfs/dex/`) — upstream `ghcr.io/dexidp/dex:v2.44.0`, config in a
@@ -259,79 +273,140 @@ Every infra chart is an ArgoCD **multi-source** Application (upstream chart +
 - Secrets are injected as dependent env vars (`$(POSTGRES_RT_API_PASSWORD)` inside
   the DSN); private images use `imagePullSecrets: [registry-git-kcfam]`.
 
-### Phase 6a — ingest layer + application refresh ⬜ TODO ← **the main remaining work**
+### Phase 6a — ingest layer + application refresh ✅ DONE (authored, `3f1cc67`)
 
-**1. Traccar** (`gtfs/traccar/`)
-- Deployment `traccar/traccar:6.14.5`; Services `traccar` (:8082) and
-  `traccar-osmand` (:5055) — or one Service with both ports.
-- `traccar.xml` as a ConfigMap, ported from `music-student`'s `dev/traccar/traccar.xml`:
-  - `database.url` → `jdbc:postgresql://postgres-rw:5432/traccar`, user `traccar`.
-  - `web.url` → `https://traccar.gtfs.zone`.
-  - `openid.clientId=traccar`, `openid.issuerUrl=https://dex.gtfs.zone`, secret from Secret.
-  - `forward.enable=true`, `forward.type=json`,
-    `forward.url=http://vehicle-poser:8080/forward`, `forward.retry.enable=true`.
-    **Do not** switch to `forward.type=redis` — it LPUSHes raw Position JSON with
-    no TTL and no `trip_id`.
-  - ⚠️ Keep secrets out of the ConfigMap: set `CONFIG_USE_ENVIRONMENT_VARIABLES=true`
-    and inject `DATABASE_PASSWORD` / `OPENID_CLIENTSECRET` from Secrets. **Verify**
-    this override works on 6.14.5 before relying on it; fall back to an initContainer
-    that templates `traccar.xml` from env.
-- **Retention CronJob** — Traccar has *no* retention config key; it stores every fix
-  forever. Port `music-student`'s `scripts/traccar_retention.sql` into a nightly
-  `CronJob` (psql image + CNPG credentials, default 30 days).
-- Add a **`traccar` static client** to `gtfs/dex/config.yaml` with redirect URI
-  `https://traccar.gtfs.zone/` (secret from `gtfs-app-secrets`).
+**1. Traccar** (`gtfs/traccar/`) — Deployment `traccar/traccar:6.14.5`
+(`strategy: Recreate`, single writer), Services `traccar` (:8082) and
+`traccar-osmand` (:5055), `traccar.xml` in a hash-suffixed ConfigMap, and the
+retention CronJob. Ported from `music-student`'s `dev/traccar/traccar.xml` with
+prod hosts. `forward.type=json` → `http://vehicle-poser:8080/forward`;
+**not** `forward.type=redis`, which LPUSHes raw Position JSON with no TTL and no
+`trip_id`.
 
-**2. vehicle-poser** (`gtfs/vehicle-poser.yaml`) — resurrected, now HTTP-mode.
-Deployment + Service :8080. Env: `HTTP_PORT=8080`,
-`REDIS_URL=redis://redis:6379/1`,
-`DATABASE_URL=postgresql+psycopg2://rt_api:$(POSTGRES_RT_API_PASSWORD)@postgres-rw:5432/rt_api`.
-Leave `VEHICLE_KEY_PREFIX` at its `vehicle` default (the shadow prefix was a
-dual-run tool; we are not dual-running). Internal only — **no IngressRoute**.
+✅ **`CONFIG_USE_ENVIRONMENT_VARIABLES=true` verified on 6.14.5.** Tested by
+booting the image against a real Postgres with a `traccar.xml` whose
+`database.url`/`user`/`password` were all deliberately wrong: env won on every
+key and Liquibase ran the full changelog. `DATABASE_PASSWORD` and
+`OPENID_CLIENTSECRET` therefore come from Secrets and stay out of the ConfigMap.
+**The initContainer-templating fallback is not needed.** (Traccar's mapping is
+the config key uppercased with dots dropped: `openid.clientSecret` →
+`OPENID_CLIENTSECRET`.)
 
-**3. hell-gate-bridge** (`gtfs/hell-gate-bridge.yaml`) — two Deployments off one image:
-- `hell-gate-bridge-amtrak`: `SOURCE=amtrak`, `POLL_INTERVAL=15`,
-  `INGEST_VEHICLE_ID=amtrak-live`.
-- `hell-gate-bridge-buswhere`: `SOURCE=buswhere`, `INGEST_VEHICLE_ID=columbia-county`,
-  `GTFS_URL=https://raw.githubusercontent.com/columbia-county-ny-transit/gtfs-generator/refs/heads/main/columbia_county_gtfs.zip`
-  (the raw URL — the `/raw/` form 302s and hell-gate's httpx client does not follow redirects).
-- Both: `CAFE_CAR_INGEST_URL=http://gtfs-api:8000`, `INGEST_API_TOKEN` from Secret,
-  and a small **Longhorn PVC each** for `/app/beat` (GTFS cache + poller state).
-- `INGEST_VEHICLE_ID` must equal a provisioned `Tracker.id` (Phase 8 step).
+- **Retention CronJob** — nightly 04:10, `ghcr.io/cloudnative-pg/postgresql:18.3`
+  running `retention.sql` (a 30-day port of `music-student`'s
+  `scripts/traccar_retention.sql`) as the `traccar` role. Required, not optional:
+  6.14.5 has no retention config key and keeps every fix forever.
+- A **`traccar` static client** was added to `gtfs/dex/config.yaml`
+  (redirect URI `https://traccar.gtfs.zone/`, secret from `gtfs-app-secrets`).
 
-**4. Refresh what Phase 6 already authored** to match the shipped app stack:
-- Dex `v2.44.0` → **`v2.45.0`**; oauth2-proxy `v7.8.2` → **`v7.14.3`**.
-- Re-pin `cafe-car` and `schedule-foamer` images to the post-merge main builds
-  (current pins predate the Traccar work).
-- rt-api (both Deployments) gains `TRACCAR_URL=http://traccar:8082`,
-  `TRACCAR_EMAIL`, `TRACCAR_PASSWORD`, `TRACCAR_CLIENT_BASE=https://traccar.gtfs.zone/osmand`,
-  `INGEST_API_TOKEN`, and a production `CORS_ALLOWED_ORIGINS`.
-- Drop the leftover `MQTT_PUBLIC_PASSWORD` env from rt-api — MQTT is gone for good.
+**2. vehicle-poser** (`gtfs/vehicle-poser.yaml`) — Deployment + Service :8080,
+`HTTP_PORT=8080`, `REDIS_URL=redis://redis:6379/1`, psycopg2 `DATABASE_URL`
+against `postgres-rw`. `VEHICLE_KEY_PREFIX` left at its `vehicle` default (the
+shadow prefix was a dual-run tool). Internal only — no IngressRoute.
+⚠️ `REDIS_URL`/`DATABASE_URL` are read with `os.environ[...]` at **module scope**,
+so a missing or malformed value crashes the pod at import, not at first request.
 
-### Phase 7 — Ingress & edge cutover ⬜ TODO
-1. `gtfs/ingressroutes.yaml` — one `IngressRoute` (websecure, `gtfs-zone-tls`) per host:
-   - `rt` → gtfs-api:8000 (public)
-   - `manage.rt` → gtfs-manager:8001 **+ oauth2 middlewares**
-   - `dex` → dex:5556 · `auth` → oauth2-proxy:4180
-   - `uptime` → uptime-kuma:3001 **+ oauth2 middlewares** · `status` → uptime-kuma:3001 (public)
-   - `traccar` → two rules: `PathPrefix(/osmand)` → traccar-osmand:5055 with a
-     `StripPrefix` middleware, and the default rule → traccar:8082. Public (no oauth2).
-   - ArgoCD's own route comes from `infra/argocd/`.
-   All carry the external-dns annotations that create the Porkbun records.
-2. ⚠️ **Edit `home-docker` Traefik** dynamic config: TCP router
-   ``HostSNIRegexp(`^.+\.gtfs\.zone$`)`` on `websecure`, `tls.passthrough=true`,
-   forwarding to `HOST_GATEWAY_IP:8443`. Keep the global `:80 → :443` redirect.
-   Then `tofu apply` in the home-docker repo. **This is the only home-docker change**,
-   and it already covers Traccar — no new ports, no IngressRouteTCP.
+**3. hell-gate-bridge** (`gtfs/hell-gate-bridge.yaml`) — two Deployments off one
+image, `amtrak` (`INGEST_VEHICLE_ID=amtrak-live`, `POLL_INTERVAL=15`) and
+`buswhere` (`INGEST_VEHICLE_ID=columbia-county`, raw-githubusercontent `GTFS_URL`
+— the `/raw/` form 302s and hell-gate's httpx client does not follow redirects).
 
-### Phase 8 — Bring-up & verify ⬜ TODO
-Follow `music-student`'s `startup-guide.md`, adapted to prod hostnames:
+⚠️ **Deviation from the original plan: no PVC on `/app/beat`.** The image creates
+and chowns that directory for the non-root `bridge` user at build time; mounting a
+volume over it masks the chown and the poller dies with `PermissionError` writing
+`gtfs_cache.zip`. The only thing living there is a re-downloadable GTFS cache, so
+the image's own directory is simpler and safer.
+
+⚠️ `INGEST_API_TOKEN` unset sends a literal `Bearer None` rather than erroring —
+a missing secret surfaces as 401s at cafe-car, not a crash. Check it in Phase 8.
+
+**4. Refresh of the Phase 6 manifests** — Dex → `v2.45.0`, oauth2-proxy →
+`v7.14.3`, all four images repinned, rt-api gained `TRACCAR_URL`,
+`TRACCAR_CLIENT_BASE=https://traccar.gtfs.zone/osmand`, `TRACCAR_EMAIL`,
+`TRACCAR_PASSWORD`, `INGEST_API_TOKEN` and a prod `CORS_ALLOWED_ORIGINS`;
+`MQTT_PUBLIC_PASSWORD` dropped.
+
+**Three latent bugs found and fixed while authoring this phase** — each would
+have broken the first sync:
+1. rt-api ran `fastapi run src/app/main.py`; the package is **`src/cafe_car`**.
+   Both Deployments would have crash-looped.
+2. celery-beat had no `--schedule`, so it would write its shelve DB to the
+   root-owned `/app` while running as non-root `bridge`. Now `/app/beat/`.
+3. external-dns had been crash-looping for 8 days (2068 restarts) on
+   `traefik.containo.us`, a legacy API group Traefik v3 does not ship.
+   `--traefik-disable-legacy` added to `infra/external-dns/values.yaml`.
+
+### Phase 7 — Ingress & edge cutover ✅ DONE (authored, `3f1cc67`)
+1. `gtfs/ingressroutes.yaml` — seven IngressRoutes on `websecure` with
+   `gtfs-zone-tls`, each carrying
+   `external-dns.alpha.kubernetes.io/target: 73.4.232.254`:
+   `rt` (public), `manage.rt` (+oauth2), `dex`, `auth`, `uptime` (+oauth2),
+   `status` (public), and `traccar`. ArgoCD's own route still comes from
+   `infra/argocd/` and is **not yet authored** — see Phase 8.
+
+   ✅ **The Traccar `/osmand` split needs no StripPrefix.** Verified against
+   6.14.5 that the osmand decoder ignores the request path entirely and reads only
+   query params: `POST /osmand?id=…` and `POST /?id=…` both returned 200 and
+   stored the position. The middleware was dropped, and the `gps.gtfs.zone`
+   fallback is **not needed**.
+
+2. `home-docker/traefik/dynamic/gtfs-zone-passthrough.yml` is **written but not
+   applied** — needs `tofu apply` in `home-docker` (the dynamic dir is baked into
+   the locally-built Traefik image). TCP router
+   ``HostSNIRegexp(`^.+\.gtfs\.zone$`)`` on `websecure`, `tls.passthrough=true`.
+
+   ⚠️ **Correction to this plan's Phase 0 note:** the target is **`172.18.0.1:8443`**,
+   the **proxy-tier** bridge gateway that home-docker's Traefik is actually attached
+   to — *not* the `172.17.0.1` default-bridge gateway. Re-derive with
+   `docker network inspect proxy-tier --format '{{range .IPAM.Config}}{{.Gateway}}{{end}}'`.
+   The regex deliberately excludes the bare apex `gtfs.zone`, which stays on
+   home-docker's static-sites container (landing-zone).
+
+### Phase 8 — Bring-up & verify ⬜ TODO ← **the remaining work**
+
+**Cluster state as of the `3f1cc67` push** (`ssh -N -L 6443:127.0.0.1:6443 kcfam`
+for kubectl access — the kubeconfig points at `127.0.0.1:6443`):
+
+| Application | State | Note |
+|---|---|---|
+| `root`, `infra-traefik`, `infra-cnpg`, `infra-cert-manager`, `infra-cert-manager-webhook-porkbun` | Synced/Healthy | fine |
+| `infra-longhorn` | **OutOfSync / Missing** | ← blocks everything below |
+| `infra-external-dns` | Progressing | picking up `--traefik-disable-legacy` |
+| `infra-cert-manager-config` | Progressing | cert can't issue until Porkbun secret lands |
+| `gtfs` | OutOfSync / Degraded | PVCs Pending on the missing StorageClass |
+| `infra-secrets` | **did not exist** before this push | Phase 4 had never reached ArgoCD |
+
+**0. Unblock Longhorn first — nothing else can start without it.** Only
+`local-path` exists as a StorageClass, so the CNPG initdb Job and the Redis pod
+have been Pending for 8 days. The sync failed at revision `01836fa` and ArgoCD
+refuses to retry *the same* revision ("Skipping auto-sync: failed previous sync
+attempt … and will not retry"), which is why it stayed stuck. Established facts:
+`iscsid` is **active** on the node and `iscsiadm` is present, and
+`helm template … | kubectl apply --server-side --dry-run=server` applies cleanly
+— so the original failure looks environmental and already resolved. The new
+revision should let auto-sync retry on its own; if it doesn't, sync it manually
+and read the real per-resource error before changing anything.
+(`nfs-common` is missing on the node but is only needed for RWX volumes, which we
+don't use. `sudo apt-get install -y nfs-common` if you want it anyway.)
+
+**1. ArgoCD has no IngressRoute yet.** `infra/argocd/values.yaml` still notes
+"Until the IngressRoute exists (Phase 7) access is via kubectl port-forward" —
+step 8 below needs one authored (host `argocd.gtfs.zone`, the argocd-server
+Service, `gtfs-zone-tls`, external-dns target annotation). It was **not** part of
+`gtfs/ingressroutes.yaml` because it lives in the `argocd` namespace.
+
+Then follow `music-student`'s `startup-guide.md`, adapted to prod hostnames:
 1. `curl https://rt.gtfs.zone/health`; confirm the served cert is cert-manager's.
 2. Sign in at `https://manage.rt.gtfs.zone` (oauth2-proxy → Dex → connector). First
    admin login creates the owner `User` row that `Feed.owner_id` needs.
 3. **Bootstrap the Traccar admin** — a fresh Traccar DB has no users; the first
    `POST /api/users` (allowed while `tc_users` is empty) becomes administrator.
    Use the generated `TRACCAR_ADMIN_*` credentials, then verify `administrator = t`.
+   ✅ Rehearsed locally against 6.14.5: `POST /api/users` on an empty `tc_users`
+   returned `"administrator": true`, and creating a device with those credentials
+   then worked. The `TRACCAR_ADMIN_EMAIL`/`_PASSWORD` in `gtfs-app-secrets` are
+   the ones rt-api already uses for device auto-provisioning, so bootstrap with
+   exactly those values or cafe-car cannot talk to Traccar.
 4. Enable **Registration** (`PUT /api/server {"registration": true}`) so Dex logins
    auto-provision manager accounts.
 5. Provision the three feeds (amtrak, columbia-county, west) and their `Tracker`s;
@@ -353,12 +428,12 @@ Follow `music-student`'s `startup-guide.md`, adapted to prod hostnames:
    it studies has shipped.
 
 ### Phase 10 — Branch hygiene & handoff ⬜ TODO
-1. Push the pending local commits (currently **4 ahead** of `origin/k3s-init` —
-   Phases 4 and 6 have never reached ArgoCD).
-2. Delete the three stale remote branches — all already squash-merged into `main`:
-   `51-driver-rules` (→ `a151afd`), `52-apply-copier` (→ `6b7813a`),
-   `feature/13-add-cz` (→ `6cee30b`).
-3. Open **one PR**: `k3s-init` → `main`.
+1. ✅ Local commits pushed — `origin/k3s-init` is at `3f1cc67`.
+2. ✅ Stale branches gone in every repo. In the four app repos the merged feature
+   branches were deleted locally and remotely; each is now `main`-only.
+3. Open **one PR**: `k3s-init` → `main`. `gh` only knows github.com and `tea` is
+   not installed, but **`forgejo-mcp` is at `~/go/bin/forgejo-mcp`** and needs
+   `FORGEJO_ACCESS_TOKEN` — otherwise do it in the Forgejo web UI.
 4. After merge, flip `apps/root.yaml` `targetRevision` `k3s-init` → `main` and
    `kubectl apply` it once (ArgoCD cannot follow a branch it is no longer tracking).
 5. Delete `k3s-init`.
@@ -391,13 +466,17 @@ Follow `music-student`'s `startup-guide.md`, adapted to prod hostnames:
 
 ## Manual / sudo steps (things YOU run)
 
-1. Install `open-iscsi`/`nfs-common` + enable `iscsid`. — Phase 1
-2. Install k3s (`--disable traefik`). — Phase 1
-3. Copy kubeconfig off the server. — Phase 1
-4. Create the `sops-age` Secret in `argocd`. — Phase 2 ✅
-5. `kubectl apply -f apps/root.yaml` once to bootstrap. — Phase 2 ✅
-6. Merge the three app repos to `main` so CI publishes images. — before Phase 6a
-7. Edit home-docker Traefik for the `*.gtfs.zone` passthrough + `tofu apply`. — Phase 7
+1. ✅ Install `open-iscsi` + enable `iscsid`. — Phase 1 (`nfs-common` still absent;
+   only matters for RWX volumes, which we don't use)
+2. ✅ Install k3s (`--disable traefik`). — Phase 1 (`kcfam-deb`, v1.36.2+k3s1)
+3. ✅ Copy kubeconfig off the server. — Phase 1. It points at `127.0.0.1:6443`, so
+   every kubectl session needs `ssh -N -L 6443:127.0.0.1:6443 kcfam` running.
+4. ✅ Create the `sops-age` Secret in `argocd`. — Phase 2
+5. ✅ `kubectl apply -f apps/root.yaml` once to bootstrap. — Phase 2
+6. ✅ Merge the app repos to `main` so CI publishes images. — before Phase 6a
+7. `tofu apply` in **home-docker** to ship the already-written
+   `traefik/dynamic/gtfs-zone-passthrough.yml` (the dynamic dir is baked into the
+   locally-built Traefik image, so a rebuild is required). — Phase 7
 8. Bootstrap the Traccar admin user + enable Registration; provision feeds/trackers;
    scan the driver QR. — Phase 8
 9. `tofu destroy` the old gtfs Docker stack. — Phase 9
