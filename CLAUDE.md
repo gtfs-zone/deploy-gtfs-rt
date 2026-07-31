@@ -216,8 +216,12 @@ Each of these cost real debugging time. See `CURRENT_PLAN.md` § Phase 8 for det
 - Uptime Kuma's public status page must be created in its UI — `status.gtfs.zone/`
   redirects to the private `/dashboard` until one exists. The old `tf-monitors/`
   root that configured this via API was deleted and not replaced.
-- `Cluster/postgres` and the Longhorn CRDs report permanently **OutOfSync but
-  Healthy**; the operators mutate their own resources. Cosmetic.
+- **`infra-longhorn` sits permanently OutOfSync but Healthy** — the Longhorn
+  operator mutates its own CRDs, so they never match the chart exactly. Cosmetic;
+  add `ignoreDifferences` if the noise bothers you.
+- `gtfs` transiently reports OutOfSync on `Cluster/postgres` right after CNPG
+  touches the resource, then reconciles back to Synced on its own. Only worry if
+  it stays OutOfSync across several minutes.
 - Traccar scopes device visibility per user, so an OIDC-provisioned manager sees
   no devices until they are shared (`POST /api/permissions`).
 - No backups yet. CNPG scheduled backups + Longhorn snapshots are the obvious

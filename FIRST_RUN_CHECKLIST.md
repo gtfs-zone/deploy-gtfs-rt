@@ -209,6 +209,10 @@ kubectl get pods -n gtfs
 ```
 
 All four URLs should return **200**, every Application should be **Healthy**, and
-every pod **Running**. (`gtfs` and `infra-longhorn` showing *OutOfSync but
-Healthy* is expected — the CNPG and Longhorn operators mutate their own
-resources.)
+every pod **Running**.
+
+`infra-longhorn` showing *OutOfSync but Healthy* is expected and permanent — the
+Longhorn operator mutates its own CRDs — and `root` inherits that status from it.
+`gtfs` may flicker to OutOfSync on `Cluster/postgres` just after CNPG touches the
+resource, but settles back to Synced on its own; only investigate if it stays
+that way.

@@ -32,3 +32,41 @@ spec:
     syncOptions:
       - CreateNamespace=true
       - ServerSideApply=true
+  ## Cluster/postgres permanently drifts because CNPG's own mutating admission
+  ## webhook defaults ~18 spec fields (postgresql.parameters, probes,
+  ## replicationSlots, affinity, etc.) on write. Because we apply via SSA, those
+  ## webhook-injected defaults get attributed to argocd-controller's own field
+  ## ownership (not a separate manager), so managedFieldsManagers can't filter
+  ## them out — only explicit jsonPointers can. List reflects CNPG 1.27's
+  ## defaulting webhook as observed on the live object; re-check
+  ## `kubectl -n gtfs get cluster postgres -o yaml` after a CNPG upgrade.
+  ignoreDifferences:
+    - group: postgresql.cnpg.io
+      kind: Cluster
+      name: postgres
+      jsonPointers:
+        - /spec/affinity
+        - /spec/enablePDB
+        - /spec/failoverDelay
+        - /spec/logLevel
+        - /spec/maxSyncReplicas
+        - /spec/minSyncReplicas
+        - /spec/monitoring
+        - /spec/postgresGID
+        - /spec/postgresUID
+        - /spec/postgresql
+        - /spec/primaryUpdateMethod
+        - /spec/primaryUpdateStrategy
+        - /spec/probes
+        - /spec/replicationSlots
+        - /spec/resources
+        - /spec/smartShutdownTimeout
+        - /spec/startDelay
+        - /spec/stopDelay
+        - /spec/switchoverDelay
+        - /spec/bootstrap/initdb/encoding
+        - /spec/bootstrap/initdb/localeCType
+        - /spec/bootstrap/initdb/localeCollate
+      jqPathExpressions:
+        - .spec.managed.roles[].connectionLimit
+        - .spec.managed.roles[].inherit

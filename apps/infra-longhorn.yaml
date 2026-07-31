@@ -35,3 +35,18 @@ spec:
     syncOptions:
       - CreateNamespace=true
       - ServerSideApply=true
+  ## The Longhorn CRDs permanently drift from the rendered chart manifest for two
+  ## unrelated reasons, neither of which is a real config problem:
+  ##   - /status is populated by the API server itself (storedVersions,
+  ##     acceptedNames, conditions) and is never part of the applied manifest.
+  ##   - volumes/engineimages/nodes.longhorn.io use a conversion webhook, and
+  ##     Longhorn injects its live CA cert into
+  ##     spec.conversion.webhook.clientConfig.caBundle after creation. jsonPointers
+  ##     for paths that don't exist on a given CRD (e.g. the caBundle path on the
+  ##     4 non-conversion CRDs) are simply no-ops.
+  ignoreDifferences:
+    - group: apiextensions.k8s.io
+      kind: CustomResourceDefinition
+      jsonPointers:
+        - /status
+        - /spec/conversion/webhook/clientConfig/caBundle

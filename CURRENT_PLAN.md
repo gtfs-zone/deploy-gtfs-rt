@@ -556,9 +556,14 @@ no k3s equivalent, but they are **defined in `home-docker`, not in this repo's
   `client.py:67` only guards against `None`. This is an app bug in
   `hell-gate-bridge`, not the deployment; evidence written up there in
   `BUSWHERE_DEPARTED_BUG.md`. Amtrak is unaffected.
-- `Cluster/postgres` and the Longhorn CRDs show permanently **OutOfSync but
-  Healthy** — the CNPG and Longhorn operators mutate their own resources. Cosmetic
-  GitOps drift; add `ignoreDifferences` if the noise is annoying.
+- `infra-longhorn` shows permanently **OutOfSync but Healthy** — the Longhorn
+  operator mutates its own CRDs, so they never match the chart exactly. Cosmetic;
+  add `ignoreDifferences` if the noise is annoying. (`root` inherits the
+  OutOfSync from this child Application.)
+- `gtfs` reports OutOfSync on `Cluster/postgres` only *transiently*, right after
+  CNPG mutates the resource; it reconciles back to Synced by itself. An earlier
+  revision of this document called that permanent — it is not. Steady state is
+  `gtfs Synced/Healthy`.
 - `nfs-common` is still absent on the node. Only matters for RWX volumes, which
   this stack does not use.
 
