@@ -17,7 +17,14 @@ spec:
   sources:
     - repoURL: https://traefik.github.io/charts
       chart: traefik
-      targetRevision: 35.2.0
+      # 38.0.2 = Traefik v3.6.6. Minimum v3.4 is required for the `{url}`
+      # placeholder in the errors middleware query (oauth2-errors relies on it
+      # to carry the original URL into oauth2-proxy's rd param); on v3.3 the
+      # literal "{url}" was sent, rd collapsed to "/", and post-login users
+      # landed on auth.gtfs.zone's 404. Charts ≥39 reject our values schema
+      # (ports.websecure.tls moved), so 38.x is the ceiling without a values
+      # rewrite.
+      targetRevision: 38.0.2
       helm:
         valueFiles:
           - $values/infra/traefik/values.yaml
