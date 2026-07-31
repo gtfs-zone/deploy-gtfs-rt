@@ -2,8 +2,23 @@
 ##
 ## Wildcard cert for the gtfs stack. The resulting `gtfs-zone-tls` Secret lives in
 ## the `gtfs` namespace so the app's IngressRoutes (Phase 7) can reference it.
-## Issuance stays Pending until the Porkbun secret exists (Phase 4) and the
-## webhook APIService is Ready — that's expected during the phased rollout.
+##
+## Two SANs, and both are load-bearing:
+##
+##   *.gtfs.zone     rt · dex · auth · uptime · status · traccar
+##   *.rt.gtfs.zone  manage.rt.gtfs.zone
+##
+## A DNS wildcard matches exactly ONE label, so `*.gtfs.zone` does NOT cover
+## `manage.rt.gtfs.zone` — without the second SAN that route serves a cert whose
+## names don't match and every browser rejects it.
+##
+## The bare apex `gtfs.zone` is deliberately NOT here. Nothing in k3s serves it
+## (home-docker's static-sites container keeps the landing page, and the
+## passthrough regex excludes it), and including it actively broke issuance: the
+## apex and the wildcard both validate via TXT at `_acme-challenge.gtfs.zone`,
+## and the Porkbun webhook replaces that record instead of appending, so the two
+## challenges overwrite each other and the wildcard never propagates. The two
+## wildcards above validate at different names, so they cannot collide.
 apiVersion: cert-manager.io/v1
 kind: Certificate
 metadata:
@@ -12,8 +27,8 @@ metadata:
 spec:
   secretName: gtfs-zone-tls
   dnsNames:
-    - "gtfs.zone"
     - "*.gtfs.zone"
+    - "*.rt.gtfs.zone"
   issuerRef:
     name: letsencrypt-porkbun
     kind: ClusterIssuer

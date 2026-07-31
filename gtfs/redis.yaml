@@ -36,6 +36,21 @@ spec:
       labels:
         app: redis
     spec:
+      # A freshly formatted Longhorn (ext4) volume mounts root-owned and contains
+      # a `lost+found`, which makes the redis entrypoint bail out of its own
+      # permission fixup:
+      #   Notice: Unknown file './lost+found' found in data dir. Permissions will
+      #   not be modified.
+      # /data therefore stays root:root, redis drops to uid 999, and the server
+      # dies at startup with
+      #   Can't open or create append-only dir appendonlydir: Permission denied
+      # fsGroup makes kubelet chgrp the volume on mount, which fixes this
+      # regardless of what the image's entrypoint decides to do.
+      # (uid 999 / gid 1000 per `id redis` in redis:8.6-alpine.)
+      securityContext:
+        runAsUser: 999
+        runAsGroup: 1000
+        fsGroup: 1000
       containers:
         - name: redis
           image: redis:8.6-alpine
