@@ -216,12 +216,17 @@ Each of these cost real debugging time. See `CURRENT_PLAN.md` § Phase 8 for det
 - Uptime Kuma's public status page must be created in its UI — `status.gtfs.zone/`
   redirects to the private `/dashboard` until one exists. The old `tf-monitors/`
   root that configured this via API was deleted and not replaced.
-- **`infra-longhorn` sits permanently OutOfSync but Healthy** — the Longhorn
-  operator mutates its own CRDs, so they never match the chart exactly. Cosmetic;
-  add `ignoreDifferences` if the noise bothers you.
-- `gtfs` transiently reports OutOfSync on `Cluster/postgres` right after CNPG
-  touches the resource, then reconciles back to Synced on its own. Only worry if
-  it stays OutOfSync across several minutes.
+- `infra-longhorn`'s CRDs and `gtfs`'s `Cluster/postgres` no longer show spurious
+  OutOfSync — see `ignoreDifferences` in `apps/infra-longhorn.yaml` and
+  `apps/gtfs.yaml`. Both the Longhorn CRD conversion webhook (self-injected
+  `caBundle`) and CNPG's own mutating admission webhook (defaults ~18 `Cluster`
+  spec fields, plus role defaults) write fields at persist time that are never in
+  the applied manifest; with SSA, ArgoCD attributes those to its own field
+  manager, so only explicit `jsonPointers`/`jqPathExpressions` fix it — this is
+  *not* transient and does not resolve itself. If either Application goes
+  OutOfSync again on a *new* field after a chart/operator upgrade, diff
+  `helm template`/`kubectl get -o yaml` output against the live object to find
+  the newly-defaulted path and add it to the same list.
 - Traccar scopes device visibility per user, so an OIDC-provisioned manager sees
   no devices until they are shared (`POST /api/permissions`).
 - No backups yet. CNPG scheduled backups + Longhorn snapshots are the obvious

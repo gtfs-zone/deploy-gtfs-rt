@@ -208,11 +208,9 @@ kubectl get app -n argocd
 kubectl get pods -n gtfs
 ```
 
-All four URLs should return **200**, every Application should be **Healthy**, and
-every pod **Running**.
-
-`infra-longhorn` showing *OutOfSync but Healthy* is expected and permanent — the
-Longhorn operator mutates its own CRDs — and `root` inherits that status from it.
-`gtfs` may flicker to OutOfSync on `Cluster/postgres` just after CNPG touches the
-resource, but settles back to Synced on its own; only investigate if it stays
-that way.
+All four URLs should return **200**, and every Application and pod should be
+**Synced/Healthy** and **Running** respectively — `infra-longhorn` and `gtfs`
+included, thanks to the `ignoreDifferences` entries in their Application
+manifests (see CLAUDE.md § Known gaps). If either shows OutOfSync, it means a
+chart/operator upgrade introduced a new self-defaulted field not yet covered by
+those entries — investigate rather than assuming it's cosmetic.

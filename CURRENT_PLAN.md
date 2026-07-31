@@ -556,14 +556,18 @@ no k3s equivalent, but they are **defined in `home-docker`, not in this repo's
   `client.py:67` only guards against `None`. This is an app bug in
   `hell-gate-bridge`, not the deployment; evidence written up there in
   `BUSWHERE_DEPARTED_BUG.md`. Amtrak is unaffected.
-- `infra-longhorn` shows permanently **OutOfSync but Healthy** — the Longhorn
-  operator mutates its own CRDs, so they never match the chart exactly. Cosmetic;
-  add `ignoreDifferences` if the noise is annoying. (`root` inherits the
-  OutOfSync from this child Application.)
-- `gtfs` reports OutOfSync on `Cluster/postgres` only *transiently*, right after
-  CNPG mutates the resource; it reconciles back to Synced by itself. An earlier
-  revision of this document called that permanent — it is not. Steady state is
-  `gtfs Synced/Healthy`.
+- `infra-longhorn`'s CRDs and `gtfs`'s `Cluster/postgres` used to show spurious
+  permanent OutOfSync (`root` inherited it from `infra-longhorn`). Root cause in
+  both cases: an operator's own webhook injects fields at persist time
+  (Longhorn's CRD conversion `caBundle` + a default `conversion`/
+  `preserveUnknownFields` normalization; CNPG's mutating webhook defaulting ~18
+  `Cluster` spec fields) that are never present in the applied manifest — and
+  with SSA those webhook-injected fields get attributed to ArgoCD's own field
+  manager, so `managedFieldsManagers` can't filter them out. Fixed with explicit
+  `ignoreDifferences` (`jsonPointers`/`jqPathExpressions`) in
+  `apps/infra-longhorn.yaml` and `apps/gtfs.yaml`; both apps sit `Synced/Healthy`
+  now. If a future chart/operator upgrade adds a new defaulted field, diff
+  `helm template`/`kubectl get -o yaml` against the live object to find it.
 - `nfs-common` is still absent on the node. Only matters for RWX volumes, which
   this stack does not use.
 

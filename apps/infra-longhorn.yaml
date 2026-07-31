@@ -35,18 +35,26 @@ spec:
     syncOptions:
       - CreateNamespace=true
       - ServerSideApply=true
-  ## The Longhorn CRDs permanently drift from the rendered chart manifest for two
-  ## unrelated reasons, neither of which is a real config problem:
+  ## The Longhorn CRDs permanently drift from the rendered chart manifest for
+  ## three unrelated reasons, none of which is a real config problem (verified by
+  ## diffing `helm template` output against the live objects field-by-field):
   ##   - /status is populated by the API server itself (storedVersions,
   ##     acceptedNames, conditions) and is never part of the applied manifest.
-  ##   - volumes/engineimages/nodes.longhorn.io use a conversion webhook, and
-  ##     Longhorn injects its live CA cert into
-  ##     spec.conversion.webhook.clientConfig.caBundle after creation. jsonPointers
-  ##     for paths that don't exist on a given CRD (e.g. the caBundle path on the
-  ##     4 non-conversion CRDs) are simply no-ops.
+  ##   - /spec/preserveUnknownFields: the chart sets this deprecated v1beta1-era
+  ##     field explicitly (false), but the v1 API silently drops it on persist
+  ##     (pruning is now expressed via the schema's x-kubernetes-preserve-unknown-
+  ##     fields instead), so it's never present on the live object.
+  ##   - /spec/conversion: the chart's engines/instancemanagers/replicas/settings
+  ##     CRDs omit `conversion` entirely, but the API server always injects an
+  ##     explicit `{strategy: None}` default; volumes/engineimages/nodes DO set
+  ##     `conversion.strategy: Webhook` in the chart, but Longhorn injects its live
+  ##     CA cert into webhook.clientConfig.caBundle at runtime, which is likewise
+  ##     never in the applied manifest. Ignoring the whole /spec/conversion node
+  ##     covers both cases for all 7 CRDs.
   ignoreDifferences:
     - group: apiextensions.k8s.io
       kind: CustomResourceDefinition
       jsonPointers:
         - /status
-        - /spec/conversion/webhook/clientConfig/caBundle
+        - /spec/preserveUnknownFields
+        - /spec/conversion
