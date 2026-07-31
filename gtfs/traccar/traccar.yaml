@@ -47,7 +47,19 @@ spec:
                 secretKeyRef:
                   name: postgres-traccar
                   key: password
-            - name: OPENID_CLIENTSECRET
+            # Traccar derives the env name by inserting an underscore before each
+            # capital, THEN replacing dots and upper-casing — so
+            # `openid.clientSecret` is OPENID_CLIENT_SECRET, not
+            # OPENID_CLIENTSECRET. Getting this wrong is quiet and nasty: the
+            # container starts and the database works (database.password has no
+            # capitals, so both spellings agree), but openid.clientSecret stays
+            # null and Guice throws on first use, making EVERY /api/server
+            # request 500 with
+            #   NullPointerException: Cannot invoke "String.getBytes(Charset)"
+            #   because "value" is null   at OpenIdProvider.<init>:88
+            # which breaks the web console and OIDC login while the pod looks
+            # perfectly healthy.
+            - name: OPENID_CLIENT_SECRET
               valueFrom:
                 secretKeyRef:
                   name: gtfs-app-secrets

@@ -5,11 +5,17 @@
 
   Secrets are deliberately ABSENT from this file: the Deployment sets
   CONFIG_USE_ENVIRONMENT_VARIABLES=true, so DATABASE_PASSWORD and
-  OPENID_CLIENTSECRET arrive as env vars from Secrets and override anything here.
+  OPENID_CLIENT_SECRET arrive as env vars from Secrets and override anything here.
   (Verified against traccar/traccar:6.14.5 — env wins over the XML for every key,
-  including database.url/user/password. Traccar's mapping is the config key
-  uppercased with dots dropped: database.url -> DATABASE_URL,
-  openid.clientSecret -> OPENID_CLIENTSECRET.)
+  including database.url/user/password.)
+
+  The env-name mapping is NOT simply "uppercase and drop the dots" — Traccar
+  inserts an underscore before each capital letter first, so a camelCase config
+  key gains a separator:
+      database.password   -> DATABASE_PASSWORD      (no capitals; unchanged)
+      openid.clientSecret -> OPENID_CLIENT_SECRET   (note the extra underscore)
+  Verified in-cluster: with OPENID_CLIENTSECRET the value never reaches Traccar
+  and every /api/server call 500s on a null clientSecret.
 
   NOTE: for OIDC logins to auto-create their Traccar user, "registration" must be
   enabled in the server settings — a DB-backed flag, not a config key. See Phase 8.
