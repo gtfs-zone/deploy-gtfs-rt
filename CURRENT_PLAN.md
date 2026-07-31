@@ -555,15 +555,51 @@ no k3s equivalent, but they are **defined in `home-docker`, not in this repo's
 - `nfs-common` is still absent on the node. Only matters for RWX volumes, which
   this stack does not use.
 
-### Phase 9 — Decommission (aggressive — no uptime concern) ⬜ TODO
-1. `cd tf && tofu destroy`. Volumes have `prevent_destroy`; remove those blocks or
-   `tofu state rm` + `docker volume rm`. **We are abandoning this data intentionally.**
-2. `git rm -r tf/ tf-monitors/ nanomq/ traefik/ dex/` on this branch. (`tf-monitors/`
-   configures Uptime Kuma via the Docker stack's API — re-do later if wanted.)
-3. Rewrite `CLAUDE.md` for the k8s/ArgoCD layout (the migration banner and the whole
-   Terraform section go away). Update `README.md`'s architecture section.
-4. Delete `TRACCAR_MIGRATION_FEASIBILITY.md` or mark it **superseded** — the design
-   it studies has shipped.
+### Phase 9 — Decommission ✅ DONE (2026-07-31)
+
+1. ✅ `tofu destroy` — **38 resources destroyed**. `prevent_destroy` was removed
+   from the four volumes first; the data was abandoned intentionally.
+
+   Two things were deliberately **excluded** after checking the destroy plan:
+
+   - **`porkbun_dns_record.root`** — `tofu state rm`'d before destroying. This is
+     the apex `A` record for `gtfs.zone`. external-dns does **not** manage the
+     apex (no IngressRoute claims it), so destroying it would have taken down the
+     landing page *and* every subdomain still CNAME'd to it, with nothing to
+     recreate it. It is now unmanaged at Porkbun — if you want it in git, it
+     belongs to `home-docker`/landing-zone, not here.
+   - **The networks were safe, but only by luck of naming.** This stack owned
+     `rt-proxy-tier` (172.20.0.1) and `rt-internal`, both empty. home-docker's
+     Traefik sits on `proxy-tier` (**172.18.0.1**) — the passthrough target —
+     which this stack never managed. Verified before running, because destroying
+     it would have cut every kcfam.us service.
+
+2. ✅ `git rm -r tf/ tf-monitors/ nanomq/ traefik/ dex/`. Note the gitignored
+   `tf/terraform.tfstate*` and `tf/secrets.auto.tfvars` remain on disk locally —
+   they hold credentials, so deleting them is left to a human.
+3. ✅ `CLAUDE.md` fully rewritten for the k8s/ArgoCD layout, including a "traps
+   that have already bitten" section so Phase 8's failures are not rediscovered.
+   `README.md` rewritten: repo-map, data-flow, system-context, service-routing
+   and pipeline diagrams all redrawn around Traccar/HTTP instead of MQTT, and
+   Steps 1–5 replaced with the SOPS/ArgoCD bootstrap.
+4. ✅ `TRACCAR_MIGRATION_FEASIBILITY.md` marked **superseded** (kept for history).
+   `HANDOFF_PROMPT.md` deleted — consumed.
+5. ✅ Added `FIRST_RUN_CHECKLIST.md` for the browser/phone steps.
+
+**Cutover confirmed.** All six hostnames the old stack was holding now serve the
+cluster wildcard cert:
+
+| Check | Result |
+|---|---|
+| `https://rt.gtfs.zone/health` | 200, cert `*.gtfs.zone` |
+| `https://dex.gtfs.zone/.well-known/openid-configuration` | 200 |
+| `https://manage.rt.gtfs.zone`, `https://uptime.gtfs.zone` | oauth2-proxy Sign In page |
+| `https://traccar.gtfs.zone`, `https://argocd.gtfs.zone` | 200 |
+| apex `gtfs.zone` | still resolves — record preserved |
+
+⚠️ The protected routes answer **401**, not 302. This is correct: Traefik's
+`errors` middleware serves the sign-in body while preserving the original status
+code. Judge it by the body, not the code.
 
 ### Phase 10 — Branch hygiene & handoff ⬜ TODO
 1. ✅ Local commits pushed — `origin/k3s-init` is at `3f1cc67`.
