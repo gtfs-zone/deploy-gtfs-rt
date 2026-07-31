@@ -40,6 +40,14 @@ metadata:
 spec:
   entryPoints: [websecure]
   routes:
+    # oauth2-proxy's own endpoints (sign_in page, /static assets, /callback) must
+    # bypass ForwardAuth — otherwise the sign-in page's CSS/JS re-enter the auth
+    # chain and come back as 401 HTML. Traefik prefers the longer rule.
+    - match: Host(`manage.rt.gtfs.zone`) && PathPrefix(`/oauth2/`)
+      kind: Rule
+      services:
+        - name: oauth2-proxy
+          port: 4180
     - match: Host(`manage.rt.gtfs.zone`)
       kind: Rule
       middlewares:
@@ -97,6 +105,12 @@ metadata:
 spec:
   entryPoints: [websecure]
   routes:
+    # Same /oauth2/ ForwardAuth bypass as manage-rt above.
+    - match: Host(`uptime.gtfs.zone`) && PathPrefix(`/oauth2/`)
+      kind: Rule
+      services:
+        - name: oauth2-proxy
+          port: 4180
     - match: Host(`uptime.gtfs.zone`)
       kind: Rule
       middlewares:
