@@ -487,26 +487,46 @@ environmental.
 
 #### Remaining
 
-1. ⚠️ **BLOCKER — host sysctl, needs sudo.** After the `tofu apply`, home-docker's
-   Traefik cannot start its file provider at all:
-   `Cannot start the provider *file.Provider — error creating file watcher: too
-   many open files`. `fs.inotify.max_user_instances` is at the default **128**
-   and k3s + Longhorn + containerd now share root's quota. **No** dynamic file
-   loads until this is raised, so the passthrough stays down and every
-   `*.gtfs.zone` name is still terminated locally by the old stack:
+✅ **The inotify blocker is resolved** (`fs.inotify.max_user_instances` 128 →
+1024). home-docker's Traefik now loads its dynamic config and
+`gtfs-zone-passthrough@file` is enabled with `passthrough: true`.
 
-   ```
-   echo 'fs.inotify.max_user_instances=1024' | sudo tee /etc/sysctl.d/99-inotify.conf
-   echo 'fs.inotify.max_user_watches=524288' | sudo tee -a /etc/sysctl.d/99-inotify.conf
-   sudo sysctl --system
-   sudo docker restart traefik
-   ```
+✅ **The passthrough chain is proven end to end** — internet → home-docker
+Traefik (SNI passthrough) → k3s Traefik `:8443` → IngressRoute → Service, with
+TLS owned by the cluster:
 
-2. After that, verify externally: `https://rt.gtfs.zone/health` served by the
-   *cluster* cert (`*.gtfs.zone`, not the old single-SAN `CN=rt.gtfs.zone`),
-   `https://argocd.gtfs.zone`, and the `manage.rt.gtfs.zone` oauth2-proxy → Dex
-   login. **Until then external checks prove nothing about k3s** — the old Docker
-   stack answers those names.
+| Host | Result |
+|---|---|
+| `https://argocd.gtfs.zone/` | **200**, cert `CN=argocd.gtfs.zone` (ours) |
+| `https://traccar.gtfs.zone/` | **200**, cert `*.gtfs.zone` + `*.rt.gtfs.zone` (ours) |
+| `https://traccar.gtfs.zone/osmand?id=…` | **400** from Traccar's osmand decoder — it reached `:5055`, confirming the path split needs no StripPrefix |
+
+⚠️ **The other six hostnames still resolve to the OLD Docker stack, and this is
+expected.** `rt`, `manage.rt`, `dex`, `auth`, `uptime` and `status` still have
+exact-`Host()` HTTP routers registered by the old stack's container labels, and
+Traefik ranks those above the passthrough's `HostSNIRegexp` TCP router. `traccar`
+and `argocd` reach k3s precisely *because* no old router claims them — a clean
+natural experiment showing the passthrough itself is correct and the only thing
+in the way is the old stack.
+
+```
+rt-rt-api-public@docker      Host(`rt.gtfs.zone`)            prio 20
+rt-rt-api-admin@docker       Host(`manage.rt.gtfs.zone`)     prio 27
+rt-dex@docker                Host(`dex.gtfs.zone`)           prio 21
+rt-oauth2-proxy@docker       Host(`auth.gtfs.zone`)          prio 22
+rt-uptime@docker             Host(`uptime.gtfs.zone`)        prio 24
+rt-status-page@docker        Host(`status.gtfs.zone`)        prio 24
+```
+
+**So these six cut over the moment Phase 9's `tofu destroy` removes those
+containers — no further edge work is needed.** The remaining Phase 8 checks are
+therefore gated on Phase 9 and should be run immediately after it:
+
+1. `https://rt.gtfs.zone/health` served by the *cluster* cert (`*.gtfs.zone`),
+   not the old single-SAN `CN=rt.gtfs.zone`.
+2. `https://manage.rt.gtfs.zone` completes oauth2-proxy → Dex → connector. First
+   admin login creates the owner `User` row that `Feed.owner_id` needs. This is
+   also the first real test of the `*.rt.gtfs.zone` SAN.
 3. Provision the three feeds (amtrak, columbia-county, west) and their
    `Tracker`s; the two poller `INGEST_VEHICLE_ID`s (`amtrak-live`,
    `columbia-county`) must equal the provisioned tracker ids — a mismatch is
@@ -514,6 +534,11 @@ environmental.
 4. Driver QR path: generate from the manage app, scan with Traccar Client,
    confirm a position lands in `vehicle:{tracker_id}:*` and reaches the feed.
 5. Confirm celery beat enqueues static GTFS loads and the worker processes them.
+
+⚠️ Note `static-sites@docker` also serves `edit.gtfs.zone` and `viz.rt.gtfs.zone`
+alongside the apex, and `cors-proxy@docker` serves `cors.gtfs.zone`. Those are
+**not** part of the rt stack and have no k3s equivalent — check whether they are
+still wanted before assuming `tofu destroy` should take them.
 
 #### Known issues (not blockers)
 
