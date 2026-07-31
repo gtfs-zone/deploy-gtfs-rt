@@ -23,8 +23,24 @@ patterns now even though the project is small.
 > published. The two open risks this plan carried — Traccar's env-var config
 > override and the `/osmand` path split — were **tested against
 > `traccar/traccar:6.14.5` and both resolved favourably**; details in the phases
-> below. What remains is Phase 8 (bring-up, currently blocked on Longhorn),
-> Phase 9 and Phase 10.
+> below.
+>
+> ⚠️ **Correction (Phase 8):** that env-var testing got the *naming rule* wrong.
+> Traccar inserts an underscore before each capital letter, so
+> `openid.clientSecret` is **`OPENID_CLIENT_SECRET`**, not `OPENID_CLIENTSECRET`.
+> `database.password` has no capitals, which is why the tested keys all passed
+> and the bug reached the cluster. See Phase 8 § "What was actually wrong".
+
+> **Revision 2026-07-31 (Phase 8 bring-up).** The cluster is **up**: all 13 gtfs
+> pods Running, every ArgoCD Application Healthy, Traccar bootstrapped, Amtrak
+> ingesting live. Seven independent defects were found and fixed along the way —
+> Longhorn's PreSync hook deadlock, three stacked external-dns webhook bugs, the
+> DNS-01 RBAC ServiceAccount, two wrong SANs on the wildcard cert, a stale
+> registry credential, Redis volume permissions, two "template call inside a
+> comment" bugs (Dex and the edge passthrough), and Traccar's OIDC env name.
+> One blocker remains and it needs **sudo**: `fs.inotify.max_user_instances` is
+> exhausted on the host, so home-docker's Traefik cannot load *any* dynamic
+> config and the `*.gtfs.zone` passthrough is still down. Details in Phase 8.
 
 ---
 
@@ -362,60 +378,156 @@ have broken the first sync:
    The regex deliberately excludes the bare apex `gtfs.zone`, which stays on
    home-docker's static-sites container (landing-zone).
 
-### Phase 8 — Bring-up & verify ⬜ TODO ← **the remaining work**
+### Phase 8 — Bring-up & verify 🟡 MOSTLY DONE (2026-07-31)
 
-**Cluster state as of the `3f1cc67` push** (`ssh -N -L 6443:127.0.0.1:6443 kcfam`
-for kubectl access — the kubeconfig points at `127.0.0.1:6443`):
+Everything in the cluster is up: **all 13 gtfs pods Running, every ArgoCD
+Application Healthy**, Alembic migrated, Traccar bootstrapped, and the Amtrak
+poller is ingesting live (135 vehicles, `200 OK` on `/ingest/position` and
+`/ingest/trip-update` — so `INGEST_API_TOKEN` is correct, not the silent
+`Bearer None` this plan warned about). What remains is **one host sysctl** and
+the verification that depends on it (see "Remaining" below).
 
-| Application | State | Note |
-|---|---|---|
-| `root`, `infra-traefik`, `infra-cnpg`, `infra-cert-manager`, `infra-cert-manager-webhook-porkbun` | Synced/Healthy | fine |
-| `infra-longhorn` | **OutOfSync / Missing** | ← blocks everything below |
-| `infra-external-dns` | Progressing | picking up `--traefik-disable-legacy` |
-| `infra-cert-manager-config` | Progressing | cert can't issue until Porkbun secret lands |
-| `gtfs` | OutOfSync / Degraded | PVCs Pending on the missing StorageClass |
-| `infra-secrets` | **did not exist** before this push | Phase 4 had never reached ArgoCD |
+`ssh -N -L 6443:127.0.0.1:6443 kcfam` is still required for kubectl.
 
-**0. Unblock Longhorn first — nothing else can start without it.** Only
-`local-path` exists as a StorageClass, so the CNPG initdb Job and the Redis pod
-have been Pending for 8 days. The sync failed at revision `01836fa` and ArgoCD
-refuses to retry *the same* revision ("Skipping auto-sync: failed previous sync
-attempt … and will not retry"), which is why it stayed stuck. Established facts:
-`iscsid` is **active** on the node and `iscsiadm` is present, and
-`helm template … | kubectl apply --server-side --dry-run=server` applies cleanly
-— so the original failure looks environmental and already resolved. The new
-revision should let auto-sync retry on its own; if it doesn't, sync it manually
-and read the real per-resource error before changing anything.
-(`nfs-common` is missing on the node but is only needed for RWX volumes, which we
-don't use. `sudo apt-get install -y nfs-common` if you want it anyway.)
+#### What was actually wrong
 
-**1. ArgoCD has no IngressRoute yet.** `infra/argocd/values.yaml` still notes
-"Until the IngressRoute exists (Phase 7) access is via kubectl port-forward" —
-step 8 below needs one authored (host `argocd.gtfs.zone`, the argocd-server
-Service, `gtfs-zone-tls`, external-dns target annotation). It was **not** part of
-`gtfs/ingressroutes.yaml` because it lives in the `argocd` namespace.
+This plan previously said Longhorn was stuck only because "ArgoCD will not retry
+the same revision" and that the failure "looks environmental and already
+resolved". **That was wrong.** Auto-sync did retry, and there were *seven*
+independent defects. Each was read out of live cluster state; none was
+environmental.
 
-Then follow `music-student`'s `startup-guide.md`, adapted to prod hostnames:
-1. `curl https://rt.gtfs.zone/health`; confirm the served cert is cert-manager's.
-2. Sign in at `https://manage.rt.gtfs.zone` (oauth2-proxy → Dex → connector). First
-   admin login creates the owner `User` row that `Feed.owner_id` needs.
-3. **Bootstrap the Traccar admin** — a fresh Traccar DB has no users; the first
-   `POST /api/users` (allowed while `tc_users` is empty) becomes administrator.
-   Use the generated `TRACCAR_ADMIN_*` credentials, then verify `administrator = t`.
-   ✅ Rehearsed locally against 6.14.5: `POST /api/users` on an empty `tc_users`
-   returned `"administrator": true`, and creating a device with those credentials
-   then worked. The `TRACCAR_ADMIN_EMAIL`/`_PASSWORD` in `gtfs-app-secrets` are
-   the ones rt-api already uses for device auto-provisioning, so bootstrap with
-   exactly those values or cafe-car cannot talk to Traccar.
-4. Enable **Registration** (`PUT /api/server {"registration": true}`) so Dex logins
-   auto-provision manager accounts.
-5. Provision the three feeds (amtrak, columbia-county, west) and their `Tracker`s;
-   the two poller `INGEST_VEHICLE_ID`s must match the provisioned tracker ids.
-6. West/driver path: generate the QR from the manage app, scan with Traccar Client,
-   confirm a position lands in Redis (`vehicle:{tracker_id}:*`) and surfaces in the feed.
-7. Celery beat enqueues static GTFS loads; worker processes them.
-8. `https://argocd.gtfs.zone` reachable; all Applications Synced + Healthy;
-   external-dns created the expected Porkbun records.
+1. **Longhorn — Helm `pre-upgrade` hook deadlock.** ArgoCD maps the chart's Helm
+   `pre-upgrade` hook to a **PreSync** hook, which runs before the chart's own
+   ServiceAccount exists, so the Job could never create a pod
+   (`serviceaccount "longhorn-service-account" not found`) and ArgoCD waited on
+   the hook forever. Longhorn's own values.yaml says to disable it under GitOps:
+   `preUpgradeChecker.jobEnabled: false`. Both PVCs bound within seconds of the
+   fix, after 8 days Pending.
+
+2. **external-dns — three stacked bugs in the webhook sidecar.** (a) It inherits
+   the pod's `runAsNonRoot` with no `runAsUser` and the image declares no USER,
+   so kubelet refused it outright. (b) `--domain-filter` is a *required* flag on
+   that binary and the chart passes no args to the sidecar — it would have
+   exited on a usage error the moment (a) was fixed. (c) The binary listens on
+   `:8888` while the chart hardcodes containerPort 8080 and aims both probes
+   there, so it would have restart-looped anyway. Fixed with a pinned UID plus
+   `DOMAIN_FILTER`/`LISTEN_ADDRESS` env and `--webhook-provider-url`.
+
+3. **cert-manager DNS-01 — wrong ServiceAccount in the RBAC.** The Porkbun
+   webhook's `:domain-solver` ClusterRoleBinding named SA `cert-manager`, but the
+   Helm release name makes it **`infra-cert-manager`**, so every challenge was
+   `forbidden … cannot create resource "porkbun"` and the Certificate sat in
+   Issuing for 8 days.
+
+4. **`gtfs-zone-tls` had the wrong SANs — two separate bugs.**
+   `manage.rt.gtfs.zone` was never covered, because a DNS wildcard matches
+   exactly one label and `*.gtfs.zone` does not match a second-level subdomain;
+   that route would have served a cert no browser accepts. Added
+   `*.rt.gtfs.zone`. Separately, the apex `gtfs.zone` SAN **blocked issuance**:
+   apex and wildcard both validate via TXT at `_acme-challenge.gtfs.zone` and the
+   Porkbun webhook replaces rather than appends, so the two challenges overwrote
+   each other. Nothing in k3s serves the apex, so that SAN is gone. Cert issued
+   in ~90s afterwards.
+
+5. **Registry pull — the credential was the problem, not the fix.**
+   `registry-git-kcfam` held a stale Forgejo token whose 401 broke a pull that
+   **succeeds anonymously** (verified: all four gtfs.zone images return 200 on an
+   anonymous manifest fetch). `imagePullSecrets` and the Secret were dropped
+   entirely rather than rotating a credential the public packages do not need.
+
+6. **Redis — Longhorn volume permissions.** A fresh ext4 volume mounts root-owned
+   and carries a `lost+found`, which makes the redis entrypoint decline its own
+   permission fixup, so `/data` stayed root:root and the server died with
+   `Can't open or create append-only dir appendonlydir: Permission denied`.
+   Fixed with `fsGroup: 1000`.
+
+7. **Two "template call inside a comment" bugs — the same trap, twice.**
+   - **Dex** crashlooped from its first start: the dexidp image runs config.yaml
+     through gomplate, which templates the *whole file including comments*, and
+     the header comment demonstrated the syntax with an argument-less call →
+     `wrong number of args for getenv: want at least 1 got 0`.
+   - **The edge passthrough never loaded.** Traefik's file provider likewise
+     templates every dynamic file, and `gtfs-zone-passthrough.yml` documented how
+     to re-derive the gateway IP with a literal
+     `docker network inspect --format '{{range .IPAM.Config}}…'`. The template
+     engine executed it, the **whole file was discarded**, and the router simply
+     never appeared in `/api/tcp/routers` — the config looked applied and did
+     nothing. Fixed in `home-docker` (`6b2ee4b`).
+
+8. **Traccar — wrong env-var name for the OIDC secret.** This plan documented the
+   mapping as "the config key uppercased with dots dropped". That is **wrong**:
+   Traccar inserts an underscore before each capital *first*, so
+   `openid.clientSecret` → **`OPENID_CLIENT_SECRET`**, not `OPENID_CLIENTSECRET`.
+   The failure is silent — `database.password` has no capitals so both spellings
+   agree and the database worked perfectly (Liquibase ran, 51 tables, pod
+   healthy), but `openid.clientSecret` stayed null and Guice threw on first use,
+   making **every** `/api/server` call 500 and taking out the web console and
+   OIDC login. Verified corrected in-cluster.
+
+#### Done and verified
+
+- All PVCs Bound on Longhorn; `longhorn` is the default StorageClass.
+- `gtfs-zone-tls` (`*.gtfs.zone`, `*.rt.gtfs.zone`) and `argocd-gtfs-zone-tls`
+  both Ready. Confirmed k3s Traefik serves exactly these SANs.
+- `gtfs-migrate` PreSync Job completed; `rt_api`, `dex`, `traccar` databases all
+  exist; Traccar migrated its 51 tables.
+- ArgoCD's Certificate + IngressRoute authored (`infra/argocd/manifests/`,
+  `apps/infra-argocd-ingress.yaml`). It gets its own narrow cert because
+  `gtfs-zone-tls` lives in the `gtfs` namespace and Secrets do not cross
+  namespaces; ArgoCD's own Helm release stays out of the app-of-apps on purpose.
+- **Traccar admin bootstrapped** — first `POST /api/users` on the empty
+  `tc_users` returned `"administrator": true` (id 1), using exactly the
+  `TRACCAR_ADMIN_*` values in `gtfs-app-secrets` that rt-api uses for device
+  auto-provisioning.
+- **Registration enabled** — `PUT /api/server {"registration": true}`, confirmed
+  as `t` in `tc_servers`.
+- external-dns created all eight `*.gtfs.zone` records at Porkbun.
+- Amtrak poller ingesting live and healthy.
+
+#### Remaining
+
+1. ⚠️ **BLOCKER — host sysctl, needs sudo.** After the `tofu apply`, home-docker's
+   Traefik cannot start its file provider at all:
+   `Cannot start the provider *file.Provider — error creating file watcher: too
+   many open files`. `fs.inotify.max_user_instances` is at the default **128**
+   and k3s + Longhorn + containerd now share root's quota. **No** dynamic file
+   loads until this is raised, so the passthrough stays down and every
+   `*.gtfs.zone` name is still terminated locally by the old stack:
+
+   ```
+   echo 'fs.inotify.max_user_instances=1024' | sudo tee /etc/sysctl.d/99-inotify.conf
+   echo 'fs.inotify.max_user_watches=524288' | sudo tee -a /etc/sysctl.d/99-inotify.conf
+   sudo sysctl --system
+   sudo docker restart traefik
+   ```
+
+2. After that, verify externally: `https://rt.gtfs.zone/health` served by the
+   *cluster* cert (`*.gtfs.zone`, not the old single-SAN `CN=rt.gtfs.zone`),
+   `https://argocd.gtfs.zone`, and the `manage.rt.gtfs.zone` oauth2-proxy → Dex
+   login. **Until then external checks prove nothing about k3s** — the old Docker
+   stack answers those names.
+3. Provision the three feeds (amtrak, columbia-county, west) and their
+   `Tracker`s; the two poller `INGEST_VEHICLE_ID`s (`amtrak-live`,
+   `columbia-county`) must equal the provisioned tracker ids — a mismatch is
+   silent.
+4. Driver QR path: generate from the manage app, scan with Traccar Client,
+   confirm a position lands in `vehicle:{tracker_id}:*` and reaches the feed.
+5. Confirm celery beat enqueues static GTFS loads and the worker processes them.
+
+#### Known issues (not blockers)
+
+- **The `columbia-county` poller has never worked.** Every cycle dies with
+  `ValueError: could not convert string to float: 'departed'` — buswhere returns
+  the string `"departed"` in `stop_eta` where a number is expected, and
+  `client.py:67` only guards against `None`. This is an app bug in
+  `hell-gate-bridge`, not the deployment; evidence written up there in
+  `BUSWHERE_DEPARTED_BUG.md`. Amtrak is unaffected.
+- `Cluster/postgres` and the Longhorn CRDs show permanently **OutOfSync but
+  Healthy** — the CNPG and Longhorn operators mutate their own resources. Cosmetic
+  GitOps drift; add `ignoreDifferences` if the noise is annoying.
+- `nfs-common` is still absent on the node. Only matters for RWX volumes, which
+  this stack does not use.
 
 ### Phase 9 — Decommission (aggressive — no uptime concern) ⬜ TODO
 1. `cd tf && tofu destroy`. Volumes have `prevent_destroy`; remove those blocks or
