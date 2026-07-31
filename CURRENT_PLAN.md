@@ -38,9 +38,16 @@ patterns now even though the project is small.
 > DNS-01 RBAC ServiceAccount, two wrong SANs on the wildcard cert, a stale
 > registry credential, Redis volume permissions, two "template call inside a
 > comment" bugs (Dex and the edge passthrough), and Traccar's OIDC env name.
-> One blocker remains and it needs **sudo**: `fs.inotify.max_user_instances` is
-> exhausted on the host, so home-docker's Traefik cannot load *any* dynamic
-> config and the `*.gtfs.zone` passthrough is still down. Details in Phase 8.
+> The inotify blocker (`fs.inotify.max_user_instances` exhausted at the default
+> 128, so home-docker's Traefik could not load *any* dynamic config) was raised
+> to 1024 and the passthrough came up. Details in Phase 8.
+
+> **Revision 2026-07-31 (Phases 9–10).** **The migration is complete.** The old
+> Docker stack is destroyed, all eight hostnames are served by k3s with
+> cluster-issued certs, `tf/ tf-monitors/ nanomq/ traefik/ dex/` are gone, and
+> `CLAUDE.md`/`README.md` describe the k8s world. What is left is human work:
+> the browser/phone steps in **`FIRST_RUN_CHECKLIST.md`** (first admin login,
+> feeds, trackers, QR scan), and the Phase 10 merge.
 
 ---
 
