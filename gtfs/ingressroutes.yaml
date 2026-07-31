@@ -1,0 +1,163 @@
+# ── IngressRoutes ─────────────────────────────────────────────────────────────
+# Replaces the TF Traefik container labels. One IngressRoute per host on the
+# `websecure` entrypoint (host :8443 via ServiceLB), all terminating with the
+# cert-manager wildcard Secret `gtfs-zone-tls`.
+#
+# Every route carries `external-dns.alpha.kubernetes.io/target: <server_ip>` so
+# external-dns creates the matching Porkbun record — this is what retired dns.tf.
+#
+# Auth: the two oauth2 Middlewares (oauth2-proxy.yaml) replace the TF ForwardAuth
+# labels. Public by design: rt (the GTFS-RT feed), status (the Uptime Kuma status
+# page), dex + auth (the login flow itself), and both Traccar routes.
+#
+# TLS reaches this cluster untouched — home-docker's Traefik does SNI passthrough
+# for *.gtfs.zone, so k3s owns gtfs.zone certificates end to end.
+apiVersion: traefik.io/v1alpha1
+kind: IngressRoute
+metadata:
+  name: rt
+  namespace: gtfs
+  annotations:
+    external-dns.alpha.kubernetes.io/target: "73.4.232.254"
+spec:
+  entryPoints: [websecure]
+  routes:
+    - match: Host(`rt.gtfs.zone`)
+      kind: Rule
+      services:
+        - name: gtfs-api
+          port: 8000
+  tls:
+    secretName: gtfs-zone-tls
+---
+apiVersion: traefik.io/v1alpha1
+kind: IngressRoute
+metadata:
+  name: manage-rt
+  namespace: gtfs
+  annotations:
+    external-dns.alpha.kubernetes.io/target: "73.4.232.254"
+spec:
+  entryPoints: [websecure]
+  routes:
+    - match: Host(`manage.rt.gtfs.zone`)
+      kind: Rule
+      middlewares:
+        - name: oauth2-errors
+        - name: oauth2-proxy
+      services:
+        - name: gtfs-manager
+          port: 8001
+  tls:
+    secretName: gtfs-zone-tls
+---
+apiVersion: traefik.io/v1alpha1
+kind: IngressRoute
+metadata:
+  name: dex
+  namespace: gtfs
+  annotations:
+    external-dns.alpha.kubernetes.io/target: "73.4.232.254"
+spec:
+  entryPoints: [websecure]
+  routes:
+    - match: Host(`dex.gtfs.zone`)
+      kind: Rule
+      services:
+        - name: dex
+          port: 5556
+  tls:
+    secretName: gtfs-zone-tls
+---
+apiVersion: traefik.io/v1alpha1
+kind: IngressRoute
+metadata:
+  name: auth
+  namespace: gtfs
+  annotations:
+    external-dns.alpha.kubernetes.io/target: "73.4.232.254"
+spec:
+  entryPoints: [websecure]
+  routes:
+    - match: Host(`auth.gtfs.zone`)
+      kind: Rule
+      services:
+        - name: oauth2-proxy
+          port: 4180
+  tls:
+    secretName: gtfs-zone-tls
+---
+apiVersion: traefik.io/v1alpha1
+kind: IngressRoute
+metadata:
+  name: uptime
+  namespace: gtfs
+  annotations:
+    external-dns.alpha.kubernetes.io/target: "73.4.232.254"
+spec:
+  entryPoints: [websecure]
+  routes:
+    - match: Host(`uptime.gtfs.zone`)
+      kind: Rule
+      middlewares:
+        - name: oauth2-errors
+        - name: oauth2-proxy
+      services:
+        - name: uptime-kuma
+          port: 3001
+  tls:
+    secretName: gtfs-zone-tls
+---
+# Same Uptime Kuma instance, intentionally unauthenticated — it serves the public
+# status page here and the protected dashboard at uptime.gtfs.zone.
+apiVersion: traefik.io/v1alpha1
+kind: IngressRoute
+metadata:
+  name: status
+  namespace: gtfs
+  annotations:
+    external-dns.alpha.kubernetes.io/target: "73.4.232.254"
+spec:
+  entryPoints: [websecure]
+  routes:
+    - match: Host(`status.gtfs.zone`)
+      kind: Rule
+      services:
+        - name: uptime-kuma
+          port: 3001
+  tls:
+    secretName: gtfs-zone-tls
+---
+# Traccar: one hostname, split by path, so drivers get no second confusable host.
+#
+#   /osmand  → :5055  phone reports (Traccar Client). Must stay unauthenticated —
+#              a phone has no browser session; devices authenticate by uniqueId.
+#   /*       → :8082  web console + REST API, which does its own Dex OIDC and so
+#              is deliberately NOT behind oauth2-proxy.
+#
+# No StripPrefix. Verified against traccar/traccar:6.14.5 that the osmand decoder
+# ignores the request path entirely and reads only the query parameters — POSTs to
+# `/osmand?id=...` and `/?id=...` both return 200 and store the position. Dropping
+# the middleware keeps the phone-facing path the simplest thing that works.
+apiVersion: traefik.io/v1alpha1
+kind: IngressRoute
+metadata:
+  name: traccar
+  namespace: gtfs
+  annotations:
+    external-dns.alpha.kubernetes.io/target: "73.4.232.254"
+spec:
+  entryPoints: [websecure]
+  routes:
+    - match: Host(`traccar.gtfs.zone`) && PathPrefix(`/osmand`)
+      kind: Rule
+      services:
+        - name: traccar-osmand
+          port: 5055
+    - match: Host(`traccar.gtfs.zone`)
+      kind: Rule
+      services:
+        - name: traccar
+          port: 8082
+  tls:
+    secretName: gtfs-zone-tls

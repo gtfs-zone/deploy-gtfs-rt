@@ -26,7 +26,7 @@ spec:
         - name: registry-git-kcfam
       containers:
         - name: celery-worker
-          image: git.kcfam.us/gtfs.zone/schedule-foamer:1deff09
+          image: git.kcfam.us/gtfs.zone/schedule-foamer:348af9f
           command: ["celery", "-A", "schedule_foamer.celery_app", "worker", "-l", "info"]
           env:
             - name: CELERY_BROKER_URL
@@ -69,8 +69,19 @@ spec:
         - name: registry-git-kcfam
       containers:
         - name: celery-beat
-          image: git.kcfam.us/gtfs.zone/schedule-foamer:1deff09
-          command: ["celery", "-A", "schedule_foamer.celery_app", "beat", "-l", "info"]
+          image: git.kcfam.us/gtfs.zone/schedule-foamer:348af9f
+          # --schedule is not optional: beat writes its shelve DB to the CWD by
+          # default, but /app is root-owned and the image runs as `bridge`.
+          # /app/beat is the writable directory the image creates for this.
+          command:
+            - celery
+            - -A
+            - schedule_foamer.celery_app
+            - beat
+            - -l
+            - info
+            - --schedule
+            - /app/beat/celerybeat-schedule
           env:
             - name: CELERY_BROKER_URL
               value: redis://redis:6379/3

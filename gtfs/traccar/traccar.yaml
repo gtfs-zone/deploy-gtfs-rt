@@ -1,0 +1,102 @@
+# ── Traccar ───────────────────────────────────────────────────────────────────
+# The GPS ingest server, replacing the retired OwnTracks/NanoMQ path. Two ports:
+#   :8082  web console + REST API  → traccar.gtfs.zone  (Dex OIDC, its own login)
+#   :5055  osmand phone protocol   → traccar.gtfs.zone/osmand  (device-auth only)
+#
+# Traccar owns and migrates its own schema (Liquibase) in the `traccar` database
+# created by the CNPG Cluster. It is NOT behind oauth2-proxy — a phone posting to
+# :5055 has no browser session, and the console does its own OIDC.
+#
+# Config lives in the traccar.xml ConfigMap; the two secret-bearing keys are
+# supplied as env instead (CONFIG_USE_ENVIRONMENT_VARIABLES=true), which keeps
+# them out of git and out of the ConfigMap.
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: traccar
+  namespace: gtfs
+  labels:
+    app: traccar
+spec:
+  replicas: 1
+  # Traccar is a single-writer server against one database; never run two.
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app: traccar
+  template:
+    metadata:
+      labels:
+        app: traccar
+    spec:
+      containers:
+        - name: traccar
+          image: traccar/traccar:6.14.5
+          ports:
+            - name: web
+              containerPort: 8082
+            - name: osmand
+              containerPort: 5055
+          env:
+            # Makes env override every traccar.xml key. Verified on 6.14.5.
+            - name: CONFIG_USE_ENVIRONMENT_VARIABLES
+              value: "true"
+            - name: DATABASE_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: postgres-traccar
+                  key: password
+            - name: OPENID_CLIENTSECRET
+              valueFrom:
+                secretKeyRef:
+                  name: gtfs-app-secrets
+                  key: DEX_TRACCAR_CLIENT_SECRET
+          volumeMounts:
+            - name: config
+              mountPath: /opt/traccar/conf/traccar.xml
+              subPath: traccar.xml
+              readOnly: true
+          readinessProbe:
+            tcpSocket:
+              port: web
+            initialDelaySeconds: 20
+            periodSeconds: 10
+          livenessProbe:
+            tcpSocket:
+              port: web
+            # Liquibase runs the full changelog on a fresh database; give it room.
+            initialDelaySeconds: 90
+            periodSeconds: 20
+      volumes:
+        - name: config
+          configMap:
+            name: traccar-config
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: traccar
+  namespace: gtfs
+spec:
+  selector:
+    app: traccar
+  ports:
+    - name: web
+      port: 8082
+      targetPort: web
+---
+# Separate Service for the phone-report port so the IngressRoute can address it
+# by name without a port-number literal.
+apiVersion: v1
+kind: Service
+metadata:
+  name: traccar-osmand
+  namespace: gtfs
+spec:
+  selector:
+    app: traccar
+  ports:
+    - name: osmand
+      port: 5055
+      targetPort: osmand

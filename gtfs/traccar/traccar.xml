@@ -1,0 +1,35 @@
+<?xml version='1.0' encoding='UTF-8'?>
+<!DOCTYPE properties SYSTEM 'http://java.sun.com/dtd/properties.dtd'>
+<!--
+  Traccar configuration, ported from music-student's dev/traccar/traccar.xml.
+
+  Secrets are deliberately ABSENT from this file: the Deployment sets
+  CONFIG_USE_ENVIRONMENT_VARIABLES=true, so DATABASE_PASSWORD and
+  OPENID_CLIENTSECRET arrive as env vars from Secrets and override anything here.
+  (Verified against traccar/traccar:6.14.5 — env wins over the XML for every key,
+  including database.url/user/password. Traccar's mapping is the config key
+  uppercased with dots dropped: database.url -> DATABASE_URL,
+  openid.clientSecret -> OPENID_CLIENTSECRET.)
+
+  NOTE: for OIDC logins to auto-create their Traccar user, "registration" must be
+  enabled in the server settings — a DB-backed flag, not a config key. See Phase 8.
+-->
+<properties>
+    <entry key='database.driver'>org.postgresql.Driver</entry>
+    <entry key='database.url'>jdbc:postgresql://postgres-rw:5432/traccar</entry>
+    <entry key='database.user'>traccar</entry>
+
+    <entry key='web.url'>https://traccar.gtfs.zone</entry>
+
+    <entry key='openid.clientId'>traccar</entry>
+    <entry key='openid.issuerUrl'>https://dex.gtfs.zone</entry>
+
+    <!-- Forward each position to the vehicle-poser HTTP shim, which resolves the
+         tracker's trip via railroad-club and writes the vehicle:{tracker_id}:{deviceId}
+         Redis record that cafe-car reads. Do NOT switch this to forward.type=redis:
+         that LPUSHes raw Position JSON (unbounded list, no TTL, no trip_id). -->
+    <entry key='forward.enable'>true</entry>
+    <entry key='forward.type'>json</entry>
+    <entry key='forward.url'>http://vehicle-poser:8080/forward</entry>
+    <entry key='forward.retry.enable'>true</entry>
+</properties>

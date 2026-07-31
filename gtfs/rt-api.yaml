@@ -28,8 +28,8 @@ spec:
         - name: registry-git-kcfam
       containers:
         - name: gtfs-api
-          image: git.kcfam.us/gtfs.zone/cafe-car:1bc7074
-          command: ["fastapi", "run", "src/app/main.py", "--port", "8000"]
+          image: git.kcfam.us/gtfs.zone/cafe-car:b190bb0
+          command: ["fastapi", "run", "src/cafe_car/main.py", "--port", "8000"]
           ports:
             - name: http
               containerPort: 8000
@@ -38,8 +38,6 @@ spec:
               value: redis://redis:6379/1
             - name: CELERY_BROKER_URL
               value: redis://redis:6379/3
-            - name: MQTT_PUBLIC_PASSWORD
-              value: public
             - name: OAUTH2_PROXY_LOGOUT_URL
               value: https://auth.gtfs.zone/oauth2/sign_out?rd=https://manage.rt.gtfs.zone
             - name: POSTGRES_RT_API_PASSWORD
@@ -54,6 +52,33 @@ spec:
                 secretKeyRef:
                   name: gtfs-app-secrets
                   key: SESSION_SECRET_KEY
+            # Traccar device provisioning. cafe-car auto-creates a Traccar device
+            # per Tracker over REST using the admin account, and bakes
+            # TRACCAR_CLIENT_BASE into the org.traccar.client://config deep link
+            # it renders as a QR — so that URL must be reachable from the driver's
+            # phone, not just from inside the cluster.
+            - name: TRACCAR_URL
+              value: http://traccar:8082
+            - name: TRACCAR_CLIENT_BASE
+              value: https://traccar.gtfs.zone/osmand
+            - name: TRACCAR_EMAIL
+              valueFrom:
+                secretKeyRef:
+                  name: gtfs-app-secrets
+                  key: TRACCAR_ADMIN_EMAIL
+            - name: TRACCAR_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: gtfs-app-secrets
+                  key: TRACCAR_ADMIN_PASSWORD
+            # Shared bearer guarding /ingest/* (hell-gate-bridge is the producer).
+            - name: INGEST_API_TOKEN
+              valueFrom:
+                secretKeyRef:
+                  name: gtfs-app-secrets
+                  key: INGEST_API_TOKEN
+            - name: CORS_ALLOWED_ORIGINS
+              value: '["https://manage.rt.gtfs.zone","https://rt.gtfs.zone"]'
           readinessProbe:
             httpGet:
               path: /health
@@ -101,11 +126,11 @@ spec:
         - name: registry-git-kcfam
       containers:
         - name: gtfs-manager
-          image: git.kcfam.us/gtfs.zone/cafe-car:1bc7074
+          image: git.kcfam.us/gtfs.zone/cafe-car:b190bb0
           command:
             - fastapi
             - run
-            - src/app/admin_main.py
+            - src/cafe_car/admin_main.py
             - --port
             - "8001"
             - --proxy-headers
@@ -118,8 +143,6 @@ spec:
               value: redis://redis:6379/1
             - name: CELERY_BROKER_URL
               value: redis://redis:6379/3
-            - name: MQTT_PUBLIC_PASSWORD
-              value: public
             - name: OAUTH2_PROXY_LOGOUT_URL
               value: https://auth.gtfs.zone/oauth2/sign_out?rd=https://manage.rt.gtfs.zone
             - name: POSTGRES_RT_API_PASSWORD
@@ -134,6 +157,33 @@ spec:
                 secretKeyRef:
                   name: gtfs-app-secrets
                   key: SESSION_SECRET_KEY
+            # Traccar device provisioning. cafe-car auto-creates a Traccar device
+            # per Tracker over REST using the admin account, and bakes
+            # TRACCAR_CLIENT_BASE into the org.traccar.client://config deep link
+            # it renders as a QR — so that URL must be reachable from the driver's
+            # phone, not just from inside the cluster.
+            - name: TRACCAR_URL
+              value: http://traccar:8082
+            - name: TRACCAR_CLIENT_BASE
+              value: https://traccar.gtfs.zone/osmand
+            - name: TRACCAR_EMAIL
+              valueFrom:
+                secretKeyRef:
+                  name: gtfs-app-secrets
+                  key: TRACCAR_ADMIN_EMAIL
+            - name: TRACCAR_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: gtfs-app-secrets
+                  key: TRACCAR_ADMIN_PASSWORD
+            # Shared bearer guarding /ingest/* (hell-gate-bridge is the producer).
+            - name: INGEST_API_TOKEN
+              valueFrom:
+                secretKeyRef:
+                  name: gtfs-app-secrets
+                  key: INGEST_API_TOKEN
+            - name: CORS_ALLOWED_ORIGINS
+              value: '["https://manage.rt.gtfs.zone","https://rt.gtfs.zone"]'
 ---
 apiVersion: v1
 kind: Service

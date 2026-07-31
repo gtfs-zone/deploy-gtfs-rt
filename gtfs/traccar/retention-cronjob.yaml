@@ -1,0 +1,63 @@
+# ── Traccar position retention ────────────────────────────────────────────────
+# Traccar stores every GPS fix in tc_positions forever — there is no retention
+# config key in 6.14.5. Without this the Longhorn volume grows without bound, so
+# treat it as part of the Traccar deployment, not an optional extra.
+#
+# Runs nightly as the `traccar` role (which owns the schema) using the CNPG
+# cluster's Postgres client image. The SQL is the retention.sql ConfigMap in this
+# directory; RETENTION_DAYS is the only knob.
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: traccar-retention
+  namespace: gtfs
+spec:
+  # 04:10 daily — after the nightly GTFS loads, before the morning service peak.
+  schedule: "10 4 * * *"
+  concurrencyPolicy: Forbid
+  successfulJobsHistoryLimit: 3
+  failedJobsHistoryLimit: 3
+  jobTemplate:
+    spec:
+      backoffLimit: 2
+      template:
+        metadata:
+          labels:
+            app: traccar-retention
+        spec:
+          restartPolicy: Never
+          containers:
+            - name: retention
+              image: ghcr.io/cloudnative-pg/postgresql:18.3
+              command:
+                - psql
+                - --set=ON_ERROR_STOP=1
+                - -v
+                - days=30
+                - -f
+                - /sql/retention.sql
+              env:
+                - name: PGHOST
+                  value: postgres-rw
+                - name: PGPORT
+                  value: "5432"
+                - name: PGDATABASE
+                  value: traccar
+                - name: PGUSER
+                  valueFrom:
+                    secretKeyRef:
+                      name: postgres-traccar
+                      key: username
+                - name: PGPASSWORD
+                  valueFrom:
+                    secretKeyRef:
+                      name: postgres-traccar
+                      key: password
+              volumeMounts:
+                - name: sql
+                  mountPath: /sql
+                  readOnly: true
+          volumes:
+            - name: sql
+              configMap:
+                name: traccar-retention-sql

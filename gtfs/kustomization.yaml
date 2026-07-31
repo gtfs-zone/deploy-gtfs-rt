@@ -4,6 +4,7 @@
 #
 # Phase 5 wired the stateful layer (Postgres + Redis) + secrets. Phase 6 adds the
 # application layer (Dex, oauth2-proxy, rt-api + migrate hook, celery, uptime-kuma).
+# Phase 6a adds the ingest layer (Traccar, vehicle-poser, hell-gate-bridge ×2).
 # The IngressRoutes that expose these are added in Phase 7.
 apiVersion: kustomize.config.k8s.io/v1beta1
 kind: Kustomization
@@ -18,3 +19,7 @@ resources:
   - rt-api-migrate.yaml
   - celery.yaml
   - uptime-kuma.yaml
+  - traccar
+  - vehicle-poser.yaml
+  - hell-gate-bridge.yaml
+  - ingressroutes.yaml

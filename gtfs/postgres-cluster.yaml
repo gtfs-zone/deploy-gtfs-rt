@@ -7,9 +7,16 @@
 #   role+db    rt_api / rt_api     ← bootstrap.initdb (owner role + its database)
 #   role       dex                 ← managed.roles (passwordSecret)
 #   db         dex (owner dex)     ← Database CR below
+#   role       traccar             ← managed.roles (passwordSecret)
+#   db         traccar (owner ~)   ← Database CR below; Traccar migrates it itself
 #
 # Single instance on Longhorn (start fresh — no data migration). Image pinned to
 # CNPG's Postgres 18.3 build to match the TF `postgres:18.3-alpine`.
+#
+# Sizing note: Traccar has no retention config key and writes every GPS fix to
+# tc_positions forever, so this volume grows with fleet size × fix rate. 10Gi is
+# the starting point; the nightly traccar-retention CronJob (gtfs/traccar/) is
+# what actually bounds it.
 apiVersion: postgresql.cnpg.io/v1
 kind: Cluster
 metadata:
@@ -47,6 +54,13 @@ spec:
         login: true
         passwordSecret:
           name: postgres-dex
+      # Traccar's login role. Traccar runs its own Liquibase migrations against
+      # this database on startup, so it needs ownership, not just connect.
+      - name: traccar
+        ensure: present
+        login: true
+        passwordSecret:
+          name: postgres-traccar
 ---
 # The dex database, owned by the managed `dex` role. Declarative equivalent of
 # the init container's `CREATE DATABASE dex OWNER dex`.
@@ -60,3 +74,16 @@ spec:
     name: postgres
   name: dex
   owner: dex
+---
+# The traccar database, owned by the managed `traccar` role. Traccar creates and
+# migrates its own tc_* schema inside it on first boot.
+apiVersion: postgresql.cnpg.io/v1
+kind: Database
+metadata:
+  name: traccar
+  namespace: gtfs
+spec:
+  cluster:
+    name: postgres
+  name: traccar
+  owner: traccar

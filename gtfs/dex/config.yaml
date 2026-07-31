@@ -61,3 +61,10 @@ staticClients:
       - '{{ getenv "DEX_OAUTH2_PROXY_REDIRECT_URI" }}'
     name: oauth2-proxy
     secret: {{ getenv "DEX_OAUTH2_PROXY_SECRET" }}
+  # Traccar authenticates its *manager* users against Dex directly (it is not
+  # behind oauth2-proxy). Traccar's OIDC callback is the app root.
+  - id: traccar
+    redirectURIs:
+      - '{{ getenv "DEX_TRACCAR_REDIRECT_URI" }}'
+    name: Traccar
+    secret: {{ getenv "DEX_TRACCAR_SECRET" }}

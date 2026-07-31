@@ -1,0 +1,16 @@
+# Traccar component — Deployment + two Services, its traccar.xml ConfigMap, and
+# the nightly position-retention CronJob. Both ConfigMaps are hash-suffixed by the
+# generator, so editing traccar.xml rolls the Deployment automatically.
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+namespace: gtfs
+resources:
+  - traccar.yaml
+  - retention-cronjob.yaml
+configMapGenerator:
+  - name: traccar-config
+    files:
+      - traccar.xml
+  - name: traccar-retention-sql
+    files:
+      - retention.sql

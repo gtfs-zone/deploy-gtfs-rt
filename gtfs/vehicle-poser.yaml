@@ -1,0 +1,75 @@
+# ── vehicle-poser (Traccar HTTP forward shim) ─────────────────────────────────
+# Resurrected from the TF stack, but no longer an MQTT subscriber: Traccar POSTs
+# each position to /forward (forward.type=json), and this resolves the tracker's
+# current trip via railroad-club, then writes
+#   vehicle:{tracker_id}:{deviceId}  → Redis DB1, 60s TTL
+# which is exactly what cafe-car's gtfs_rt.py scans for. Redis stays the seam.
+#
+# Internal only — no IngressRoute. REDIS_URL and DATABASE_URL are read with
+# os.environ[...] at *module* scope, so a missing or malformed value crashes the
+# pod at import rather than failing a request; both are set explicitly below.
+# VEHICLE_KEY_PREFIX is deliberately left at its `vehicle` default — the shadow
+# prefix was a dual-run tool and we are not dual-running.
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: vehicle-poser
+  namespace: gtfs
+  labels:
+    app: vehicle-poser
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: vehicle-poser
+  template:
+    metadata:
+      labels:
+        app: vehicle-poser
+    spec:
+      imagePullSecrets:
+        - name: registry-git-kcfam
+      containers:
+        - name: vehicle-poser
+          image: git.kcfam.us/gtfs.zone/vehicle-poser:0135419
+          ports:
+            - name: http
+              containerPort: 8080
+          env:
+            - name: HTTP_PORT
+              value: "8080"
+            - name: REDIS_URL
+              value: redis://redis:6379/1
+            - name: POSTGRES_RT_API_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: postgres-rt-api
+                  key: password
+            # psycopg2 driver: the trip resolver runs sync SQLAlchemy on a thread.
+            - name: DATABASE_URL
+              value: postgresql+psycopg2://rt_api:$(POSTGRES_RT_API_PASSWORD)@postgres-rw:5432/rt_api
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: http
+            initialDelaySeconds: 5
+            periodSeconds: 10
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: http
+            initialDelaySeconds: 15
+            periodSeconds: 20
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: vehicle-poser
+  namespace: gtfs
+spec:
+  selector:
+    app: vehicle-poser
+  ports:
+    - name: http
+      port: 8080
+      targetPort: http

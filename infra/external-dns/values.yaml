@@ -33,6 +33,15 @@ domainFilters:
 sources:
   - traefik-proxy
 
+# The traefik-proxy source watches BOTH the modern `traefik.io` API group and the
+# legacy `traefik.containo.us` one. Traefik v3 (chart 35.x) only ships the former,
+# so external-dns blocks forever waiting for a cache sync on a CRD that does not
+# exist and dies with:
+#   fatal: failed to sync traefik.containo.us/v1alpha1, Resource=ingressrouteudps
+# Disabling the legacy group is required, not cosmetic.
+extraArgs:
+  - --traefik-disable-legacy
+
 # Full ownership: create AND delete records to match cluster state, tagged with a
 # TXT owner record so external-dns only touches records it created.
 policy: sync

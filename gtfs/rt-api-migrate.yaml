@@ -24,7 +24,7 @@ spec:
         - name: registry-git-kcfam
       containers:
         - name: gtfs-migrate
-          image: git.kcfam.us/gtfs.zone/cafe-car:1bc7074
+          image: git.kcfam.us/gtfs.zone/cafe-car:b190bb0
           command: ["railroad-club-migrate"]
           env:
             - name: REDIS_URL

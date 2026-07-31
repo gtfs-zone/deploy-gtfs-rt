@@ -21,7 +21,7 @@ spec:
     spec:
       containers:
         - name: dex
-          image: ghcr.io/dexidp/dex:v2.44.0
+          image: ghcr.io/dexidp/dex:v2.45.0
           args: ["dex", "serve", "/etc/dex/config.yaml"]
           ports:
             - name: http
@@ -33,6 +33,13 @@ spec:
               value: https://auth.gtfs.zone/oauth2/callback
             - name: DEX_GITLAB_BASE_URL
               value: https://gitlab.com
+            - name: DEX_TRACCAR_REDIRECT_URI
+              value: https://traccar.gtfs.zone/
+            - name: DEX_TRACCAR_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: gtfs-app-secrets
+                  key: DEX_TRACCAR_CLIENT_SECRET
             - name: DEX_POSTGRES_PASSWORD
               valueFrom:
                 secretKeyRef:
