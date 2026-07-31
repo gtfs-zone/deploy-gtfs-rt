@@ -20,8 +20,6 @@ spec:
         app: gtfs-migrate
     spec:
       restartPolicy: Never
-      imagePullSecrets:
-        - name: registry-git-kcfam
       containers:
         - name: gtfs-migrate
           image: git.kcfam.us/gtfs.zone/cafe-car:b190bb0

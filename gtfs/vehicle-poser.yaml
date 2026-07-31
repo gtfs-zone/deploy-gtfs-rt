@@ -27,8 +27,6 @@ spec:
       labels:
         app: vehicle-poser
     spec:
-      imagePullSecrets:
-        - name: registry-git-kcfam
       containers:
         - name: vehicle-poser
           image: git.kcfam.us/gtfs.zone/vehicle-poser:0135419

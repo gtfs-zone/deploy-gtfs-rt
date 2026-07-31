@@ -32,8 +32,6 @@ spec:
       labels:
         app: hell-gate-bridge-amtrak
     spec:
-      imagePullSecrets:
-        - name: registry-git-kcfam
       containers:
         - name: hell-gate-bridge
           image: git.kcfam.us/gtfs.zone/hell-gate-bridge:57f2581
@@ -69,8 +67,6 @@ spec:
       labels:
         app: hell-gate-bridge-buswhere
     spec:
-      imagePullSecrets:
-        - name: registry-git-kcfam
       containers:
         - name: hell-gate-bridge
           image: git.kcfam.us/gtfs.zone/hell-gate-bridge:57f2581

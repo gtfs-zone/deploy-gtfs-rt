@@ -9,7 +9,16 @@ groupName: porkbun.talinx.dev
 
 certManager:
   namespace: cert-manager
-  serviceAccountName: cert-manager
+  # MUST be cert-manager's ACTUAL ServiceAccount, which the Helm release name
+  # prefixes: our cert-manager Application is `infra-cert-manager`, so the SA is
+  # `infra-cert-manager`, not the chart-default `cert-manager`. This name is the
+  # subject of the chart's `:domain-solver` ClusterRoleBinding; get it wrong and
+  # every DNS-01 challenge fails with
+  #   porkbun.porkbun.talinx.dev is forbidden: User
+  #   "system:serviceaccount:cert-manager:infra-cert-manager" cannot create
+  #   resource "porkbun" in API group "porkbun.talinx.dev" at the cluster scope
+  # and the Certificate sits in Issuing forever (it did, for 8 days).
+  serviceAccountName: infra-cert-manager
 
 image:
   repository: talinx/cert-manager-webhook-porkbun

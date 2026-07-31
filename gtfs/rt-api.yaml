@@ -24,8 +24,6 @@ spec:
       labels:
         app: gtfs-api
     spec:
-      imagePullSecrets:
-        - name: registry-git-kcfam
       containers:
         - name: gtfs-api
           image: git.kcfam.us/gtfs.zone/cafe-car:b190bb0
@@ -122,8 +120,6 @@ spec:
       labels:
         app: gtfs-manager
     spec:
-      imagePullSecrets:
-        - name: registry-git-kcfam
       containers:
         - name: gtfs-manager
           image: git.kcfam.us/gtfs.zone/cafe-car:b190bb0

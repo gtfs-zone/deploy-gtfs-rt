@@ -24,6 +24,36 @@ provider:
           secretKeyRef:
             name: porkbun-secret
             key: API_SECRET
+      # `--domain-filter` is a REQUIRED flag on this binary — without it the
+      # container exits immediately with a kingpin usage error. The chart passes
+      # no args to the webhook, so it has to come from the env equivalent. Keep
+      # in sync with the top-level `domainFilters` below.
+      - name: DOMAIN_FILTER
+        value: gtfs.zone
+      # The binary defaults to :8888, but the chart hardcodes the webhook
+      # containerPort to 8080 and points both probes at that port name — so on
+      # the default the probes hit a closed port and the container restarts
+      # forever. Move the binary to 8080 and point external-dns at it (see
+      # extraArgs below) so the whole chain agrees on one port.
+      - name: LISTEN_ADDRESS
+        value: ":8080"
+    # The chart's POD securityContext sets `runAsNonRoot: true` with no
+    # `runAsUser`; the external-dns container supplies its own UID but this
+    # sidecar inherits the pod's, and the image declares no USER. Kubelet
+    # resolves the image user to root and refuses to start the container:
+    #   Error: container has runAsNonRoot and image will run as root
+    # Pin the same nonroot UID the external-dns container uses (verified: the
+    # binary runs fine as 65532 and serves /healthz).
+    securityContext:
+      allowPrivilegeEscalation: false
+      capabilities:
+        drop:
+          - ALL
+      privileged: false
+      readOnlyRootFilesystem: true
+      runAsGroup: 65532
+      runAsNonRoot: true
+      runAsUser: 65532
 
 # Only manage records under gtfs.zone.
 domainFilters:
@@ -41,6 +71,8 @@ sources:
 # Disabling the legacy group is required, not cosmetic.
 extraArgs:
   - --traefik-disable-legacy
+  # Match the webhook sidecar's LISTEN_ADDRESS above (default would be :8888).
+  - --webhook-provider-url=http://localhost:8080
 
 # Full ownership: create AND delete records to match cluster state, tagged with a
 # TXT owner record so external-dns only touches records it created.

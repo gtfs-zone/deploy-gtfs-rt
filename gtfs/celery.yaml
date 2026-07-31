@@ -22,8 +22,6 @@ spec:
       labels:
         app: celery-worker
     spec:
-      imagePullSecrets:
-        - name: registry-git-kcfam
       containers:
         - name: celery-worker
           image: git.kcfam.us/gtfs.zone/schedule-foamer:348af9f
@@ -65,8 +63,6 @@ spec:
       labels:
         app: celery-beat
     spec:
-      imagePullSecrets:
-        - name: registry-git-kcfam
       containers:
         - name: celery-beat
           image: git.kcfam.us/gtfs.zone/schedule-foamer:348af9f
