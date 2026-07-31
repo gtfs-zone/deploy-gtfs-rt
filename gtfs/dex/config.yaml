@@ -1,8 +1,13 @@
 # Dex config — rendered into a ConfigMap by the configMapGenerator in this dir's
-# kustomization. The upstream dexidp/dex image natively expands the `{{ getenv }}`
-# template calls at startup, so this is the same config the old custom `dex` image
-# shipped, with one change for k8s: the Postgres host is CNPG's read-write service
-# `postgres-rw` (was the `postgres` container).
+# kustomization. The upstream dexidp/dex image runs this file through gomplate at
+# startup to expand the env-var template calls below, so this is the same config
+# the old custom `dex` image shipped, with one change for k8s: the Postgres host
+# is CNPG's read-write service `postgres-rw` (was the `postgres` container).
+#
+# NB: gomplate templates the WHOLE file, comments included — so do not write a
+# bare template call in a comment to describe the syntax. An argument-less one
+# here previously crashed dex at boot with
+#   wrong number of args for getenv: want at least 1 got 0
 issuer: {{ getenv "DEX_ISSUER" }}
 
 storage:
