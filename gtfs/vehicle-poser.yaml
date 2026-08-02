@@ -29,7 +29,7 @@ spec:
     spec:
       containers:
         - name: vehicle-poser
-          image: git.kcfam.us/gtfs.zone/vehicle-poser:0135419
+          image: git.kcfam.us/gtfs.zone/vehicle-poser:b955854
           ports:
             - name: http
               containerPort: 8080
