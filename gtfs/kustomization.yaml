@@ -21,5 +21,6 @@ resources:
   - uptime-kuma.yaml
   - traccar
   - vehicle-poser.yaml
+  - trip-updogger.yaml
   - hell-gate-bridge.yaml
   - ingressroutes.yaml

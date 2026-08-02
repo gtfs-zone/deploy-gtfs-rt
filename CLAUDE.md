@@ -119,14 +119,27 @@ passed through — it stays on home-docker's static-sites container.
                                  (resolve trip → Redis DB1, 60s TTL)
                                             │
  Amtrak feed  ── hell-gate-bridge (amtrak)  ─┤ POST /ingest/* (bearer token)
- Columbia Cty ── hell-gate-bridge (buswhere)─┤
+ Columbia Cty ── hell-gate-bridge (buswhere)─┤ (positions *and* trip updates)
+                                            │
+                                            ├──▶ vehicle:{tracker}:* (DB1, 60s)
+                                            │            │ sweep every 5s
+                                            │      trip-updogger
+                                            │      (project fix on schedule)
+                                            │            ▼
+                                            ├──▶ trip_update:{trip} (DB1, 300s)
                                             ▼
                                      cafe-car (rt-api)
                                      GTFS-RT at rt.gtfs.zone
 ```
 
-MQTT is **permanently retired** — NanoMQ, OwnTracks and `trip-updogger` are gone
-and are not coming back. Positions arrive over HTTP only; Redis is still the seam.
+**MQTT** is permanently retired — NanoMQ and OwnTracks are gone and are not
+coming back. Positions arrive over HTTP only; Redis is still the seam.
+
+`trip-updogger` is **not** retired — it came back in a different shape. It is now
+a Redis→Redis worker with no broker: it sweeps `vehicle:*`, loads the trip's
+scheduled `stop_times` from Postgres, and writes `trip_update:*`. It is what turns
+a raw position into a *delay*, so without it a Traccar-sourced feed serves
+positions and an **empty `trip_updates.pb`**.
 
 ### Service map
 
@@ -139,13 +152,14 @@ and are not coming back. Positions arrive over HTTP only; Redis is still the sea
 | Cache | Redis (DB 0 oauth2-proxy · 1 rt-api+poser · 3 celery broker · 4 celery result) |
 | Auth | Dex (OIDC) + oauth2-proxy (ForwardAuth via two Middlewares) |
 | Application | rt-api (`gtfs-api` :8000 public, `gtfs-manager` :8001 protected), celery worker + beat |
-| Ingest | Traccar, vehicle-poser, hell-gate-bridge ×2 |
+| Ingest | Traccar, vehicle-poser, trip-updogger, hell-gate-bridge ×2 |
 | Monitoring | Uptime Kuma |
 
 ### Related repositories
 
 - **[cafe-car](https://git.kcfam.us/gtfs.zone/cafe-car)** — GTFS-RT API + manager
 - **[vehicle-poser](https://git.kcfam.us/gtfs.zone/vehicle-poser)** — HTTP forward receiver (Traccar → Redis)
+- **[trip-updogger](https://git.kcfam.us/gtfs.zone/trip-updogger)** — schedule-delay worker (positions → trip updates)
 - **[hell-gate-bridge](https://git.kcfam.us/gtfs.zone/hell-gate-bridge)** — Amtrak + Columbia County pollers
 - **[schedule-foamer](https://git.kcfam.us/gtfs.zone/schedule-foamer)** — Celery worker/beat
 - **[railroad-club](https://git.kcfam.us/gtfs.zone/railroad-club)** — shared SQLAlchemy models + Alembic migrations
@@ -214,6 +228,18 @@ Each of these cost real debugging time.
 
 ## Known gaps
 
+- **Two producers share the `trip_update:*` namespace,** and they divide it by a
+  `source` stamp, not by key prefix. `trip-updogger` stamps every record it writes
+  `source: trip-updogger` and refuses to touch a key that lacks that stamp, so
+  hell-gate-bridge's richer per-stop predictions always win and trip-updogger only
+  fills the gaps. cafe-car's `/ingest/trip-update` writes **no** `source` field,
+  which is what makes this work — if a future producer ever starts writing that
+  field, it will silently start losing its records to the sweeper.
+- **`compute_delay` has no notion of a trip that hasn't started.** For a trip whose
+  first stop is still hours away it projects the parked vehicle onto a later stop
+  and reports a large bogus "early" delay (observed: −11700s on an Amtrak trip 3h
+  before departure). Only visible on trips hell-gate-bridge did not itself predict,
+  since those keys are deferred to. Fix belongs in `trip-updogger`'s `trip_math.py`.
 - The `columbia-county` poller crashes every cycle on a `"departed"` string in
   buswhere's `stop_eta` (app bug; written up in `hell-gate-bridge`'s
   `BUSWHERE_DEPARTED_BUG.md`). Amtrak is unaffected.
