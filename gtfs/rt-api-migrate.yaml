@@ -22,7 +22,7 @@ spec:
       restartPolicy: Never
       containers:
         - name: gtfs-migrate
-          image: git.kcfam.us/gtfs.zone/cafe-car:58b33a6
+          image: git.kcfam.us/gtfs.zone/cafe-car:2766488
           command: ["railroad-club-migrate"]
           env:
             - name: REDIS_URL
