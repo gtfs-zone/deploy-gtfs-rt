@@ -9,9 +9,9 @@ Real Time) stack for `gtfs.zone` onto a single-node **k3s** cluster, managed
 entirely by **ArgoCD** watching this repo (app-of-apps). There is no imperative
 deploy step: you change YAML, commit, push, and ArgoCD reconciles.
 
-The previous OpenTofu/Docker deployment was removed in the k3s migration — see
-`CURRENT_PLAN.md` for the full history and the defects found along the way.
-`tf/`, `tf-monitors/`, `nanomq/`, `traefik/` and `dex/` no longer exist.
+The previous OpenTofu/Docker deployment was removed in the k3s migration; the
+git history holds the full record. `tf/`, `tf-monitors/`, `nanomq/`, `traefik/`
+and `dex/` no longer exist.
 
 ## Layout
 
@@ -56,6 +56,10 @@ kubectl -n argocd get secret argocd-initial-admin-secret -o jsonpath="{.data.pas
 ```
 
 ## Working on this repo
+
+**Cross-repo work is allowed.** The sibling `gtfs.zone` repos (see *Related
+repositories* below) live under the same parent directory; read and edit them
+directly when a change spans repos. There is no "this repo only" restriction.
 
 **There are no `apply` commands.** Commit and push to the branch ArgoCD tracks
 (`apps/root.yaml` → `targetRevision`); ArgoCD syncs automatically. To force a
@@ -184,7 +188,7 @@ only `/api/server` breaks.
 
 ## Traps that have already bitten
 
-Each of these cost real debugging time. See `CURRENT_PLAN.md` § Phase 8 for detail.
+Each of these cost real debugging time.
 
 - **Template calls inside comments.** Both gomplate (Dex config) and Traefik's
   file provider template the *entire file, comments included*. A template

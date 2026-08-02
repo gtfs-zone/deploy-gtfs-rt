@@ -1,7 +1,0 @@
-# Changes here will be overwritten by Copier; do not edit manually.
-_commit: v0.1.1
-_src_path: /home/maxtkc/Documents/bare-chassis
-description: OpenTofu deployment for the gtfs.zone GTFS-RT stack
-project_name: Deploy GTFS-RT
-project_slug: deploy-gtfs-rt
-project_type: terraform
