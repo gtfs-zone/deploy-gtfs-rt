@@ -22,7 +22,7 @@ spec:
         valueFiles:
           - $values/infra/cert-manager/webhook-values.yaml
     - repoURL: https://git.kcfam.us/gtfs.zone/deploy-gtfs-rt.git
-      targetRevision: k3s-init
+      targetRevision: main
       ref: values
   destination:
     server: https://kubernetes.default.svc

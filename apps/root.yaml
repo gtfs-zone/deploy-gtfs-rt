@@ -20,7 +20,7 @@ spec:
     # needed. (Switch to an SSH/token creds Secret here if the repo goes private.)
     repoURL: https://git.kcfam.us/gtfs.zone/deploy-gtfs-rt.git
     # TODO: switch to `main` once the k3s migration is merged.
-    targetRevision: k3s-init
+    targetRevision: main
     path: apps
     directory:
       recurse: false
