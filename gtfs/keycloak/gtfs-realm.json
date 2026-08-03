@@ -62,7 +62,7 @@
     }
   ],
 
-  "_comment_idps": "trustEmail is false on all three: an unverified address from an upstream provider must not silently link to an existing account. firstBrokerLoginFlowAlias points at Keycloak's stock chain (Review Profile -> Create User If Unique | Handle Existing Account -> Confirm link -> Verify by email or re-auth), which is already exactly the linking prompt we want — no custom flow JSON is needed.",
+  "_comment_idps": "trustEmail is true on all three, and it is load-bearing rather than a convenience: cafe-car matches a person to a pending feed invite, and to an account-link candidate, ONLY on a verified address, so with trustEmail false first-broker-login stores emailVerified=false and a feed shared by email silently never reaches a brokered user. GitHub, Google and GitLab each release only an address they have themselves verified, which is exactly what trustEmail is for. This does NOT weaken account linking: firstBrokerLoginFlowAlias still points at Keycloak's stock chain (Review Profile -> Create User If Unique | Handle Existing Account -> Confirm link -> Verify by email or re-auth), so an existing account is linked only after the user confirms — trustEmail governs only whether the address arrives marked verified, not whether linking is silent. A broker that does not verify addresses must stay trustEmail false; turn on the realm's verifyEmail instead.",
 
   "identityProviders": [
     {
@@ -70,7 +70,7 @@
       "displayName": "GitHub",
       "providerId": "github",
       "enabled": true,
-      "trustEmail": false,
+      "trustEmail": true,
       "storeToken": false,
       "linkOnly": false,
       "addReadTokenRoleOnCreate": false,
@@ -87,7 +87,7 @@
       "displayName": "Google",
       "providerId": "google",
       "enabled": true,
-      "trustEmail": false,
+      "trustEmail": true,
       "storeToken": false,
       "linkOnly": false,
       "addReadTokenRoleOnCreate": false,
@@ -104,7 +104,7 @@
       "displayName": "GitLab",
       "providerId": "gitlab",
       "enabled": true,
-      "trustEmail": false,
+      "trustEmail": true,
       "storeToken": false,
       "linkOnly": false,
       "addReadTokenRoleOnCreate": false,
