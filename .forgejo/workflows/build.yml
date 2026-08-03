@@ -1,26 +1,71 @@
 name: Validate
 
+# Renders the k3s stack with Kustomize and schema-checks the result. Replaces the
+# retired OpenTofu validation (the tf/ tree was removed in the k3s migration).
+#
+# Decryption is deliberately skipped: the SOPS age *private* key is never given
+# to CI, so a stub `ksops` stands in for the real KSOPS plugin and emits nothing
+# for the encrypted-Secret generators. Everything else (Deployments, Services,
+# IngressRoutes, CronJobs, the CNPG Cluster, …) still renders and is validated.
+# The encrypted Secret manifests themselves are therefore not schema-checked here.
+
 on:
+  pull_request:
   push:
     branches:
       - main
+
+env:
+  KUBECONFORM_VERSION: "0.6.7"
 
 jobs:
   validate:
     runs-on: alpine-3.23
 
     steps:
-      - name: Install OpenTofu
-        run: apk add --no-cache opentofu
+      # nodejs is required by actions/checkout (a JS action); the alpine-3.23
+      # runner image ships without it. kustomize comes from apk.
+      - name: Install dependencies
+        run: |
+          apk add --no-cache nodejs curl tar git kustomize
+
+      - name: Install kubeconform + ksops stub
+        run: |
+          curl -sL "https://github.com/yannh/kubeconform/releases/download/v${KUBECONFORM_VERSION}/kubeconform-linux-amd64.tar.gz" \
+            | tar xz -C /usr/local/bin kubeconform
+          # Stand-in for the real KSOPS exec plugin. kustomize invokes it as a KRM
+          # generator and expects a ResourceList on stdout; emitting an empty one
+          # drops the encrypted Secrets without needing the age private key.
+          cat > /usr/local/bin/ksops <<'STUB'
+          #!/bin/sh
+          echo 'apiVersion: config.kubernetes.io/v1'
+          echo 'kind: ResourceList'
+          echo 'items: []'
+          STUB
+          chmod +x /usr/local/bin/ksops
 
       - name: Checkout
         uses: actions/checkout@v6
         with:
           github-server-url: https://git.kcfam.us
 
-      - name: Format check
-        run: tofu fmt -check -recursive
+      # The *.enc.yaml files route the tree through the ksops exec generator, so
+      # the alpha exec plugin flags are still required — same command as the
+      # CLAUDE.md pre-commit check, minus the age key.
+      - name: Render (kustomize, decryption skipped)
+        run: |
+          mkdir -p rendered
+          kustomize build --enable-alpha-plugins --enable-exec gtfs \
+            | tee rendered/gtfs.yaml
 
-      - name: Validate
-        run: tofu init -backend=false && tofu validate
-        working-directory: tf
+      # Schema-check the rendered output plus the raw-manifest trees ArgoCD serves
+      # as plain directories. CRDs (IngressRoute, Cluster, Certificate, Application,
+      # Middleware, …) have no upstream schema, so missing schemas are ignored;
+      # core Kubernetes objects are still validated strictly.
+      - name: Validate manifests
+        run: |
+          kubeconform -strict -ignore-missing-schemas -summary \
+            rendered \
+            apps \
+            infra/argocd/manifests \
+            infra/cert-manager/manifests
