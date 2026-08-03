@@ -1,0 +1,18 @@
+# Keycloak component — Deployment + Service + the realm ConfigMap. The
+# configMapGenerator renders gtfs-realm.json into a hash-suffixed
+# `keycloak-realm` ConfigMap; kustomize rewrites the Deployment's volume
+# reference to the hashed name, so editing the realm rolls the Deployment.
+#
+# Rolling it does NOT re-import the realm: --import-realm is create-only, and an
+# existing realm is left alone. After first boot, realm changes have to go
+# through the admin console/API, or the `keycloak` database has to be dropped.
+# Same trap as the dev stack; documented there too.
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+namespace: gtfs
+resources:
+  - keycloak.yaml
+configMapGenerator:
+  - name: keycloak-realm
+    files:
+      - gtfs-realm.json

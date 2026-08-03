@@ -1,0 +1,104 @@
+{
+  "_comment": "Production gtfs realm. The render-realm init container substitutes the eight placeholders below before Keycloak imports this — Keycloak 26.4 does not expand them itself, it stores the literal string as the client secret. Each placeholder must have a matching env var on that container, or the init container fails the pod rather than importing a placeholder as somebody's credential. Note it also rejects any leftover placeholder, so do not write a dollar-brace sequence anywhere in this file, including in a comment like this one. Import is create-only: once the realm exists, edits here do nothing until the keycloak database is dropped.",
+
+  "realm": "gtfs",
+  "displayName": "GTFS.Zone",
+  "enabled": true,
+  "sslRequired": "external",
+  "registrationAllowed": false,
+  "loginWithEmailAllowed": true,
+  "duplicateEmailsAllowed": false,
+  "resetPasswordAllowed": false,
+  "editUsernameAllowed": false,
+  "verifyEmail": false,
+
+  "clients": [
+    {
+      "clientId": "oauth2-proxy",
+      "name": "oauth2-proxy",
+      "enabled": true,
+      "protocol": "openid-connect",
+      "publicClient": false,
+      "secret": "${KC_OAUTH2_PROXY_CLIENT_SECRET}",
+      "standardFlowEnabled": true,
+      "implicitFlowEnabled": false,
+      "directAccessGrantsEnabled": false,
+      "serviceAccountsEnabled": false,
+      "redirectUris": ["https://auth.gtfs.zone/oauth2/callback"],
+      "webOrigins": ["https://auth.gtfs.zone"],
+      "attributes": {
+        "pkce.code.challenge.method": "S256"
+      }
+    },
+    {
+      "clientId": "traccar",
+      "name": "Traccar",
+      "enabled": true,
+      "protocol": "openid-connect",
+      "publicClient": false,
+      "secret": "${KC_TRACCAR_CLIENT_SECRET}",
+      "standardFlowEnabled": true,
+      "implicitFlowEnabled": false,
+      "directAccessGrantsEnabled": false,
+      "serviceAccountsEnabled": false,
+      "redirectUris": ["https://traccar.gtfs.zone/*"],
+      "webOrigins": ["https://traccar.gtfs.zone"]
+    }
+  ],
+
+  "_comment_idps": "trustEmail is false on all three: an unverified address from an upstream provider must not silently link to an existing account. firstBrokerLoginFlowAlias points at Keycloak's stock chain (Review Profile -> Create User If Unique | Handle Existing Account -> Confirm link -> Verify by email or re-auth), which is already exactly the linking prompt we want — no custom flow JSON is needed.",
+
+  "identityProviders": [
+    {
+      "alias": "github",
+      "displayName": "GitHub",
+      "providerId": "github",
+      "enabled": true,
+      "trustEmail": false,
+      "storeToken": false,
+      "linkOnly": false,
+      "addReadTokenRoleOnCreate": false,
+      "firstBrokerLoginFlowAlias": "first broker login",
+      "config": {
+        "clientId": "${KC_GITHUB_CLIENT_ID}",
+        "clientSecret": "${KC_GITHUB_CLIENT_SECRET}",
+        "defaultScope": "read:user user:email",
+        "syncMode": "IMPORT"
+      }
+    },
+    {
+      "alias": "google",
+      "displayName": "Google",
+      "providerId": "google",
+      "enabled": true,
+      "trustEmail": false,
+      "storeToken": false,
+      "linkOnly": false,
+      "addReadTokenRoleOnCreate": false,
+      "firstBrokerLoginFlowAlias": "first broker login",
+      "config": {
+        "clientId": "${KC_GOOGLE_CLIENT_ID}",
+        "clientSecret": "${KC_GOOGLE_CLIENT_SECRET}",
+        "defaultScope": "openid email profile",
+        "syncMode": "IMPORT"
+      }
+    },
+    {
+      "alias": "gitlab",
+      "displayName": "GitLab",
+      "providerId": "gitlab",
+      "enabled": true,
+      "trustEmail": false,
+      "storeToken": false,
+      "linkOnly": false,
+      "addReadTokenRoleOnCreate": false,
+      "firstBrokerLoginFlowAlias": "first broker login",
+      "config": {
+        "clientId": "${KC_GITLAB_CLIENT_ID}",
+        "clientSecret": "${KC_GITLAB_CLIENT_SECRET}",
+        "defaultScope": "read_user openid email",
+        "syncMode": "IMPORT"
+      }
+    }
+  ]
+}

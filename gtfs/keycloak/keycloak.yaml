@@ -1,0 +1,210 @@
+# ── Keycloak (OIDC provider) ──────────────────────────────────────────────────
+# Replaces Dex. Dex could not link accounts: each connector mints its own opaque
+# `sub` and Dex has no notion of one person with two connectors, so signing in
+# with GitHub and with Google produced two unrelated accounts. Keycloak brokers
+# GitHub / Google / GitLab behind one realm user, and its stock
+# "first broker login" flow is exactly the "an account with this email already
+# exists — link it?" chain we want.
+#
+# Runs alongside Dex on its own host (id.gtfs.zone) rather than taking over
+# dex.gtfs.zone, so the two can be up together during the cutover and a rollback
+# is a revert rather than a DNS change.
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: keycloak
+  namespace: gtfs
+  labels:
+    app: keycloak
+spec:
+  replicas: 1
+  # One writer against one database during a schema upgrade; never two.
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app: keycloak
+  template:
+    metadata:
+      labels:
+        app: keycloak
+    spec:
+      initContainers:
+        # Keycloak 26.4 does NOT expand ${env.VAR} while importing a realm — it
+        # stores the literal string as the client secret, and the legacy
+        # -Dkeycloak.migration.replace-placeholders property is a no-op.
+        # (Verified against quay.io/keycloak/keycloak:26.4.) So the realm JSON
+        # is rendered here instead, into an emptyDir Keycloak imports from. The
+        # secrets therefore never touch git or the ConfigMap.
+        #
+        # Same image as the main container on purpose: nothing extra to pull or
+        # trust, and it is guaranteed present wherever Keycloak itself runs. It
+        # has bash and sed but no envsubst, hence the explicit loop — which is
+        # better than envsubst anyway, since it substitutes exactly the eight
+        # names below and leaves any other `$` in the file alone.
+        - name: render-realm
+          image: quay.io/keycloak/keycloak:26.4
+          command: ["/bin/bash", "-c"]
+          args:
+            - |
+              set -euo pipefail
+              vars=(
+                KC_OAUTH2_PROXY_CLIENT_SECRET
+                KC_TRACCAR_CLIENT_SECRET
+                KC_GITHUB_CLIENT_ID KC_GITHUB_CLIENT_SECRET
+                KC_GOOGLE_CLIENT_ID KC_GOOGLE_CLIENT_SECRET
+                KC_GITLAB_CLIENT_ID KC_GITLAB_CLIENT_SECRET
+              )
+              text=$(cat /realm-template/gtfs-realm.json)
+              for v in "${vars[@]}"; do
+                val=${!v?"$v is not set"}
+                # These land inside JSON string literals unescaped. Every value
+                # in play is hex or a provider-issued token, so refuse rather
+                # than silently emitting a realm file that will not parse.
+                case $val in
+                  *'"'*|*'\'*)
+                    echo "$v contains a quote or backslash; cannot inline" >&2
+                    exit 1 ;;
+                esac
+                text=${text//"\${$v}"/"$val"}
+              done
+              printf '%s' "$text" > /realm/gtfs-realm.json
+              # Fail loudly rather than importing a realm with a literal
+              # placeholder as somebody's client secret.
+              if grep -q '\${' /realm/gtfs-realm.json; then
+                echo "unsubstituted placeholder left in realm JSON:" >&2
+                grep -n '\${' /realm/gtfs-realm.json >&2
+                exit 1
+              fi
+              echo "realm rendered"
+          env:
+            - name: KC_OAUTH2_PROXY_CLIENT_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: gtfs-app-secrets
+                  key: KEYCLOAK_OAUTH2_PROXY_CLIENT_SECRET
+            - name: KC_TRACCAR_CLIENT_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: gtfs-app-secrets
+                  key: KEYCLOAK_TRACCAR_CLIENT_SECRET
+            - name: KC_GITHUB_CLIENT_ID
+              valueFrom:
+                secretKeyRef:
+                  name: gtfs-app-secrets
+                  key: GITHUB_CLIENT_ID
+            - name: KC_GITHUB_CLIENT_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: gtfs-app-secrets
+                  key: GITHUB_CLIENT_SECRET
+            - name: KC_GOOGLE_CLIENT_ID
+              valueFrom:
+                secretKeyRef:
+                  name: gtfs-app-secrets
+                  key: GOOGLE_CLIENT_ID
+            - name: KC_GOOGLE_CLIENT_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: gtfs-app-secrets
+                  key: GOOGLE_CLIENT_SECRET
+            - name: KC_GITLAB_CLIENT_ID
+              valueFrom:
+                secretKeyRef:
+                  name: gtfs-app-secrets
+                  key: GITLAB_CLIENT_ID
+            - name: KC_GITLAB_CLIENT_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: gtfs-app-secrets
+                  key: GITLAB_CLIENT_SECRET
+          volumeMounts:
+            - name: realm-template
+              mountPath: /realm-template
+              readOnly: true
+            - name: realm
+              mountPath: /realm
+      containers:
+        - name: keycloak
+          image: quay.io/keycloak/keycloak:26.4
+          # `start`, not `start-dev`: production mode, with TLS terminated at
+          # Traefik. --import-realm is create-only — an existing realm is NOT
+          # updated on restart, so realm changes after the first boot have to be
+          # made through the admin API or by dropping the database.
+          args: ["start", "--optimized=false", "--import-realm"]
+          ports:
+            - name: http
+              containerPort: 8080
+          env:
+            - name: KC_DB
+              value: postgres
+            - name: KC_DB_URL
+              value: jdbc:postgresql://postgres-rw:5432/keycloak
+            - name: KC_DB_USERNAME
+              value: keycloak
+            - name: KC_DB_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: postgres-keycloak
+                  key: password
+            # The issuer is baked into every token, so this must be the URL
+            # browsers and in-cluster clients both see.
+            - name: KC_HOSTNAME
+              value: https://id.gtfs.zone
+            # TLS ends at Traefik; Keycloak speaks plain HTTP behind it and
+            # trusts the X-Forwarded-* headers for the scheme it advertises.
+            - name: KC_HTTP_ENABLED
+              value: "true"
+            - name: KC_PROXY_HEADERS
+              value: xforwarded
+            - name: KC_HEALTH_ENABLED
+              value: "true"
+            - name: KC_BOOTSTRAP_ADMIN_USERNAME
+              value: admin
+            - name: KC_BOOTSTRAP_ADMIN_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: gtfs-app-secrets
+                  key: KEYCLOAK_ADMIN_PASSWORD
+          volumeMounts:
+            - name: realm
+              mountPath: /opt/keycloak/data/import
+              readOnly: true
+          readinessProbe:
+            httpGet:
+              path: /health/ready
+              port: 9000
+            initialDelaySeconds: 20
+            periodSeconds: 10
+          livenessProbe:
+            httpGet:
+              path: /health/live
+              port: 9000
+            # A fresh database means the full schema build before it answers.
+            initialDelaySeconds: 120
+            periodSeconds: 20
+          resources:
+            requests:
+              memory: 768Mi
+              cpu: 200m
+            limits:
+              memory: 1536Mi
+      volumes:
+        - name: realm-template
+          configMap:
+            name: keycloak-realm
+        - name: realm
+          emptyDir: {}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: keycloak
+  namespace: gtfs
+spec:
+  selector:
+    app: keycloak
+  ports:
+    - name: http
+      port: 8080
+      targetPort: http
