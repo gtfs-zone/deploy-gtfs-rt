@@ -71,6 +71,13 @@ spec:
               value: sub
             - name: OAUTH2_PROXY_CODE_CHALLENGE_METHOD
               value: S256
+            # /oauth2/sign_out only drops oauth2-proxy's own cookie. Without
+            # this, Keycloak's SSO session survives, the bounce back through the
+            # provider is silently re-authorized, and logout appears to do
+            # nothing. This calls Keycloak's end_session_endpoint server-side,
+            # in-cluster, so the SSO session dies too.
+            - name: OAUTH2_PROXY_BACKEND_LOGOUT_URL
+              value: http://keycloak:8080/realms/gtfs/protocol/openid-connect/logout?id_token_hint={id_token}
             # Pass JWT to upstream so cafe-car's auth.py can decode email/name
             - name: OAUTH2_PROXY_SET_XAUTHREQUEST
               value: "true"

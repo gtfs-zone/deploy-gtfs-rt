@@ -75,8 +75,10 @@ spec:
                 secretKeyRef:
                   name: gtfs-app-secrets
                   key: INGEST_API_TOKEN
+            # viz.rt.gtfs.zone (test-track) reads GET /feeds to populate its Load
+            # modal, and that is a browser fetch from a different origin.
             - name: CORS_ALLOWED_ORIGINS
-              value: '["https://manage.rt.gtfs.zone","https://rt.gtfs.zone"]'
+              value: '["https://manage.rt.gtfs.zone","https://rt.gtfs.zone","https://viz.rt.gtfs.zone"]'
           readinessProbe:
             httpGet:
               path: /health
