@@ -27,8 +27,12 @@
 
     <entry key='web.url'>https://traccar.gtfs.zone</entry>
 
+    <!-- Keycloak, not Dex. Traccar is NOT behind oauth2-proxy — it is a
+         separate OIDC client with its own login, so it has to be repointed in
+         the same cutover or its console login breaks silently while the pod
+         stays healthy. -->
     <entry key='openid.clientId'>traccar</entry>
-    <entry key='openid.issuerUrl'>https://dex.gtfs.zone</entry>
+    <entry key='openid.issuerUrl'>https://id.gtfs.zone/realms/gtfs</entry>
 
     <!-- Forward each position to the vehicle-poser HTTP shim, which resolves the
          tracker's trip via railroad-club and writes the vehicle:{tracker_id}:{deviceId}

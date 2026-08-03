@@ -31,8 +31,8 @@ sidecar on the argocd-repo-server.
   (CloudNativePG operator), `argocd/` (ArgoCD's own Helm values + KSOPS sidecar,
   plus `manifests/` for its Certificate + IngressRoute), and `secrets/`
   (SOPS-encrypted Porkbun creds, one per consuming namespace).
-- `gtfs/` — the application stack (Kustomize): Postgres (CNPG), Redis, Dex,
-  oauth2-proxy, rt-api, celery, uptime-kuma, Traccar, vehicle-poser,
+- `gtfs/` — the application stack (Kustomize): Postgres (CNPG), Redis, Keycloak
+  (plus Dex, retained one release as the cutover rollback), oauth2-proxy, rt-api, celery, uptime-kuma, Traccar, vehicle-poser,
   hell-gate-bridge, IngressRoutes, and SOPS-encrypted `secrets/*.enc.yaml`.
 - `.sops.yaml` — age recipient + encryption rules. The private key (`age.key`)
   is gitignored.
@@ -97,7 +97,7 @@ Internet :80/:443
                                                    │
    k3s single node ─────────────────────────────────┘
      Traefik (Helm) — websecure entrypoint on host :8443 via ServiceLB
-       └─ IngressRoute: rt · manage.rt · dex · auth · uptime · status · traccar
+       └─ IngressRoute: rt · manage.rt · id · dex · auth · uptime · status · traccar
           (+ argocd, in the argocd namespace)
      cert-manager (Porkbun DNS-01) · external-dns · Longhorn · CNPG · ArgoCD
 ```
@@ -112,7 +112,7 @@ passed through — it stays on home-docker's static-sites container.
  driver phone (Traccar Client)
    └─ HTTPS traccar.gtfs.zone/osmand ──▶ Traccar :5055
  web/REST/QR provisioning
-   └─ HTTPS traccar.gtfs.zone       ──▶ Traccar :8082 (Dex OIDC login)
+   └─ HTTPS traccar.gtfs.zone       ──▶ Traccar :8082 (Keycloak OIDC login)
                                             │ forward.type=json
                                             ▼
                                  vehicle-poser :8080 /forward
@@ -148,9 +148,9 @@ positions and an **empty `trip_updates.pb`**.
 | Edge | Traefik (Helm), `websecure` on host :8443; `IngressRoute`/`Middleware` CRDs |
 | TLS / DNS | cert-manager + Porkbun DNS-01 webhook; external-dns (Porkbun webhook) |
 | Storage | Longhorn (default StorageClass, 1 replica) |
-| Database | CloudNativePG `Cluster` `postgres` → `rt_api`, `dex`, `traccar` databases |
+| Database | CloudNativePG `Cluster` `postgres` → `rt_api`, `keycloak`, `dex`, `traccar` databases |
 | Cache | Redis (DB 0 oauth2-proxy · 1 rt-api+poser · 3 celery broker · 4 celery result) |
-| Auth | Dex (OIDC) + oauth2-proxy (ForwardAuth via two Middlewares) |
+| Auth | Keycloak (OIDC, `id.gtfs.zone`, brokers GitHub/Google/GitLab) + oauth2-proxy (ForwardAuth via two Middlewares). Traccar is a separate Keycloak client with its own login — see `gtfs/keycloak/CUTOVER.md` |
 | Application | rt-api (`gtfs-api` :8000 public, `gtfs-manager` :8001 protected), celery worker + beat |
 | Ingest | Traccar, vehicle-poser, trip-updogger, hell-gate-bridge ×2 |
 | Monitoring | Uptime Kuma |
