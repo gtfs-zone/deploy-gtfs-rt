@@ -8,7 +8,7 @@
 #
 # Auth: the two oauth2 Middlewares (oauth2-proxy.yaml) replace the TF ForwardAuth
 # labels. Public by design: rt (the GTFS-RT feed), status (the Uptime Kuma status
-# page), dex + auth (the login flow itself), and both Traccar routes.
+# page), id + dex + auth (the login flow itself), and both Traccar routes.
 #
 # TLS reaches this cluster untouched — home-docker's Traefik does SNI passthrough
 # for *.gtfs.zone, so k3s owns gtfs.zone certificates end to end.
@@ -83,6 +83,28 @@ spec:
       services:
         - name: dex
           port: 5556
+  tls:
+    secretName: gtfs-zone-tls
+---
+# Keycloak, on its own host rather than taking over dex.gtfs.zone, so both
+# providers can serve during the cutover and the rollback is a revert. Public
+# by design — this is the login flow itself. Covered by the *.gtfs.zone
+# wildcard in gtfs-zone-tls.
+apiVersion: traefik.io/v1alpha1
+kind: IngressRoute
+metadata:
+  name: keycloak
+  namespace: gtfs
+  annotations:
+    external-dns.alpha.kubernetes.io/target: "73.4.232.254"
+spec:
+  entryPoints: [websecure]
+  routes:
+    - match: Host(`id.gtfs.zone`)
+      kind: Rule
+      services:
+        - name: keycloak
+          port: 8080
   tls:
     secretName: gtfs-zone-tls
 ---

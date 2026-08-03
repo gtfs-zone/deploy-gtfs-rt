@@ -61,6 +61,13 @@ spec:
         login: true
         passwordSecret:
           name: postgres-traccar
+      # Keycloak's login role, replacing dex. Keycloak builds and migrates its
+      # own schema on startup, so it owns its database outright.
+      - name: keycloak
+        ensure: present
+        login: true
+        passwordSecret:
+          name: postgres-keycloak
 ---
 # The dex database, owned by the managed `dex` role. Declarative equivalent of
 # the init container's `CREATE DATABASE dex OWNER dex`.
@@ -87,3 +94,17 @@ spec:
     name: postgres
   name: traccar
   owner: traccar
+---
+# The keycloak database, owned by the managed `keycloak` role. Kept separate
+# from `dex` rather than reusing it: the two coexist through the cutover, and
+# leaving Dex's data intact is what makes the rollback a revert.
+apiVersion: postgresql.cnpg.io/v1
+kind: Database
+metadata:
+  name: keycloak
+  namespace: gtfs
+spec:
+  cluster:
+    name: postgres
+  name: keycloak
+  owner: keycloak

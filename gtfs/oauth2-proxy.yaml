@@ -3,6 +3,10 @@
 # Traefik ForwardAuth that TF expressed as container labels becomes two
 # Middleware CRDs below; Phase 7 IngressRoutes attach them to protected routes
 # (manage.rt, uptime) as: middlewares: [oauth2-errors, oauth2-proxy].
+#
+# Points at Keycloak (id.gtfs.zone), not Dex. Every session in Redis DB 0
+# references a Dex token, so DB 0 must be flushed when this lands or users get
+# stuck holding a session no issuer recognises.
 apiVersion: apps/v1
 kind: Deployment
 metadata:
@@ -54,11 +58,26 @@ spec:
             - name: OAUTH2_PROXY_CLIENT_ID
               value: oauth2-proxy
             - name: OAUTH2_PROXY_OIDC_ISSUER_URL
-              value: https://dex.gtfs.zone
+              value: https://id.gtfs.zone/realms/gtfs
             - name: OAUTH2_PROXY_OIDC_JWKS_URL
-              value: http://dex:5556/keys
+              value: http://keycloak:8080/realms/gtfs/protocol/openid-connect/certs
             - name: OAUTH2_PROXY_SCOPE
               value: openid email profile
+            # X-Auth-Request-User carries this claim, and it is what cafe-car
+            # keys an Identity on. It MUST be `sub` — the stable Keycloak UUID.
+            # Dev previously used `name`, which is mutable and not unique across
+            # connectors; anything but `sub` reintroduces that.
+            - name: OAUTH2_PROXY_USER_ID_CLAIM
+              value: sub
+            - name: OAUTH2_PROXY_CODE_CHALLENGE_METHOD
+              value: S256
+            # /oauth2/sign_out only drops oauth2-proxy's own cookie. Without
+            # this, Keycloak's SSO session survives, the bounce back through the
+            # provider is silently re-authorized, and logout appears to do
+            # nothing. This calls Keycloak's end_session_endpoint server-side,
+            # in-cluster, so the SSO session dies too.
+            - name: OAUTH2_PROXY_BACKEND_LOGOUT_URL
+              value: http://keycloak:8080/realms/gtfs/protocol/openid-connect/logout?id_token_hint={id_token}
             # Pass JWT to upstream so cafe-car's auth.py can decode email/name
             - name: OAUTH2_PROXY_SET_XAUTHREQUEST
               value: "true"
@@ -68,7 +87,7 @@ spec:
               valueFrom:
                 secretKeyRef:
                   name: gtfs-app-secrets
-                  key: DEX_OAUTH2_PROXY_CLIENT_SECRET
+                  key: KEYCLOAK_OAUTH2_PROXY_CLIENT_SECRET
             - name: OAUTH2_PROXY_COOKIE_SECRET
               valueFrom:
                 secretKeyRef:

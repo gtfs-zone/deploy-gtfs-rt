@@ -13,7 +13,11 @@ resources:
   - secrets
   - postgres-cluster.yaml
   - redis.yaml
+  # Dex is retained for one release as the rollback path. It no longer serves
+  # anything: oauth2-proxy and Traccar both point at Keycloak now. Delete it,
+  # its database and its secret once the cutover has held.
   - dex
+  - keycloak
   - oauth2-proxy.yaml
   - rt-api.yaml
   - rt-api-migrate.yaml

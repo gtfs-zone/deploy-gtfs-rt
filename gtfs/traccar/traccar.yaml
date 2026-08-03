@@ -1,6 +1,6 @@
 # ── Traccar ───────────────────────────────────────────────────────────────────
 # The GPS ingest server, replacing the retired OwnTracks/NanoMQ path. Two ports:
-#   :8082  web console + REST API  → traccar.gtfs.zone  (Dex OIDC, its own login)
+#   :8082  web console + REST API  → traccar.gtfs.zone  (Keycloak OIDC, own login)
 #   :5055  osmand phone protocol   → traccar.gtfs.zone/osmand  (device-auth only)
 #
 # Traccar owns and migrates its own schema (Liquibase) in the `traccar` database
@@ -63,7 +63,7 @@ spec:
               valueFrom:
                 secretKeyRef:
                   name: gtfs-app-secrets
-                  key: DEX_TRACCAR_CLIENT_SECRET
+                  key: KEYCLOAK_TRACCAR_CLIENT_SECRET
           volumeMounts:
             - name: config
               mountPath: /opt/traccar/conf/traccar.xml

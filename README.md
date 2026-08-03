@@ -70,7 +70,8 @@ flowchart LR
 | `rt.<domain>` | Public GTFS-RT feed API |
 | `manage.rt.<domain>` | Admin UI (auth-gated) |
 | `auth.<domain>` | oauth2-proxy sign-in |
-| `dex.<domain>` | Dex OIDC provider |
+| `id.<domain>` | Keycloak OIDC provider (brokers GitHub/Google/GitLab) |
+| `dex.<domain>` | Dex OIDC provider (legacy — nothing points at it; retained one release as the Keycloak rollback) |
 | `traccar.<domain>` | Traccar console; `/osmand` takes phone position reports |
 | `uptime.<domain>` | Uptime Kuma dashboard (auth-gated) |
 | `status.<domain>` | Public status page |
@@ -307,7 +308,7 @@ stateDiagram-v2
 
     state "Auth" as auth {
         op : oauth2-proxy<br>ForwardAuth middleware
-        dx : Dex<br>OIDC provider
+        kc : Keycloak<br>OIDC provider · brokers GitHub/Google/GitLab
     }
 
     state "cafe-car" as application {
@@ -327,14 +328,14 @@ stateDiagram-v2
 
     tr --> cp : rt.&ltdomain&gt
     tr --> op : manage.rt / auth.&ltdomain&gt
-    tr --> dx : dex.&ltdomain&gt
+    tr --> kc : id.&ltdomain&gt
     tr --> tc : traccar.&ltdomain&gt (+ /osmand)
     tr --> uk : status.&ltdomain&gt (public)
     tr --> ag : argocd.&ltdomain&gt
 
     op --> ca : manage.rt.&ltdomain&gt (authed)
     op --> uk : uptime.&ltdomain&gt (authed)
-    op --> dx : OIDC token check
+    op --> kc : OIDC token check
 
     tc --> vp : forward.type=json
     hgb --> cp : POST /ingest/*
@@ -374,7 +375,7 @@ flowchart LR
 
 ### Auth flow
 
-How an operator reaches a protected service via Dex and oauth2-proxy.
+How an operator reaches a protected service via Keycloak and oauth2-proxy.
 
 ```mermaid
 stateDiagram-v2
@@ -388,10 +389,10 @@ stateDiagram-v2
     }
 
     state Login {
-        [*] --> Dex
-        Dex --> OAuthProvider: redirect
-        OAuthProvider --> Dex: auth code
-        Dex --> [*]: ID token → session
+        [*] --> Keycloak
+        Keycloak --> OAuthProvider: redirect to GitHub / Google / GitLab
+        OAuthProvider --> Keycloak: auth code
+        Keycloak --> [*]: ID token (sub = Keycloak UUID) → session
     }
 
     Requesting --> Serving: authenticated
@@ -464,7 +465,9 @@ The bare apex is left alone deliberately.
 ## Step 2 — OAuth app
 
 Create an OAuth app with at least one provider. Use
-`https://dex.<your-domain>/callback` as the authorization callback URL.
+`https://id.<your-domain>/realms/gtfs/broker/github/endpoint` as the authorization
+callback URL. (Dex used `https://dex.<your-domain>/callback`; that stays valid
+while Dex is retained, and both may be registered at once.)
 
 - **GitHub**: Settings → Developer settings → OAuth Apps → New OAuth App
 - **GitLab**: User Settings → Applications
@@ -493,7 +496,8 @@ Populate at minimum:
   (`cert-manager` uses `PORKBUN_API_KEY`/`PORKBUN_SECRET_API_KEY`,
   `external-dns` uses `API_KEY`/`API_SECRET`).
 - `gtfs/secrets/gtfs-app-secrets.enc.yaml` — session key, oauth2-proxy cookie
-  secret, Dex↔oauth2-proxy client secret, OAuth connector credentials,
+  secret, Keycloak↔oauth2-proxy and Keycloak↔Traccar client secrets, the
+  Keycloak bootstrap admin password, OAuth connector credentials,
   `INGEST_API_TOKEN`, and the `TRACCAR_ADMIN_*` pair.
 - `gtfs/secrets/postgres-*.enc.yaml` — CNPG role passwords.
 
@@ -501,7 +505,8 @@ Populate at minimum:
 
 Point the hostnames and the target IP at your own domain first: they are
 referenced in `gtfs/ingressroutes.yaml`, `infra/argocd/manifests/ingress.yaml`,
-`infra/cert-manager/manifests/`, `gtfs/dex/config.yaml` and `gtfs/traccar/traccar.xml`.
+`infra/cert-manager/manifests/`, `gtfs/keycloak/gtfs-realm.json`,
+`gtfs/dex/config.yaml` and `gtfs/traccar/traccar.xml`.
 
 ```bash
 # 1. install ArgoCD (once, out of band — it is deliberately NOT self-managed)
