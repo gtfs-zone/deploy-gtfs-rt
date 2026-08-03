@@ -431,10 +431,34 @@ rather than trusting the documented defaults:
 helm template <release> <repo>/<chart> --version <v> -n <ns> -f infra/<comp>/values.yaml
 ```
 
-`kubectl` requires an SSH tunnel, since the kubeconfig points at `127.0.0.1:6443`:
+### Cluster access
+
+`kubectl` requires an SSH tunnel, since the kubeconfig points at `127.0.0.1:6443`.
+Keep this running in a separate terminal:
 
 ```bash
-ssh -N -L 6443:127.0.0.1:6443 <server>
+ssh -N -L 6443:127.0.0.1:6443 kcfam
+```
+
+Get ArgoCD admin credentials:
+
+```bash
+kubectl -n argocd get secret argocd-initial-admin-secret -o jsonpath="{.data.password}" | base64 -d
+```
+
+### Database access
+
+Set up port-forward in a separate terminal:
+
+```bash
+kubectl -n gtfs port-forward svc/postgres-rw 5432:5432
+```
+
+Access via SQL (psql):
+
+```bash
+PGPASSWORD="$(kubectl -n gtfs get secret postgres-rt-api -o jsonpath='{.data.password}' | base64 -d)" \
+  psql -h localhost -U rt_api -d rt_api
 ```
 
 ## Prerequisites

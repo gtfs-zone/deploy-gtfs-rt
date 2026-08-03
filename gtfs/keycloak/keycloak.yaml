@@ -1,14 +1,12 @@
 # ── Keycloak (OIDC provider) ──────────────────────────────────────────────────
-# Replaces Dex. Dex could not link accounts: each connector mints its own opaque
-# `sub` and Dex has no notion of one person with two connectors, so signing in
-# with GitHub and with Google produced two unrelated accounts. Keycloak brokers
-# GitHub / Google / GitLab behind one realm user, and its stock
-# "first broker login" flow is exactly the "an account with this email already
-# exists — link it?" chain we want.
+# Replaced Dex (see gtfs/keycloak/CUTOVER.md). Dex could not link accounts:
+# each connector mints its own opaque `sub` and Dex has no notion of one person
+# with two connectors, so signing in with GitHub and with Google produced two
+# unrelated accounts. Keycloak brokers GitHub / Google / GitLab behind one
+# realm user, and its stock "first broker login" flow is exactly the "an
+# account with this email already exists — link it?" chain we want.
 #
-# Runs alongside Dex on its own host (id.gtfs.zone) rather than taking over
-# dex.gtfs.zone, so the two can be up together during the cutover and a rollback
-# is a revert rather than a DNS change.
+# Serves id.gtfs.zone.
 apiVersion: apps/v1
 kind: Deployment
 metadata:

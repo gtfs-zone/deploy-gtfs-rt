@@ -4,9 +4,7 @@
 # Middleware CRDs below; Phase 7 IngressRoutes attach them to protected routes
 # (manage.rt, uptime) as: middlewares: [oauth2-errors, oauth2-proxy].
 #
-# Points at Keycloak (id.gtfs.zone), not Dex. Every session in Redis DB 0
-# references a Dex token, so DB 0 must be flushed when this lands or users get
-# stuck holding a session no issuer recognises.
+# Points at Keycloak (id.gtfs.zone).
 apiVersion: apps/v1
 kind: Deployment
 metadata:

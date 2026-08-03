@@ -5,8 +5,6 @@
 #
 #   superuser  postgres            ← superuserSecret (postgres-superuser)
 #   role+db    rt_api / rt_api     ← bootstrap.initdb (owner role + its database)
-#   role       dex                 ← managed.roles (passwordSecret)
-#   db         dex (owner dex)     ← Database CR below
 #   role       traccar             ← managed.roles (passwordSecret)
 #   db         traccar (owner ~)   ← Database CR below; Traccar migrates it itself
 #
@@ -47,13 +45,6 @@ spec:
 
   managed:
     roles:
-      # Dex's login role. Its database is created by the Database CR below (CNPG
-      # bootstrap.initdb can only seed one database/owner).
-      - name: dex
-        ensure: present
-        login: true
-        passwordSecret:
-          name: postgres-dex
       # Traccar's login role. Traccar runs its own Liquibase migrations against
       # this database on startup, so it needs ownership, not just connect.
       - name: traccar
@@ -69,19 +60,6 @@ spec:
         passwordSecret:
           name: postgres-keycloak
 ---
-# The dex database, owned by the managed `dex` role. Declarative equivalent of
-# the init container's `CREATE DATABASE dex OWNER dex`.
-apiVersion: postgresql.cnpg.io/v1
-kind: Database
-metadata:
-  name: dex
-  namespace: gtfs
-spec:
-  cluster:
-    name: postgres
-  name: dex
-  owner: dex
----
 # The traccar database, owned by the managed `traccar` role. Traccar creates and
 # migrates its own tc_* schema inside it on first boot.
 apiVersion: postgresql.cnpg.io/v1
@@ -95,9 +73,8 @@ spec:
   name: traccar
   owner: traccar
 ---
-# The keycloak database, owned by the managed `keycloak` role. Kept separate
-# from `dex` rather than reusing it: the two coexist through the cutover, and
-# leaving Dex's data intact is what makes the rollback a revert.
+# The keycloak database, owned by the managed `keycloak` role. Keycloak builds
+# and migrates its own schema on startup, so it owns its database outright.
 apiVersion: postgresql.cnpg.io/v1
 kind: Database
 metadata:
