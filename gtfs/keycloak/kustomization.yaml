@@ -7,6 +7,29 @@
 # existing realm is left alone. After first boot, realm changes have to go
 # through the admin console/API, or the `keycloak` database has to be dropped.
 # Same trap as the dev stack; documented there too.
+#
+# ── notes on gtfs-realm.json ──────────────────────────────────────────────────
+# They live here rather than in the JSON because Keycloak 26.4 rejects any
+# top-level field it does not recognise. Two "_comment" keys used to hold this
+# prose and they failed the whole import with
+#   Unrecognized field "_comment" (class ...RealmRepresentation)
+# — so keep documentation out of that file entirely; JSON has no comments.
+#
+# Placeholders: the render-realm init container substitutes the eight
+# dollar-brace placeholders before Keycloak imports the realm. Keycloak does not
+# expand them itself — it would store the literal string as the client secret.
+# Every placeholder needs a matching env var on that container, or the init
+# container fails the pod rather than importing one as somebody's credential. It
+# also refuses any leftover placeholder, so do not write a dollar-brace sequence
+# anywhere in the realm file.
+#
+# trustEmail is true on all three brokers, and that is load-bearing: cafe-car
+# matches a person to a pending feed invite, and to an account-link candidate,
+# only on a *verified* address. With trustEmail false, first-broker-login stores
+# emailVerified=false and a feed shared by email silently never reaches a
+# brokered user. GitHub, Google and GitLab each release only an address they
+# have themselves verified. This does not make linking silent — the stock
+# "first broker login" flow still asks the user to confirm.
 apiVersion: kustomize.config.k8s.io/v1beta1
 kind: Kustomization
 namespace: gtfs
