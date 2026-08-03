@@ -38,7 +38,7 @@ spec:
         # Same image as the main container on purpose: nothing extra to pull or
         # trust, and it is guaranteed present wherever Keycloak itself runs. It
         # has bash and sed but no envsubst, hence the explicit loop — which is
-        # better than envsubst anyway, since it substitutes exactly the eight
+        # better than envsubst anyway, since it substitutes exactly the nine
         # names below and leaves any other `$` in the file alone.
         - name: render-realm
           image: quay.io/keycloak/keycloak:26.4
@@ -49,6 +49,7 @@ spec:
               vars=(
                 KC_OAUTH2_PROXY_CLIENT_SECRET
                 KC_TRACCAR_CLIENT_SECRET
+                KC_CAFE_CAR_CLIENT_SECRET
                 KC_GITHUB_CLIENT_ID KC_GITHUB_CLIENT_SECRET
                 KC_GOOGLE_CLIENT_ID KC_GOOGLE_CLIENT_SECRET
                 KC_GITLAB_CLIENT_ID KC_GITLAB_CLIENT_SECRET
@@ -86,6 +87,11 @@ spec:
                 secretKeyRef:
                   name: gtfs-app-secrets
                   key: KEYCLOAK_TRACCAR_CLIENT_SECRET
+            - name: KC_CAFE_CAR_CLIENT_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: gtfs-app-secrets
+                  key: KEYCLOAK_CAFE_CAR_CLIENT_SECRET
             - name: KC_GITHUB_CLIENT_ID
               valueFrom:
                 secretKeyRef:

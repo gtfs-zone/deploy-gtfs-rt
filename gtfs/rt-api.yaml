@@ -26,7 +26,7 @@ spec:
     spec:
       containers:
         - name: gtfs-api
-          image: git.kcfam.us/gtfs.zone/cafe-car:1b047c7
+          image: git.kcfam.us/gtfs.zone/cafe-car:ede7807
           command: ["fastapi", "run", "src/cafe_car/main.py", "--port", "8000"]
           ports:
             - name: http
@@ -124,7 +124,7 @@ spec:
     spec:
       containers:
         - name: gtfs-manager
-          image: git.kcfam.us/gtfs.zone/cafe-car:1b047c7
+          image: git.kcfam.us/gtfs.zone/cafe-car:ede7807
           command:
             - fastapi
             - run
@@ -180,6 +180,24 @@ spec:
                 secretKeyRef:
                   name: gtfs-app-secrets
                   key: INGEST_API_TOKEN
+            # /account asks Keycloak which upstream providers are linked to the
+            # signed-in realm account (a login only reveals the one broker it
+            # came through). Admin REST goes to the in-cluster Service; the
+            # account-console link the page renders must be the browser-facing
+            # issuer URL. Read-only service account — view-users, nothing more.
+            - name: KEYCLOAK_URL
+              value: http://keycloak:8080
+            - name: KEYCLOAK_REALM
+              value: gtfs
+            - name: KEYCLOAK_CLIENT_ID
+              value: cafe-car
+            - name: KEYCLOAK_CLIENT_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: gtfs-app-secrets
+                  key: KEYCLOAK_CAFE_CAR_CLIENT_SECRET
+            - name: KEYCLOAK_ACCOUNT_URL
+              value: https://id.gtfs.zone/realms/gtfs/account
             - name: CORS_ALLOWED_ORIGINS
               value: '["https://manage.rt.gtfs.zone","https://rt.gtfs.zone"]'
 ---
