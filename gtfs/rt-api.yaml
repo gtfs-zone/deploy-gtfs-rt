@@ -26,7 +26,7 @@ spec:
     spec:
       containers:
         - name: gtfs-api
-          image: git.kcfam.us/gtfs.zone/cafe-car:94382d5
+          image: git.kcfam.us/gtfs.zone/cafe-car:1b047c7
           command: ["fastapi", "run", "src/cafe_car/main.py", "--port", "8000"]
           ports:
             - name: http
@@ -124,7 +124,7 @@ spec:
     spec:
       containers:
         - name: gtfs-manager
-          image: git.kcfam.us/gtfs.zone/cafe-car:94382d5
+          image: git.kcfam.us/gtfs.zone/cafe-car:1b047c7
           command:
             - fastapi
             - run
