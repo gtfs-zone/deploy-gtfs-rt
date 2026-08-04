@@ -34,7 +34,7 @@ spec:
     spec:
       containers:
         - name: hell-gate-bridge
-          image: git.kcfam.us/gtfs.zone/hell-gate-bridge:18c744b
+          image: git.kcfam.us/gtfs.zone/hell-gate-bridge:df31045
           env:
             - name: SOURCE
               value: amtrak
@@ -69,7 +69,7 @@ spec:
     spec:
       containers:
         - name: hell-gate-bridge
-          image: git.kcfam.us/gtfs.zone/hell-gate-bridge:18c744b
+          image: git.kcfam.us/gtfs.zone/hell-gate-bridge:df31045
           env:
             - name: SOURCE
               value: buswhere
