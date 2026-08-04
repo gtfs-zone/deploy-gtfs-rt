@@ -4,7 +4,7 @@
 # with two connectors, so signing in with GitHub and with Google produced two
 # unrelated accounts. Keycloak brokers GitHub / Google / GitLab behind one
 # realm user, and its stock "first broker login" flow is exactly the "an
-# account with this email already exists — link it?" chain we want.
+# account with this email already exists, link it?" chain we want.
 #
 # Serves id.gtfs.zone.
 apiVersion: apps/v1
@@ -28,7 +28,7 @@ spec:
         app: keycloak
     spec:
       initContainers:
-        # Keycloak 26.4 does NOT expand ${env.VAR} while importing a realm — it
+        # Keycloak 26.4 does NOT expand ${env.VAR} while importing a realm; it
         # stores the literal string as the client secret, and the legacy
         # -Dkeycloak.migration.replace-placeholders property is a no-op.
         # (Verified against quay.io/keycloak/keycloak:26.4.) So the realm JSON
@@ -37,7 +37,7 @@ spec:
         #
         # Same image as the main container on purpose: nothing extra to pull or
         # trust, and it is guaranteed present wherever Keycloak itself runs. It
-        # has bash and sed but no envsubst, hence the explicit loop — which is
+        # has bash and sed but no envsubst, hence the explicit loop, which is
         # better than envsubst anyway, since it substitutes exactly the nine
         # names below and leaves any other `$` in the file alone.
         - name: render-realm
@@ -132,7 +132,7 @@ spec:
         - name: keycloak
           image: quay.io/keycloak/keycloak:26.4
           # `start`, not `start-dev`: production mode, with TLS terminated at
-          # Traefik. --import-realm is create-only — an existing realm is NOT
+          # Traefik. --import-realm is create-only: an existing realm is NOT
           # updated on restart, so realm changes after the first boot have to be
           # made through the admin API or by dropping the database.
           args: ["start", "--optimized=false", "--import-realm"]

@@ -1,4 +1,4 @@
-## infra/argocd/manifests/ingress.yaml — public access to the ArgoCD UI.
+## infra/argocd/manifests/ingress.yaml: public access to the ArgoCD UI.
 ##
 ## ArgoCD lives in the `argocd` namespace, so it cannot reuse the `gtfs-zone-tls`
 ## Secret that cert-manager issues into `gtfs` (Secrets do not cross namespaces).
@@ -6,7 +6,7 @@
 ## narrower Certificate for just this hostname from the same ClusterIssuer.
 ##
 ## ArgoCD itself was bootstrapped with Helm directly (Phase 2), not through the
-## app-of-apps — only these two ingress objects are GitOps-managed, via
+## app-of-apps; only these two ingress objects are GitOps-managed, via
 ## apps/infra-argocd-ingress.yaml.
 apiVersion: cert-manager.io/v1
 kind: Certificate

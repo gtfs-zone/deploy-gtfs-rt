@@ -6,10 +6,10 @@
   Secrets are deliberately ABSENT from this file: the Deployment sets
   CONFIG_USE_ENVIRONMENT_VARIABLES=true, so DATABASE_PASSWORD and
   OPENID_CLIENT_SECRET arrive as env vars from Secrets and override anything here.
-  (Verified against traccar/traccar:6.14.5 — env wins over the XML for every key,
+  (Verified against traccar/traccar:6.14.5; env wins over the XML for every key,
   including database.url/user/password.)
 
-  The env-name mapping is NOT simply "uppercase and drop the dots" — Traccar
+  The env-name mapping is NOT simply "uppercase and drop the dots": Traccar
   inserts an underscore before each capital letter first, so a camelCase config
   key gains a separator:
       database.password   -> DATABASE_PASSWORD      (no capitals; unchanged)
@@ -18,7 +18,7 @@
   and every /api/server call 500s on a null clientSecret.
 
   NOTE: for OIDC logins to auto-create their Traccar user, "registration" must be
-  enabled in the server settings — a DB-backed flag, not a config key. See Phase 8.
+  enabled in the server settings (a DB-backed flag, not a config key). See Phase 8.
 -->
 <properties>
     <entry key='database.driver'>org.postgresql.Driver</entry>
@@ -27,7 +27,7 @@
 
     <entry key='web.url'>https://traccar.gtfs.zone</entry>
 
-    <!-- Keycloak, not Dex. Traccar is NOT behind oauth2-proxy — it is a
+    <!-- Keycloak, not Dex. Traccar is NOT behind oauth2-proxy; it is a
          separate OIDC client with its own login, so it has to be repointed in
          the same cutover or its console login breaks silently while the pod
          stays healthy. -->

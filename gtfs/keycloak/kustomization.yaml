@@ -1,4 +1,4 @@
-# Keycloak component — Deployment + Service + the realm ConfigMap. The
+# Keycloak component: Deployment + Service + the realm ConfigMap. The
 # configMapGenerator renders gtfs-realm.json into a hash-suffixed
 # `keycloak-realm` ConfigMap; kustomize rewrites the Deployment's volume
 # reference to the hashed name, so editing the realm rolls the Deployment.
@@ -13,11 +13,11 @@
 # top-level field it does not recognise. Two "_comment" keys used to hold this
 # prose and they failed the whole import with
 #   Unrecognized field "_comment" (class ...RealmRepresentation)
-# — so keep documentation out of that file entirely; JSON has no comments.
+# so keep documentation out of that file entirely; JSON has no comments.
 #
 # Placeholders: the render-realm init container substitutes the eight
 # dollar-brace placeholders before Keycloak imports the realm. Keycloak does not
-# expand them itself — it would store the literal string as the client secret.
+# expand them itself; it would store the literal string as the client secret.
 # Every placeholder needs a matching env var on that container, or the init
 # container fails the pod rather than importing one as somebody's credential. It
 # also refuses any leftover placeholder, so do not write a dollar-brace sequence
@@ -28,7 +28,7 @@
 # only on a *verified* address. With trustEmail false, first-broker-login stores
 # emailVerified=false and a feed shared by email silently never reaches a
 # brokered user. GitHub, Google and GitLab each release only an address they
-# have themselves verified. This does not make linking silent — the stock
+# have themselves verified. This does not make linking silent: the stock
 # "first broker login" flow still asks the user to confirm.
 apiVersion: kustomize.config.k8s.io/v1beta1
 kind: Kustomization

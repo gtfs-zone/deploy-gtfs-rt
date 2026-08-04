@@ -1,6 +1,6 @@
 # ── rt-api migrate (Alembic) ──────────────────────────────────────────────────
 # Replaces the TF `gtfs-migrate` init container. Runs `railroad-club-migrate`
-# (Alembic) against the rt_api database as an ArgoCD **PreSync hook** — it
+# (Alembic) against the rt_api database as an ArgoCD **PreSync hook**; it
 # completes before the gtfs-api/gtfs-manager Deployments roll. Re-running is safe:
 # Alembic tracks applied versions. HookDeletePolicy replaces the Job each sync so
 # the hook name stays stable.

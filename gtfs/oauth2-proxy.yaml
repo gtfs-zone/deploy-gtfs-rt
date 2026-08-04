@@ -62,7 +62,7 @@ spec:
             - name: OAUTH2_PROXY_SCOPE
               value: openid email profile
             # X-Auth-Request-User carries this claim, and it is what cafe-car
-            # keys an Identity on. It MUST be `sub` — the stable Keycloak UUID.
+            # keys an Identity on. It MUST be `sub`, the stable Keycloak UUID.
             # Dev previously used `name`, which is mutable and not unique across
             # connectors; anything but `sub` reintroduces that.
             - name: OAUTH2_PROXY_USER_ID_CLAIM
@@ -117,7 +117,7 @@ spec:
       port: 4180
       targetPort: http
 ---
-# ForwardAuth middleware — protected routes send each request to oauth2-proxy's
+# ForwardAuth middleware: protected routes send each request to oauth2-proxy's
 # /oauth2/auth; on 2xx the auth headers are copied to the upstream. Equivalent to
 # the TF `oauth2-proxy.forwardauth.*` labels.
 apiVersion: traefik.io/v1alpha1
@@ -134,7 +134,7 @@ spec:
       - X-Auth-Request-Email
       - X-Auth-Request-Access-Token
 ---
-# Errors middleware — intercepts 401/403 and serves oauth2-proxy's sign-in page
+# Errors middleware: intercepts 401/403 and serves oauth2-proxy's sign-in page
 # inline (redirecting back after login). Equivalent to the TF `oauth2-errors.*`
 # labels; the service is the oauth2-proxy Service in this namespace.
 apiVersion: traefik.io/v1alpha1

@@ -1,8 +1,8 @@
-## apps/infra-cert-manager-webhook-porkbun.yaml — ACME DNS-01 solver webhook for
+## apps/infra-cert-manager-webhook-porkbun.yaml: ACME DNS-01 solver webhook for
 ## Porkbun (Talinx chart). Registers an APIService in the `porkbun.talinx.dev`
 ## group that the ClusterIssuer's dns01.webhook solver calls.
 ##
-## Wave 1 — after cert-manager (its CRDs/APIService machinery) is up.
+## Wave 1: after cert-manager (its CRDs/APIService machinery) is up.
 apiVersion: argoproj.io/v1alpha1
 kind: Application
 metadata:

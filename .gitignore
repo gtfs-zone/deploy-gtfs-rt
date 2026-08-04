@@ -1,4 +1,4 @@
-# Terraform state — contains sensitive outputs
+# Terraform state, contains sensitive outputs
 tf/terraform.tfstate
 tf/terraform.tfstate.backup
 tf/terraform.tfstate.*.backup
@@ -18,7 +18,7 @@ tf-monitors/.terraform.lock.hcl
 tf-monitors/.terraform.tfstate.lock.info
 tf-monitors/secrets.auto.tfvars
 
-# SOPS age private key — NEVER commit. Public recipient lives in .sops.yaml.
+# SOPS age private key. NEVER commit. Public recipient lives in .sops.yaml.
 age.key
 *.agekey
 

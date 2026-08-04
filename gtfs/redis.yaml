@@ -2,7 +2,7 @@
 # Replaces the TF `redis` container. Single instance, no auth (internal-only, as
 # in the Docker stack). Logical DB allocation is unchanged and set by clients:
 #   DB 0 oauth2-proxy sessions · DB 1 rt-api · DB 3 celery broker · DB 4 celery result
-# Longhorn-backed /data (start fresh — no data migration).
+# Longhorn-backed /data (start fresh, no data migration).
 apiVersion: v1
 kind: PersistentVolumeClaim
 metadata:

@@ -2,7 +2,7 @@
 
 **GTFS.Zone** is a "public option" for transit operators to publish real-time
 GTFS feeds. The goal is to make it as simple, lightweight, and inexpensive as
-possible — a small agency with minimal technical resources should be able to
+possible: a small agency with minimal technical resources should be able to
 get a live feed running in an afternoon.
 
 Operators who don't want to self-host can use an already-running instance
@@ -14,7 +14,7 @@ The stack is built from these open-source projects:
 
 | Project | Role |
 |---------|------|
-| [cafe-car](https://git.kcfam.us/gtfs.zone/cafe-car) | Core API — serves GTFS-RT feeds and handles admin |
+| [cafe-car](https://git.kcfam.us/gtfs.zone/cafe-car) | Core API, serves GTFS-RT feeds and handles admin |
 | [vehicle-poser](https://git.kcfam.us/gtfs.zone/vehicle-poser) | Receives Traccar position forwards over HTTP → Redis |
 | [hell-gate-bridge](https://git.kcfam.us/gtfs.zone/hell-gate-bridge) | Polls upstream feeds (Amtrak, Columbia County) → rt-api |
 | [schedule-foamer](https://git.kcfam.us/gtfs.zone/schedule-foamer) | Celery worker + beat scheduler for async static GTFS fetching |
@@ -71,7 +71,7 @@ flowchart LR
 | `manage.rt.<domain>` | Admin UI (auth-gated) |
 | `auth.<domain>` | oauth2-proxy sign-in |
 | `id.<domain>` | Keycloak OIDC provider (brokers GitHub/Google/GitLab) |
-| `dex.<domain>` | Dex OIDC provider (legacy — nothing points at it; retained one release as the Keycloak rollback) |
+| `dex.<domain>` | Dex OIDC provider (legacy, nothing points at it; retained one release as the Keycloak rollback) |
 | `traccar.<domain>` | Traccar console; `/osmand` takes phone position reports |
 | `uptime.<domain>` | Uptime Kuma dashboard (auth-gated) |
 | `status.<domain>` | Public status page |
@@ -414,7 +414,7 @@ pre-commit install
 ```
 
 There is **no imperative deploy step.** ArgoCD watches this repo and reconciles
-the cluster to match it — you change YAML, commit, and push.
+the cluster to match it: you change YAML, commit, and push.
 
 Before committing changes under `gtfs/`, render the tree the same way ArgoCD's
 KSOPS plugin does:
@@ -466,7 +466,7 @@ PGPASSWORD="$(kubectl -n gtfs get secret postgres-rt-api -o jsonpath='{.data.pas
 - **A server** with a public IP running [k3s](https://k3s.io/) (installed with
   `--disable traefik`; this repo brings its own via Helm) and `open-iscsi`
   enabled for Longhorn.
-- **A domain on [Porkbun](https://porkbun.com/)** with API access enabled —
+- **A domain on [Porkbun](https://porkbun.com/)** with API access enabled,
   used by both cert-manager (DNS-01) and external-dns.
 - **At least one OAuth provider** (GitHub, GitLab, or Google) for user login.
 - Local tooling: `kubectl`, `helm`, `kustomize`, `sops`, `age`, `ksops`.
@@ -476,17 +476,17 @@ PGPASSWORD="$(kubectl -n gtfs get secret postgres-rt-api -o jsonpath='{.data.pas
 > confusing ways (processes silently unable to create file watchers). Set it to
 > 1024 in `/etc/sysctl.d/`.
 
-## Step 1 — Domain and DNS API
+## Step 1: Domain and DNS API
 
 1. Buy a domain at [porkbun.com](https://porkbun.com).
 2. In your Porkbun account go to **API** → enable API access for the domain.
-3. Generate an API key pair (`pk1_...` / `sk1_...`) — you'll need both.
+3. Generate an API key pair (`pk1_...` / `sk1_...`); you'll need both.
 
 DNS records are **not** written by hand: external-dns creates them from the
 `external-dns.alpha.kubernetes.io/target` annotation on each `IngressRoute`.
 The bare apex is left alone deliberately.
 
-## Step 2 — OAuth app
+## Step 2: OAuth app
 
 Create an OAuth app with at least one provider. Use
 `https://id.<your-domain>/realms/gtfs/broker/github/endpoint` as the authorization
@@ -497,7 +497,7 @@ while Dex is retained, and both may be registered at once.)
 - **GitLab**: User Settings → Applications
 - **Google**: Google Cloud Console → APIs & Services → Credentials → OAuth 2.0 Client ID (Web application)
 
-## Step 3 — Secrets (SOPS + age)
+## Step 3: Secrets (SOPS + age)
 
 Secrets live in git, encrypted with [SOPS](https://github.com/getsops/sops) and
 an [age](https://github.com/FiloSottile/age) key, and are decrypted inside the
@@ -512,20 +512,20 @@ sops gtfs/secrets/gtfs-app-secrets.enc.yaml
 
 `sops set` updates a single value without printing plaintext. The age private
 key must also exist in-cluster as the `sops-age` Secret in the `argocd`
-namespace — that is the one piece of out-of-band bootstrap this design needs.
+namespace: that is the one piece of out-of-band bootstrap this design needs.
 
 Populate at minimum:
 
-- `infra/secrets/` — Porkbun API key/secret, once per consuming namespace
+- `infra/secrets/`: Porkbun API key/secret, once per consuming namespace
   (`cert-manager` uses `PORKBUN_API_KEY`/`PORKBUN_SECRET_API_KEY`,
   `external-dns` uses `API_KEY`/`API_SECRET`).
-- `gtfs/secrets/gtfs-app-secrets.enc.yaml` — session key, oauth2-proxy cookie
+- `gtfs/secrets/gtfs-app-secrets.enc.yaml`: session key, oauth2-proxy cookie
   secret, Keycloak↔oauth2-proxy and Keycloak↔Traccar client secrets, the
   Keycloak bootstrap admin password, OAuth connector credentials,
   `INGEST_API_TOKEN`, and the `TRACCAR_ADMIN_*` pair.
-- `gtfs/secrets/postgres-*.enc.yaml` — CNPG role passwords.
+- `gtfs/secrets/postgres-*.enc.yaml`: CNPG role passwords.
 
-## Step 4 — Bootstrap
+## Step 4: Bootstrap
 
 Point the hostnames and the target IP at your own domain first: they are
 referenced in `gtfs/ingressroutes.yaml`, `infra/argocd/manifests/ingress.yaml`,
@@ -533,7 +533,7 @@ referenced in `gtfs/ingressroutes.yaml`, `infra/argocd/manifests/ingress.yaml`,
 `gtfs/dex/config.yaml` and `gtfs/traccar/traccar.xml`.
 
 ```bash
-# 1. install ArgoCD (once, out of band — it is deliberately NOT self-managed)
+# 1. install ArgoCD (once, out of band; it is deliberately NOT self-managed)
 helm install argocd argo/argo-cd -n argocd --create-namespace -f infra/argocd/values.yaml
 
 # 2. give it the age key so it can decrypt secrets
@@ -546,19 +546,19 @@ kubectl apply -f apps/root.yaml
 Watch it converge with `kubectl get app -n argocd`. Sync waves bring things up in
 order: storage/database operators → edge and DNS → issuers and secrets → the app.
 
-## Step 5 — First run
+## Step 5: First run
 
-1. `curl https://rt.<domain>/health` — should be 200 over a Let's Encrypt cert
+1. `curl https://rt.<domain>/health` should be 200 over a Let's Encrypt cert
    issued by cert-manager (not by whatever fronts your edge).
 2. Sign in at `https://manage.rt.<domain>`; the first login creates the owner
    account that feeds are attached to.
 3. Bootstrap Traccar: the first `POST /api/users` against an empty `tc_users`
    becomes administrator. **Use exactly the `TRACCAR_ADMIN_*` values from
-   `gtfs-app-secrets`** — rt-api reuses them for device auto-provisioning, so a
+   `gtfs-app-secrets`**: rt-api reuses them for device auto-provisioning, so a
    different password silently breaks the integration. Then enable registration
    (`PUT /api/server {"registration": true}`) so OIDC logins auto-provision.
 4. Create feeds and their trackers, and make sure each poller's
-   `INGEST_VEHICLE_ID` matches a real tracker id — a mismatch produces no
+   `INGEST_VEHICLE_ID` matches a real tracker id: a mismatch produces no
    positions and no error.
 5. Uptime Kuma's public status page must be created in its UI before
    `status.<domain>` shows anything useful.
@@ -573,5 +573,5 @@ kubectl annotate app <name> -n argocd argocd.argoproj.io/refresh=hard --overwrit
 ```
 
 Image tags are pinned per workload. CI publishes `:latest` and `:<short-sha>`
-only — **there is no `:main` tag** — so bumping a version is a manifest edit and
+only; **there is no `:main` tag**, so bumping a version is a manifest edit and
 a commit, not a redeploy.

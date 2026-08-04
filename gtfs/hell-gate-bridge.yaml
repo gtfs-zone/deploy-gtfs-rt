@@ -1,12 +1,12 @@
 # ── hell-gate-bridge (external feed pollers) ──────────────────────────────────
 # Two Deployments off one image, one per SOURCE. Each polls an upstream operator
-# feed and POSTs to cafe-car's /ingest/* with a shared bearer token — they do NOT
+# feed and POSTs to cafe-car's /ingest/* with a shared bearer token; they do NOT
 # go through Traccar or Redis directly.
 #
 #   amtrak    → Amtrak's getTrainsData blob
 #   buswhere  → Columbia County's buswhere API + its published GTFS
 #
-# INGEST_VEHICLE_ID must equal a provisioned Tracker.id in the target feed —
+# INGEST_VEHICLE_ID must equal a provisioned Tracker.id in the target feed:
 # cafe-car scans `vehicle:{tracker_id}:*`, so a mismatch is silent (no positions,
 # no error). Provisioned in Phase 8; the values here are the contract.
 #
@@ -75,7 +75,7 @@ spec:
               value: buswhere
             - name: INGEST_VEHICLE_ID
               value: columbia-county
-            # The raw.githubusercontent.com host, not github.com/.../raw/ — the
+            # The raw.githubusercontent.com host, not github.com/.../raw/, the
             # latter 302s and hell-gate's httpx client does not follow redirects.
             - name: GTFS_URL
               value: https://raw.githubusercontent.com/columbia-county-ny-transit/gtfs-generator/refs/heads/main/columbia_county_gtfs.zip

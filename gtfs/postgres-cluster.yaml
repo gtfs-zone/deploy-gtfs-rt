@@ -8,7 +8,7 @@
 #   role       traccar             ← managed.roles (passwordSecret)
 #   db         traccar (owner ~)   ← Database CR below; Traccar migrates it itself
 #
-# Single instance on Longhorn (start fresh — no data migration). Image pinned to
+# Single instance on Longhorn (start fresh, no data migration). Image pinned to
 # CNPG's Postgres 18.3 build to match the TF `postgres:18.3-alpine`.
 #
 # Sizing note: Traccar has no retention config key and writes every GPS fix to

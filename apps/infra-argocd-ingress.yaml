@@ -1,11 +1,11 @@
-## apps/infra-argocd-ingress.yaml — the ArgoCD UI's Certificate + IngressRoute
+## apps/infra-argocd-ingress.yaml: the ArgoCD UI's Certificate + IngressRoute
 ## (infra/argocd/manifests/).
 ##
-## ArgoCD's own Helm release is NOT managed here — it was bootstrapped directly
+## ArgoCD's own Helm release is NOT managed here; it was bootstrapped directly
 ## in Phase 2 and stays that way, so a broken sync can never take out the thing
 ## doing the syncing. Only these two ingress objects are GitOps-managed.
 ##
-## Wave 3 — after infra-cert-manager-config (wave 2) has created the
+## Wave 3: after infra-cert-manager-config (wave 2) has created the
 ## `letsencrypt-porkbun` ClusterIssuer this Certificate references, and after
 ## infra-traefik (wave 1) has installed the IngressRoute CRD.
 apiVersion: argoproj.io/v1alpha1

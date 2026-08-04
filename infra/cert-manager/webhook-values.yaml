@@ -1,4 +1,4 @@
-## infra/cert-manager/webhook-values.yaml — Helm values for the Talinx
+## infra/cert-manager/webhook-values.yaml: Helm values for the Talinx
 ## cert-manager-webhook-porkbun chart (ACME DNS-01 solver for Porkbun).
 ##
 ## The `groupName` here MUST match the ClusterIssuer's dns01.webhook.groupName

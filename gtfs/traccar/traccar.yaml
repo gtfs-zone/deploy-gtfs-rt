@@ -4,7 +4,7 @@
 #   :5055  osmand phone protocol   → traccar.gtfs.zone/osmand  (device-auth only)
 #
 # Traccar owns and migrates its own schema (Liquibase) in the `traccar` database
-# created by the CNPG Cluster. It is NOT behind oauth2-proxy — a phone posting to
+# created by the CNPG Cluster. It is NOT behind oauth2-proxy: a phone posting to
 # :5055 has no browser session, and the console does its own OIDC.
 #
 # Config lives in the traccar.xml ConfigMap; the two secret-bearing keys are
@@ -48,7 +48,7 @@ spec:
                   name: postgres-traccar
                   key: password
             # Traccar derives the env name by inserting an underscore before each
-            # capital, THEN replacing dots and upper-casing — so
+            # capital, THEN replacing dots and upper-casing, so
             # `openid.clientSecret` is OPENID_CLIENT_SECRET, not
             # OPENID_CLIENTSECRET. Getting this wrong is quiet and nasty: the
             # container starts and the database works (database.password has no

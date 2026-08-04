@@ -1,8 +1,8 @@
-## apps/infra-cert-manager.yaml — cert-manager operator + CRDs.
+## apps/infra-cert-manager.yaml: cert-manager operator + CRDs.
 ##
 ## The Porkbun DNS-01 webhook and the ClusterIssuer/Certificate live in their own
 ## Applications (infra-cert-manager-webhook-porkbun.yaml, infra-cert-manager-config.yaml)
-## so each is a single-purpose sync unit. Wave 0 — CRDs must exist before the
+## so each is a single-purpose sync unit. Wave 0: CRDs must exist before the
 ## webhook and the ClusterIssuer that depend on them.
 apiVersion: argoproj.io/v1alpha1
 kind: Application

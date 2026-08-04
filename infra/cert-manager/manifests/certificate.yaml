@@ -9,7 +9,7 @@
 ##   *.rt.gtfs.zone  manage.rt.gtfs.zone
 ##
 ## A DNS wildcard matches exactly ONE label, so `*.gtfs.zone` does NOT cover
-## `manage.rt.gtfs.zone` — without the second SAN that route serves a cert whose
+## `manage.rt.gtfs.zone`: without the second SAN that route serves a cert whose
 ## names don't match and every browser rejects it.
 ##
 ## The bare apex `gtfs.zone` is deliberately NOT here. Nothing in k3s serves it

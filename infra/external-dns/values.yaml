@@ -1,10 +1,10 @@
-## infra/external-dns/values.yaml — Helm values for the kubernetes-sigs
+## infra/external-dns/values.yaml: Helm values for the kubernetes-sigs
 ## external-dns chart, using the Porkbun **webhook provider** (Porkbun has no
 ## native external-dns provider).
 ##
 ## Source = Traefik IngressRoute (traefik-proxy). Each gtfs IngressRoute (Phase 7)
 ## carries an `external-dns.alpha.kubernetes.io/target: <server_ip>` annotation, so
-## external-dns creates the matching *.gtfs.zone records at Porkbun — retiring the
+## external-dns creates the matching *.gtfs.zone records at Porkbun, retiring the
 ## old dns.tf. Porkbun creds come from the `porkbun-secret` Secret in the
 ## external-dns namespace (SOPS Secret, Phase 4; keys API_KEY / API_SECRET).
 provider:
@@ -24,14 +24,14 @@ provider:
           secretKeyRef:
             name: porkbun-secret
             key: API_SECRET
-      # `--domain-filter` is a REQUIRED flag on this binary — without it the
+      # `--domain-filter` is a REQUIRED flag on this binary; without it the
       # container exits immediately with a kingpin usage error. The chart passes
       # no args to the webhook, so it has to come from the env equivalent. Keep
       # in sync with the top-level `domainFilters` below.
       - name: DOMAIN_FILTER
         value: gtfs.zone
       # The binary defaults to :8888, but the chart hardcodes the webhook
-      # containerPort to 8080 and points both probes at that port name — so on
+      # containerPort to 8080 and points both probes at that port name, so on
       # the default the probes hit a closed port and the container restarts
       # forever. Move the binary to 8080 and point external-dns at it (see
       # extraArgs below) so the whole chain agrees on one port.

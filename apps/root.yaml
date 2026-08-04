@@ -1,10 +1,10 @@
-## apps/root.yaml — the "app of apps".
+## apps/root.yaml: the "app of apps".
 ##
 ## Bootstrapped once by hand (`kubectl apply -f apps/root.yaml`); thereafter Argo
 ## CD self-manages: every other file in `apps/` is an Application, and adding a
 ## component to the platform is just adding one more file here.
 ##
-## Uses the plain directory source (no plugin) — the files in apps/ are ordinary
+## Uses the plain directory source (no plugin): the files in apps/ are ordinary
 ## Application manifests, not encrypted, so they need no KSOPS rendering.
 apiVersion: argoproj.io/v1alpha1
 kind: Application

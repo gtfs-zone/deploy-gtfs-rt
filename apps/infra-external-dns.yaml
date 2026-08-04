@@ -1,7 +1,7 @@
-## apps/infra-external-dns.yaml — external-dns with the Porkbun webhook provider.
+## apps/infra-external-dns.yaml: external-dns with the Porkbun webhook provider.
 ##
 ## Watches Traefik IngressRoutes and manages *.gtfs.zone records at Porkbun. Wave 1
-## — needs Traefik's IngressRoute CRD present to watch. Stays CrashLoop/Pending
+## needs Traefik's IngressRoute CRD present to watch. Stays CrashLoop/Pending
 ## until the Porkbun Secret is authored in Phase 4 (expected during rollout).
 apiVersion: argoproj.io/v1alpha1
 kind: Application

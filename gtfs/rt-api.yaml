@@ -1,7 +1,7 @@
 # ── rt-api (cafe-car) ─────────────────────────────────────────────────────────
 # The single cafe-car image runs as two Deployments, matching the TF split:
-#   gtfs-api      (:8000, public)  — unauthenticated GTFS-RT feed at rt.gtfs.zone
-#   gtfs-manager  (:8001, admin)   — oauth2-protected UI at manage.rt.gtfs.zone
+#   gtfs-api      (:8000, public)  : unauthenticated GTFS-RT feed at rt.gtfs.zone
+#   gtfs-manager  (:8001, admin)   : oauth2-protected UI at manage.rt.gtfs.zone
 # Shared env mirrors the TF `local.rt_api_env`. The DATABASE_URL password is
 # injected via a dependent env var ($(POSTGRES_RT_API_PASSWORD)); Postgres host is
 # CNPG's read-write Service `postgres-rw`. Alembic migrations run separately as the
@@ -53,7 +53,7 @@ spec:
             # Traccar device provisioning. cafe-car auto-creates a Traccar device
             # per Tracker over REST using the admin account, and bakes
             # TRACCAR_CLIENT_BASE into the org.traccar.client://config deep link
-            # it renders as a QR — so that URL must be reachable from the driver's
+            # it renders as a QR, so that URL must be reachable from the driver's
             # phone, not just from inside the cluster.
             - name: TRACCAR_URL
               value: http://traccar:8082
@@ -158,7 +158,7 @@ spec:
             # Traccar device provisioning. cafe-car auto-creates a Traccar device
             # per Tracker over REST using the admin account, and bakes
             # TRACCAR_CLIENT_BASE into the org.traccar.client://config deep link
-            # it renders as a QR — so that URL must be reachable from the driver's
+            # it renders as a QR, so that URL must be reachable from the driver's
             # phone, not just from inside the cluster.
             - name: TRACCAR_URL
               value: http://traccar:8082
@@ -184,7 +184,7 @@ spec:
             # signed-in realm account (a login only reveals the one broker it
             # came through). Admin REST goes to the in-cluster Service; the
             # account-console link the page renders must be the browser-facing
-            # issuer URL. Read-only service account — view-users, nothing more.
+            # issuer URL. Read-only service account: view-users, nothing more.
             - name: KEYCLOAK_URL
               value: http://keycloak:8080
             - name: KEYCLOAK_REALM

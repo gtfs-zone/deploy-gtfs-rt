@@ -1,11 +1,11 @@
-## apps/infra-cert-manager-config.yaml — cert-manager configuration objects:
+## apps/infra-cert-manager-config.yaml: cert-manager configuration objects:
 ## the Porkbun Let's Encrypt `ClusterIssuer` and the `*.gtfs.zone` `Certificate`
 ## (raw manifests under infra/cert-manager/manifests/).
 ##
-## Wave 2 — after both cert-manager and the Porkbun webhook exist, so the
+## Wave 2: after both cert-manager and the Porkbun webhook exist, so the
 ## ClusterIssuer's webhook solver group resolves. The Certificate targets the
 ## `gtfs` namespace (CreateNamespace makes it early); issuance stays Pending until
-## the Porkbun Secret is authored in Phase 4 — expected during the phased rollout.
+## the Porkbun Secret is authored in Phase 4, expected during the phased rollout.
 apiVersion: argoproj.io/v1alpha1
 kind: Application
 metadata:

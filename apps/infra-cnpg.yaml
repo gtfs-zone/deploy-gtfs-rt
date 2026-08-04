@@ -1,7 +1,7 @@
-## apps/infra-cnpg.yaml — CloudNativePG operator (Postgres-on-k8s operator).
+## apps/infra-cnpg.yaml: CloudNativePG operator (Postgres-on-k8s operator).
 ##
 ## Operator only; the gtfs Postgres Cluster is defined in the gtfs stack (Phase 5).
-## Wave 0 — the operator/CRDs should exist before the gtfs Cluster is applied.
+## Wave 0: the operator/CRDs should exist before the gtfs Cluster is applied.
 apiVersion: argoproj.io/v1alpha1
 kind: Application
 metadata:

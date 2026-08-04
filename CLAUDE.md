@@ -20,21 +20,21 @@ Third-party components are upstream **Helm charts** referenced from ArgoCD
 Secrets are **SOPS + age**, decrypted at render time by a **KSOPS** plugin
 sidecar on the argocd-repo-server.
 
-- `apps/` — ArgoCD `Application` manifests. `root.yaml` is the app-of-apps root
+- `apps/`: ArgoCD `Application` manifests. `root.yaml` is the app-of-apps root
   (points ArgoCD at `apps/`); every other file is one `Application`. Adding a
   platform component = adding one file here. Infra charts use the multi-source
   pattern: upstream chart + `$values/infra/<comp>/values.yaml` from this repo.
-- `infra/` — cluster platform pieces (Helm value overlays + a few raw CRs):
+- `infra/`: cluster platform pieces (Helm value overlays + a few raw CRs):
   `longhorn/` (storage), `traefik/` (edge, host :8443), `cert-manager/`
   (operator + Porkbun DNS-01 webhook values + `manifests/` ClusterIssuer &
   Certificate), `external-dns/` (Porkbun webhook provider), `cnpg/`
   (CloudNativePG operator), `argocd/` (ArgoCD's own Helm values + KSOPS sidecar,
   plus `manifests/` for its Certificate + IngressRoute), and `secrets/`
   (SOPS-encrypted Porkbun creds, one per consuming namespace).
-- `gtfs/` — the application stack (Kustomize): Postgres (CNPG), Redis, Keycloak,
+- `gtfs/`: the application stack (Kustomize): Postgres (CNPG), Redis, Keycloak,
   oauth2-proxy, rt-api, celery, uptime-kuma, Traccar, vehicle-poser,
   hell-gate-bridge, IngressRoutes, and SOPS-encrypted `secrets/*.enc.yaml`.
-- `.sops.yaml` — age recipient + encryption rules. The private key (`age.key`)
+- `.sops.yaml`: age recipient + encryption rules. The private key (`age.key`)
   is gitignored.
 
 Namespaces: `gtfs`, `argocd`, `cert-manager`, `traefik`, `external-dns`,
@@ -73,7 +73,7 @@ PATH="$HOME/.local/bin:$PATH" SOPS_AGE_KEY_FILE=$PWD/age.key \
 ```
 
 **Validate Helm value changes by rendering the real chart** rather than reasoning
-about defaults — several chart-default bugs in this stack were only visible in
+about defaults; several chart-default bugs in this stack were only visible in
 the rendered output:
 
 ```bash
@@ -81,9 +81,9 @@ helm template <release> <repo>/<chart> --version <v> -n <ns> -f infra/<comp>/val
 ```
 
 **Editing a secret:** use `sops set` (it does not print plaintext). You rarely
-need to decrypt — SOPS leaves key names readable.
+need to decrypt: SOPS leaves key names readable.
 
-**Images:** CI publishes `:latest` + `:<short-sha>` only — there is **no `:main`
+**Images:** CI publishes `:latest` + `:<short-sha>` only; there is **no `:main`
 tag**. Bumping an image is a manifest edit plus a commit. The `git.kcfam.us`
 packages are public (anonymously pullable), so no `imagePullSecrets` are used.
 
@@ -96,7 +96,7 @@ Internet :80/:443
         └─ *.gtfs.zone → TCP SNI passthrough → 172.18.0.1:8443
                                                    │
    k3s single node ─────────────────────────────────┘
-     Traefik (Helm) — websecure entrypoint on host :8443 via ServiceLB
+     Traefik (Helm), websecure entrypoint on host :8443 via ServiceLB
        └─ IngressRoute: rt · manage.rt · id · auth · uptime · status · traccar
           (+ argocd, in the argocd namespace)
      cert-manager (Porkbun DNS-01) · external-dns · Longhorn · CNPG · ArgoCD
@@ -104,7 +104,7 @@ Internet :80/:443
 
 TLS for `*.gtfs.zone` is owned end to end by cert-manager in the cluster; the
 edge only passes bytes through. The bare apex `gtfs.zone` is deliberately **not**
-passed through — it stays on home-docker's static-sites container.
+passed through: it stays on home-docker's static-sites container.
 
 ### Ingest data flow
 
@@ -132,10 +132,10 @@ passed through — it stays on home-docker's static-sites container.
                                      GTFS-RT at rt.gtfs.zone
 ```
 
-**MQTT** is permanently retired — NanoMQ and OwnTracks are gone and are not
+**MQTT** is permanently retired: NanoMQ and OwnTracks are gone and are not
 coming back. Positions arrive over HTTP only; Redis is still the seam.
 
-`trip-updogger` is **not** retired — it came back in a different shape. It is now
+`trip-updogger` is **not** retired; it came back in a different shape. It is now
 a Redis→Redis worker with no broker: it sweeps `vehicle:*`, loads the trip's
 scheduled `stop_times` from Postgres, and writes `trip_update:*`. It is what turns
 a raw position into a *delay*, so without it a Traccar-sourced feed serves
@@ -150,28 +150,28 @@ positions and an **empty `trip_updates.pb`**.
 | Storage | Longhorn (default StorageClass, 1 replica) |
 | Database | CloudNativePG `Cluster` `postgres` → `rt_api`, `keycloak`, `traccar` databases |
 | Cache | Redis (DB 0 oauth2-proxy · 1 rt-api+poser · 3 celery broker · 4 celery result) |
-| Auth | Keycloak (OIDC, `id.gtfs.zone`, brokers GitHub/Google/GitLab) + oauth2-proxy (ForwardAuth via two Middlewares). Traccar is a separate Keycloak client with its own login — see `gtfs/keycloak/CUTOVER.md` |
+| Auth | Keycloak (OIDC, `id.gtfs.zone`, brokers GitHub/Google/GitLab) + oauth2-proxy (ForwardAuth via two Middlewares). Traccar is a separate Keycloak client with its own login, see `gtfs/keycloak/CUTOVER.md` |
 | Application | rt-api (`gtfs-api` :8000 public, `gtfs-manager` :8001 protected), celery worker + beat |
 | Ingest | Traccar, vehicle-poser, trip-updogger, hell-gate-bridge ×2 |
 | Monitoring | Uptime Kuma |
 
 ### Related repositories
 
-- **[cafe-car](https://git.kcfam.us/gtfs.zone/cafe-car)** — GTFS-RT API + manager
-- **[vehicle-poser](https://git.kcfam.us/gtfs.zone/vehicle-poser)** — HTTP forward receiver (Traccar → Redis)
-- **[trip-updogger](https://git.kcfam.us/gtfs.zone/trip-updogger)** — schedule-delay worker (positions → trip updates)
-- **[hell-gate-bridge](https://git.kcfam.us/gtfs.zone/hell-gate-bridge)** — Amtrak + Columbia County pollers
-- **[schedule-foamer](https://git.kcfam.us/gtfs.zone/schedule-foamer)** — Celery worker/beat
-- **[railroad-club](https://git.kcfam.us/gtfs.zone/railroad-club)** — shared SQLAlchemy models + Alembic migrations
-- **[music-student](https://git.kcfam.us/gtfs.zone/music-student)** — Docker Compose stack for local dev
-- **[landing-zone](https://git.kcfam.us/gtfs.zone/landing-zone)** — static homepage at the apex
+- **[cafe-car](https://git.kcfam.us/gtfs.zone/cafe-car)**: GTFS-RT API + manager
+- **[vehicle-poser](https://git.kcfam.us/gtfs.zone/vehicle-poser)**: HTTP forward receiver (Traccar → Redis)
+- **[trip-updogger](https://git.kcfam.us/gtfs.zone/trip-updogger)**: schedule-delay worker (positions → trip updates)
+- **[hell-gate-bridge](https://git.kcfam.us/gtfs.zone/hell-gate-bridge)**: Amtrak + Columbia County pollers
+- **[schedule-foamer](https://git.kcfam.us/gtfs.zone/schedule-foamer)**: Celery worker/beat
+- **[railroad-club](https://git.kcfam.us/gtfs.zone/railroad-club)**: shared SQLAlchemy models + Alembic migrations
+- **[music-student](https://git.kcfam.us/gtfs.zone/music-student)**: Docker Compose stack for local dev
+- **[landing-zone](https://git.kcfam.us/gtfs.zone/landing-zone)**: static homepage at the apex
 
 ## Patterns worth knowing
 
 **Database migrations** run as an ArgoCD **PreSync hook Job**
 (`gtfs/rt-api-migrate.yaml`) using the `railroad-club` migrations, so Alembic
 completes before any rollout. If a hook Job wedges, ArgoCD's `hook-finalizer`
-deadlocks against its own stuck operation — clear the operation
+deadlocks against its own stuck operation; clear the operation
 (`kubectl patch app <n> -n argocd --type merge -p '{"operation":null}'`)
 *before* removing the finalizer.
 
@@ -185,17 +185,17 @@ middlewares:
 ```
 
 Note Traefik's `errors` middleware serves the sign-in page **while preserving the
-original 401 status code** — a 401 whose body is oauth2-proxy's Sign In page is
+original 401 status code**: a 401 whose body is oauth2-proxy's Sign In page is
 correct behaviour, not a failure.
 
 **Adding a hostname:** add an `IngressRoute` with the
-`external-dns.alpha.kubernetes.io/target: "73.4.232.254"` annotation — external-dns
+`external-dns.alpha.kubernetes.io/target: "73.4.232.254"` annotation; external-dns
 creates the Porkbun record from it. Remember a DNS wildcard matches exactly **one**
 label: `*.gtfs.zone` does not cover `anything.rt.gtfs.zone`, which is why
 `gtfs-zone-tls` also carries `*.rt.gtfs.zone`.
 
 **Traccar config:** `CONFIG_USE_ENVIRONMENT_VARIABLES=true` makes env override
-`traccar.xml`. The env name is **not** simply the key uppercased — Traccar inserts
+`traccar.xml`. The env name is **not** simply the key uppercased: Traccar inserts
 an underscore before each capital first, so `openid.clientSecret` is
 `OPENID_CLIENT_SECRET`. Getting this wrong is silent: the pod stays healthy and
 only `/api/server` breaks.
@@ -207,7 +207,7 @@ Each of these cost real debugging time.
 - **Template calls inside comments.** Both gomplate (Dex config) and Traefik's
   file provider template the *entire file, comments included*. A template
   expression written in a comment to document syntax gets executed, and the whole
-  file is discarded — silently, in Traefik's case.
+  file is discarded, silently, in Traefik's case.
 - **Helm `pre-upgrade` hooks under ArgoCD** become PreSync hooks and run before
   the chart's own ServiceAccount exists. Longhorn ships one; it is disabled via
   `preUpgradeChecker.jobEnabled: false`.
@@ -233,7 +233,7 @@ Each of these cost real debugging time.
   `source: trip-updogger` and refuses to touch a key that lacks that stamp, so
   hell-gate-bridge's richer per-stop predictions always win and trip-updogger only
   fills the gaps. cafe-car's `/ingest/trip-update` writes **no** `source` field,
-  which is what makes this work — if a future producer ever starts writing that
+  which is what makes this work; if a future producer ever starts writing that
   field, it will silently start losing its records to the sweeper.
 - **`compute_delay` has no notion of a trip that hasn't started.** For a trip whose
   first stop is still hours away it projects the parked vehicle onto a later stop
@@ -243,16 +243,16 @@ Each of these cost real debugging time.
 - The `columbia-county` poller crashes every cycle on a `"departed"` string in
   buswhere's `stop_eta` (app bug; written up in `hell-gate-bridge`'s
   `BUSWHERE_DEPARTED_BUG.md`). Amtrak is unaffected.
-- Uptime Kuma's public status page must be created in its UI — `status.gtfs.zone/`
+- Uptime Kuma's public status page must be created in its UI: `status.gtfs.zone/`
   redirects to the private `/dashboard` until one exists. The old `tf-monitors/`
   root that configured this via API was deleted and not replaced.
 - `infra-longhorn`'s CRDs and `gtfs`'s `Cluster/postgres` no longer show spurious
-  OutOfSync — see `ignoreDifferences` in `apps/infra-longhorn.yaml` and
+  OutOfSync, see `ignoreDifferences` in `apps/infra-longhorn.yaml` and
   `apps/gtfs.yaml`. Both the Longhorn CRD conversion webhook (self-injected
   `caBundle`) and CNPG's own mutating admission webhook (defaults ~18 `Cluster`
   spec fields, plus role defaults) write fields at persist time that are never in
   the applied manifest; with SSA, ArgoCD attributes those to its own field
-  manager, so only explicit `jsonPointers`/`jqPathExpressions` fix it — this is
+  manager, so only explicit `jsonPointers`/`jqPathExpressions` fix it; this is
   *not* transient and does not resolve itself. If either Application goes
   OutOfSync again on a *new* field after a chart/operator upgrade, diff
   `helm template`/`kubectl get -o yaml` output against the live object to find

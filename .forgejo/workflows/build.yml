@@ -50,7 +50,7 @@ jobs:
           github-server-url: https://git.kcfam.us
 
       # The *.enc.yaml files route the tree through the ksops exec generator, so
-      # the alpha exec plugin flags are still required — same command as the
+      # the alpha exec plugin flags are still required, same command as the
       # CLAUDE.md pre-commit check, minus the age key.
       - name: Render (kustomize, decryption skipped)
         run: |

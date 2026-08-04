@@ -1,4 +1,4 @@
-# gtfs stack — Kustomize root assembled by the `gtfs` ArgoCD Application. The
+# gtfs stack: Kustomize root assembled by the `gtfs` ArgoCD Application. The
 # `secrets` base contains *.enc.yaml, so ArgoCD routes the whole tree through the
 # KSOPS CMP (`kustomize build --enable-alpha-plugins --enable-exec`).
 #

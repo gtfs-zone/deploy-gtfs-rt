@@ -1,6 +1,6 @@
-## apps/infra-traefik.yaml — Traefik edge (websecure entrypoint on host :8443).
+## apps/infra-traefik.yaml: Traefik edge (websecure entrypoint on host :8443).
 ##
-## Wave 1 — after cert-manager exists (routes will reference cert-manager Secrets),
+## Wave 1: after cert-manager exists (routes will reference cert-manager Secrets),
 ## and so the IngressRoute/Middleware CRDs this chart installs are available to the
 ## gtfs stack (Phase 7).
 apiVersion: argoproj.io/v1alpha1

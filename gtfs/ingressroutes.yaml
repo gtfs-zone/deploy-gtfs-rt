@@ -4,13 +4,13 @@
 # cert-manager wildcard Secret `gtfs-zone-tls`.
 #
 # Every route carries `external-dns.alpha.kubernetes.io/target: <server_ip>` so
-# external-dns creates the matching Porkbun record — this is what retired dns.tf.
+# external-dns creates the matching Porkbun record; this is what retired dns.tf.
 #
 # Auth: the two oauth2 Middlewares (oauth2-proxy.yaml) replace the TF ForwardAuth
 # labels. Public by design: rt (the GTFS-RT feed), status (the Uptime Kuma status
 # page), id + auth (the login flow itself), and both Traccar routes.
 #
-# TLS reaches this cluster untouched — home-docker's Traefik does SNI passthrough
+# TLS reaches this cluster untouched: home-docker's Traefik does SNI passthrough
 # for *.gtfs.zone, so k3s owns gtfs.zone certificates end to end.
 apiVersion: traefik.io/v1alpha1
 kind: IngressRoute
@@ -41,7 +41,7 @@ spec:
   entryPoints: [websecure]
   routes:
     # oauth2-proxy's own endpoints (sign_in page, /static assets, /callback) must
-    # bypass ForwardAuth — otherwise the sign-in page's CSS/JS re-enter the auth
+    # bypass ForwardAuth, otherwise the sign-in page's CSS/JS re-enter the auth
     # chain and come back as 401 HTML. Traefik prefers the longer rule.
     - match: Host(`manage.rt.gtfs.zone`) && PathPrefix(`/oauth2/`)
       kind: Rule
@@ -49,7 +49,7 @@ spec:
         - name: oauth2-proxy
           port: 4180
     # SQLAdmin's vendored static assets (Tabler/Bootstrap CSS+JS) are public and
-    # not sensitive — bypass ForwardAuth so every stylesheet doesn't pay an auth
+    # not sensitive; bypass ForwardAuth so every stylesheet doesn't pay an auth
     # round trip per request, and so an expired session can't turn a CSS request
     # into 401 HTML (which renders the page unstyled).
     - match: Host(`manage.rt.gtfs.zone`) && PathPrefix(`/statics/`)
@@ -68,7 +68,7 @@ spec:
   tls:
     secretName: gtfs-zone-tls
 ---
-# Keycloak, on its own host (id.gtfs.zone). Public by design — this is the
+# Keycloak, on its own host (id.gtfs.zone). Public by design: this is the
 # login flow itself. Covered by the *.gtfs.zone wildcard in gtfs-zone-tls.
 apiVersion: traefik.io/v1alpha1
 kind: IngressRoute
@@ -133,7 +133,7 @@ spec:
   tls:
     secretName: gtfs-zone-tls
 ---
-# Same Uptime Kuma instance, intentionally unauthenticated — it serves the public
+# Same Uptime Kuma instance, intentionally unauthenticated: it serves the public
 # status page here and the protected dashboard at uptime.gtfs.zone.
 apiVersion: traefik.io/v1alpha1
 kind: IngressRoute
@@ -155,13 +155,13 @@ spec:
 ---
 # Traccar: one hostname, split by path, so drivers get no second confusable host.
 #
-#   /osmand  → :5055  phone reports (Traccar Client). Must stay unauthenticated —
+#   /osmand  → :5055  phone reports (Traccar Client). Must stay unauthenticated:
 #              a phone has no browser session; devices authenticate by uniqueId.
 #   /*       → :8082  web console + REST API, which does its own Keycloak OIDC
 #              login and so is deliberately NOT behind oauth2-proxy.
 #
 # No StripPrefix. Verified against traccar/traccar:6.14.5 that the osmand decoder
-# ignores the request path entirely and reads only the query parameters — POSTs to
+# ignores the request path entirely and reads only the query parameters: POSTs to
 # `/osmand?id=...` and `/?id=...` both return 200 and store the position. Dropping
 # the middleware keeps the phone-facing path the simplest thing that works.
 apiVersion: traefik.io/v1alpha1

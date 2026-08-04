@@ -1,4 +1,4 @@
-# First-run checklist — the steps that need a browser and a phone
+# First-run checklist: the steps that need a browser and a phone
 
 Everything that could be automated has been. What is left needs a human with a
 browser and an Android/iOS device. Work top to bottom; each step says how to
@@ -15,14 +15,14 @@ Already done for you, do **not** repeat:
 
 ---
 
-## 1. First admin login — creates the owner row
+## 1. First admin login (creates the owner row)
 
 **Go to:** <https://manage.rt.gtfs.zone>
 
 You should get oauth2-proxy's **Sign In** page with a Dex button. Click through
 to your OAuth provider and back.
 
-> The page arrives with HTTP status **401**. That is correct and expected —
+> The page arrives with HTTP status **401**. That is correct and expected:
 > Traefik's `errors` middleware serves the sign-in body while preserving the
 > original status code. Only treat it as broken if the *body* isn't the sign-in
 > page.
@@ -43,7 +43,7 @@ Expect at least one row.
 
 **Go to:** <https://traccar.gtfs.zone>
 
-Sign in with the internal account — `admin@gtfs.zone` and the password in
+Sign in with the internal account, `admin@gtfs.zone` and the password in
 `gtfs-app-secrets` under `TRACCAR_ADMIN_PASSWORD`:
 
 ```bash
@@ -54,7 +54,7 @@ kubectl get secret gtfs-app-secrets -n gtfs \
 **Verify:** the console loads and the Devices list appears (empty is fine).
 
 > If you instead log in via Dex, you get a *manager* account, not an admin, and
-> it will see **no devices** — Traccar scopes device visibility per user and
+> it will see **no devices**: Traccar scopes device visibility per user and
 > cafe-car creates fleet devices as the admin. That is a known gap, not a bug.
 > Share devices with `POST /api/permissions` if you need a manager to see them.
 
@@ -74,7 +74,7 @@ kubectl exec -n gtfs postgres-1 -c postgres -- \
 
 ---
 
-## 4. Create trackers — the id must match the poller exactly
+## 4. Create trackers (the id must match the poller exactly)
 
 This is the step with the silent failure. Each poller is hardcoded to a tracker
 id, and a mismatch produces **no positions and no error anywhere**.
@@ -90,7 +90,7 @@ kubectl get deploy -n gtfs -l app.kubernetes.io/name=hell-gate-bridge \
   -o jsonpath='{range .items[*]}{.metadata.name}{"\t"}{.spec.template.spec.containers[0].env[?(@.name=="INGEST_VEHICLE_ID")].value}{"\n"}{end}'
 ```
 
-Create a third tracker for the **west** feed — that is the one the driver phone
+Create a third tracker for the **west** feed, that is the one the driver phone
 will use. Any id; you are about to scan its QR.
 
 **Verify:**
@@ -113,11 +113,11 @@ kubectl logs -n gtfs -l app=hell-gate-bridge-amtrak --tail=5
 Expect `POST http://gtfs-api:8000/ingest/position "HTTP/1.1 200 OK"` and a line
 like `amtrak: 135 vehicles → 135 positions, 135 trip-updates published`.
 
-**A `401` here means `INGEST_API_TOKEN` is wrong** — note that an *unset* token
+**A `401` here means `INGEST_API_TOKEN` is wrong**, note that an *unset* token
 sends the literal string `Bearer None` rather than erroring, so 401 is the
 symptom to watch for.
 
-> ⚠️ **`hell-gate-bridge-buswhere` will keep failing** with
+> **`hell-gate-bridge-buswhere` will keep failing** with
 > `ValueError: could not convert string to float: 'departed'`. That is a known
 > app bug, written up in the `hell-gate-bridge` repo as
 > `BUSWHERE_DEPARTED_BUG.md`. Columbia County will not report until it is fixed.
@@ -125,7 +125,7 @@ symptom to watch for.
 
 ---
 
-## 6. Driver QR path — the phone test
+## 6. Driver QR path (the phone test)
 
 1. In the manage app, generate the **QR code** for the `west` tracker.
 2. Install **Traccar Client** on the phone (Play Store / App Store).
@@ -133,26 +133,26 @@ symptom to watch for.
    `https://traccar.gtfs.zone/osmand` plus the device's `uniqueId`.
 4. Start tracking in the app and let it report at least once.
 
-**Verify — device registered:**
+**Verify (device registered):**
 ```bash
 kubectl exec -n gtfs postgres-1 -c postgres -- \
   psql -U postgres -d traccar -tAc "select id, uniqueid, name from tc_devices"
 ```
 
-**Verify — position stored by Traccar:**
+**Verify (position stored by Traccar):**
 ```bash
 kubectl exec -n gtfs postgres-1 -c postgres -- \
   psql -U postgres -d traccar -tAc \
   "select deviceid, latitude, longitude, devicetime from tc_positions order by id desc limit 3"
 ```
 
-**Verify — it reached Redis via vehicle-poser** (this is the seam cafe-car reads;
+**Verify (it reached Redis via vehicle-poser)**: this is the seam cafe-car reads;
 keys carry a 60s TTL so check promptly after a report):
 ```bash
 kubectl exec -n gtfs deploy/redis -- redis-cli -n 1 --scan --pattern 'vehicle:*'
 ```
 
-**Verify — it reached the feed:**
+**Verify (it reached the feed):**
 ```bash
 curl -sS https://rt.gtfs.zone/rt/vehicle-positions.pb | wc -c
 ```
@@ -165,7 +165,7 @@ kubectl logs -n gtfs -l app=vehicle-poser --tail=30
 
 ---
 
-## 7. Celery — static GTFS loading
+## 7. Celery: static GTFS loading
 
 ```bash
 kubectl logs -n gtfs -l app=celery-beat --tail=20
@@ -185,8 +185,8 @@ kubectl exec -n gtfs postgres-1 -c postgres -- \
 ## 8. Uptime Kuma status page
 
 `https://status.gtfs.zone/` currently redirects to the private `/dashboard`,
-because no public status page exists yet. This matches the old stack's behaviour
-— the `tf-monitors/` root that used to configure monitors via API was deleted in
+because no public status page exists yet. This matches the old stack's behaviour:
+the `tf-monitors/` root that used to configure monitors via API was deleted in
 the migration and has no replacement.
 
 Go to <https://uptime.gtfs.zone> (auth-gated), add monitors, then create a
@@ -209,8 +209,8 @@ kubectl get pods -n gtfs
 ```
 
 All four URLs should return **200**, and every Application and pod should be
-**Synced/Healthy** and **Running** respectively — `infra-longhorn` and `gtfs`
+**Synced/Healthy** and **Running** respectively, `infra-longhorn` and `gtfs`
 included, thanks to the `ignoreDifferences` entries in their Application
 manifests (see CLAUDE.md § Known gaps). If either shows OutOfSync, it means a
 chart/operator upgrade introduced a new self-defaulted field not yet covered by
-those entries — investigate rather than assuming it's cosmetic.
+those entries; investigate rather than assuming it's cosmetic.

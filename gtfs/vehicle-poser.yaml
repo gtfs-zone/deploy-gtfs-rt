@@ -5,10 +5,10 @@
 #   vehicle:{tracker_id}:{deviceId}  → Redis DB1, 60s TTL
 # which is exactly what cafe-car's gtfs_rt.py scans for. Redis stays the seam.
 #
-# Internal only — no IngressRoute. REDIS_URL and DATABASE_URL are read with
+# Internal only, no IngressRoute. REDIS_URL and DATABASE_URL are read with
 # os.environ[...] at *module* scope, so a missing or malformed value crashes the
 # pod at import rather than failing a request; both are set explicitly below.
-# VEHICLE_KEY_PREFIX is deliberately left at its `vehicle` default — the shadow
+# VEHICLE_KEY_PREFIX is deliberately left at its `vehicle` default; the shadow
 # prefix was a dual-run tool and we are not dual-running.
 apiVersion: apps/v1
 kind: Deployment

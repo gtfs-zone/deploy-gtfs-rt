@@ -4,13 +4,13 @@ Why: Dex cannot link accounts. Each connector mints its own opaque `sub` and Dex
 has no notion of one person with two connectors, so signing in with GitHub and
 then with Google produced two unrelated accounts with separate feeds. Keycloak
 brokers GitHub / Google / GitLab behind one realm user, and its stock
-*first broker login* flow is already the "an account with this email exists —
+*first broker login* flow is already the "an account with this email exists,
 link it?" prompt.
 
 Two things move in the same cutover, because both are Dex clients today:
 
 - **oauth2-proxy** (the admin app's ForwardAuth)
-- **Traccar**, which is *not* behind oauth2-proxy — it does its own OIDC login.
+- **Traccar**, which is *not* behind oauth2-proxy: it does its own OIDC login.
   Miss it and its console login breaks silently while the pod stays healthy.
 
 Dex keeps running on `dex.gtfs.zone` for one release with nothing pointed at it,
@@ -23,7 +23,7 @@ so the rollback is a revert rather than a redeploy.
 - `KEYCLOAK_ADMIN_PASSWORD` in `gtfs-app-secrets` is the master-realm bootstrap
   admin. The remap script in step 5 needs it.
 - Realm import is **create-only**. Once the realm exists, editing
-  `gtfs-realm.json` does nothing — later changes go through the admin console,
+  `gtfs-realm.json` does nothing; later changes go through the admin console,
   or you drop the `keycloak` database and let it re-import.
 
 ## Sequence
@@ -38,7 +38,7 @@ so the rollback is a revert rather than a redeploy.
    curl -s https://id.gtfs.zone/realms/gtfs/.well-known/openid-configuration | jq .issuer
    ```
 
-   The issuer must read `https://id.gtfs.zone/realms/gtfs` exactly — it is baked
+   The issuer must read `https://id.gtfs.zone/realms/gtfs` exactly: it is baked
    into every token, and a mismatch fails validation everywhere at once.
 
    Then log in at `https://id.gtfs.zone/realms/gtfs/account` through each of the
@@ -67,7 +67,7 @@ so the rollback is a revert rather than a redeploy.
    Step 5 rewrites identity rows in place.
 
 5. **Run the remap for real** (`--apply`), then **flush oauth2-proxy's
-   sessions** — every one of them references a Dex token:
+   sessions**: every one of them references a Dex token:
 
    ```bash
    kubectl -n gtfs exec deploy/redis -- redis-cli -n 0 FLUSHDB
@@ -81,7 +81,7 @@ so the rollback is a revert rather than a redeploy.
 
 Revert the commit. Dex, its database and `DEX_*` secrets are all still in place,
 so oauth2-proxy and Traccar go back to it. The one thing that does *not* revert
-is the `identity` table if step 5 has run — restore `rt_api.sql`, or re-run the
+is the `identity` table if step 5 has run: restore `rt_api.sql`, or re-run the
 remap in reverse from the Keycloak subjects.
 
 ## After it has held

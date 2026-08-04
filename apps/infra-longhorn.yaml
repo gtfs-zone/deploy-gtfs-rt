@@ -1,4 +1,4 @@
-## apps/infra-longhorn.yaml — Longhorn replicated storage (default StorageClass).
+## apps/infra-longhorn.yaml: Longhorn replicated storage (default StorageClass).
 ##
 ## Multi-source: the Helm chart from the Longhorn repo, with its values file read
 ## from THIS git repo via the `$values` ref (industry-standard "Helm chart +
