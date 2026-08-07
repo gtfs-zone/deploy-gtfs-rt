@@ -14,6 +14,10 @@ persistence:
 defaultSettings:
   # Match the StorageClass default; new volumes get 1 replica.
   defaultReplicaCount: 1
+  # The node's root partition (/var) is small (~22G) and got exhausted by
+  # replica data, faulting the sole redis replica with no failover. Default
+  # new nodes onto /srv instead, which has far more headroom.
+  defaultDataPath: /srv/longhorn/
 
 # The chart ships a Helm `pre-upgrade` hook Job that ArgoCD maps to a **PreSync**
 # hook. PreSync runs before the chart's own resources exist, so on a first
