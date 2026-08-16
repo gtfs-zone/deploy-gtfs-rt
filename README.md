@@ -16,6 +16,7 @@ The stack is built from these open-source projects:
 |---------|------|
 | [cafe-car](https://git.kcfam.us/gtfs.zone/cafe-car) | Core API, serves GTFS-RT feeds and handles admin |
 | [vehicle-poser](https://git.kcfam.us/gtfs.zone/vehicle-poser) | Receives Traccar position forwards over HTTP → Redis |
+| [trip-updogger](https://git.kcfam.us/gtfs.zone/trip-updogger) | Sweeps live positions against the schedule → trip updates in Redis |
 | [hell-gate-bridge](https://git.kcfam.us/gtfs.zone/hell-gate-bridge) | Polls upstream feeds (Amtrak, Columbia County) → rt-api |
 | [schedule-foamer](https://git.kcfam.us/gtfs.zone/schedule-foamer) | Celery worker + beat scheduler for async static GTFS fetching |
 | [railroad-club](https://git.kcfam.us/gtfs.zone/railroad-club) | Shared SQLAlchemy models and Alembic migrations |
@@ -43,6 +44,7 @@ flowchart LR
     subgraph registry["Container Registry"]
         cc(["**cafe-car**<br>GTFS-RT API + admin"]):::repo
         vp(["**vehicle-poser**<br>Traccar → Redis shim"]):::repo
+        tu(["**trip-updogger**<br>positions → trip updates"]):::repo
         hgb(["**hell-gate-bridge**<br>upstream feed pollers"]):::repo
         sf(["**schedule-foamer**<br>GTFS Static Downloader"]):::repo
     end
@@ -54,7 +56,7 @@ flowchart LR
     rc -->|"models"| vp
     rc -->|"models"| sf
 
-    cc & vp & hgb & sf -->|"container image"| gtfsd
+    cc & vp & tu & hgb & sf -->|"container image"| gtfsd
 
     gtfsd -.-|"mirrors for local dev"| ms
 ```
@@ -71,7 +73,6 @@ flowchart LR
 | `manage.rt.<domain>` | Admin UI (auth-gated) |
 | `auth.<domain>` | oauth2-proxy sign-in |
 | `id.<domain>` | Keycloak OIDC provider (brokers GitHub/Google/GitLab) |
-| `dex.<domain>` | Dex OIDC provider (legacy, nothing points at it; retained one release as the Keycloak rollback) |
 | `traccar.<domain>` | Traccar console; `/osmand` takes phone position reports |
 | `uptime.<domain>` | Uptime Kuma dashboard (auth-gated) |
 | `status.<domain>` | Public status page |
@@ -91,6 +92,7 @@ sequenceDiagram
     participant mgr as cafe-car admin
     participant tc as Traccar
     participant vp as vehicle-poser
+    participant tu as trip-updogger
     participant hgb as hell-gate-bridge
     participant Redis@{ "type": "database" }
     participant postgres@{ "type": "database" }
@@ -107,7 +109,12 @@ sequenceDiagram
     driver->>tc: POST /osmand?id=…&lat=…&lon= (HTTPS)
     tc->>vp: forward.type=json → POST /forward
     vp->>postgres: resolve tracker → trip
-    vp->>Redis: SET vehicle:{tracker}:{device} (60s TTL)
+    vp->>Redis: SET vehicle:{tracker}:{trip} (60s TTL)
+
+    Note over tu,Redis: Delay derivation
+    tu->>Redis: sweep vehicle:*
+    tu->>postgres: load the trip's stop_times
+    tu->>Redis: SET trip_update:{trip_id} (300s TTL)
 
     Note over hgb,pub: Upstream feed polling
     hgb->>hgb: poll Amtrak / Columbia County
@@ -121,19 +128,19 @@ sequenceDiagram
     mgr-->>operator: 201 Created
 
     Note over pub,consumer: Vehicle Positions
-    consumer->>pub: GET /rt/vehicle-positions.pb
+    consumer->>pub: GET /{feed}/vehicle_positions.pb
     pub->>Redis: read vehicle:*
     Redis-->>pub: positions
     pub-->>consumer: VehiclePosition FeedMessage
 
     Note over pub,consumer: Trip Updates
-    consumer->>pub: GET /rt/trip-updates.pb
-    pub->>Redis: read trip delays
+    consumer->>pub: GET /{feed}/trip_updates.pb
+    pub->>Redis: read trip_update:*
     Redis-->>pub: delays
     pub-->>consumer: TripUpdate FeedMessage
 
     Note over pub,consumer: Service Alerts
-    consumer->>pub: GET /rt/service-alerts.pb
+    consumer->>pub: GET /{feed}/service_alerts.pb
     pub->>postgres: SELECT service_alerts
     postgres-->>pub: alerts
     pub-->>consumer: Alert FeedMessage
@@ -175,10 +182,35 @@ All models defined in [railroad-club](https://git.kcfam.us/gtfs.zone/railroad-cl
 erDiagram
     USER {
         int id PK
+        string primary_email
+        string display_name
+        datetime created_at
+    }
+    IDENTITY {
+        int id PK
+        int user_id FK
         string provider
         string provider_subject
         string email
-        string display_name
+        boolean email_verified
+        datetime linked_at
+        datetime last_seen_at
+    }
+    FEED_MEMBER {
+        int id PK
+        int feed_id FK
+        int user_id FK
+        int added_by_user_id FK
+        datetime created_at
+    }
+    FEED_INVITE {
+        int id PK
+        int feed_id FK
+        string email
+        int invited_by_user_id FK
+        int claimed_user_id FK
+        datetime claimed_at
+        datetime created_at
     }
     FEED {
         int id PK
@@ -279,7 +311,11 @@ erDiagram
         int stop_sequence
     }
 
+    USER ||--o{ IDENTITY : "signs in through"
     USER ||--o{ FEED : owns
+    USER ||--o{ FEED_MEMBER : "is shared into"
+    FEED ||--o{ FEED_MEMBER : "shared with"
+    FEED ||--o{ FEED_INVITE : "pending invite"
     FEED }o--o| GTFS_STATIC_FEED : "loaded from"
     FEED ||--o{ TRACKER : has
     TRACKER ||--o{ TRACKER_RULE : has
@@ -318,6 +354,7 @@ stateDiagram-v2
 
     state "Workers" as workers {
         vp : vehicle-poser
+        tu : trip-updogger
         hgb : hell-gate-bridge ×2
         sf : schedule-foamer<br>Celery worker + beat
     }
@@ -356,10 +393,11 @@ flowchart LR
     end
 
     subgraph store["State"]
-        redis[("Redis DB1<br>vehicle:{tracker}:{device}<br>60s TTL")]
+        redis[("Redis DB1<br>vehicle:{tracker}:{trip} 60s<br>trip_update:{trip} 300s")]
         pg[("Postgres<br>trackers · trips · alerts")]
     end
 
+    tu["trip-updogger<br>positions → delays"]
     api["cafe-car gtfs-api"]
     consumer(["GTFS-RT consumer"])
 
@@ -367,6 +405,9 @@ flowchart LR
     traccar -->|"forward json"| vp
     vp -->|"resolve tracker → trip"| pg
     vp --> redis
+    redis -->|"sweep vehicle:*"| tu
+    pg -->|"scheduled stop_times"| tu
+    tu -->|"trip_update:*"| redis
     hgb -->|"POST /ingest/* (bearer)"| api
     api --> redis
     api --> pg
@@ -503,8 +544,8 @@ The bare apex is left alone deliberately.
 
 Create an OAuth app with at least one provider. Use
 `https://id.<your-domain>/realms/gtfs/broker/github/endpoint` as the authorization
-callback URL. (Dex used `https://dex.<your-domain>/callback`; that stays valid
-while Dex is retained, and both may be registered at once.)
+callback URL. (Dex is gone; a `https://dex.<your-domain>/callback` entry left over
+from before the cutover can be deleted.)
 
 - **GitHub**: Settings → Developer settings → OAuth Apps → New OAuth App
 - **GitLab**: User Settings → Applications
@@ -546,8 +587,8 @@ Populate at minimum:
 
 Point the hostnames and the target IP at your own domain first: they are
 referenced in `gtfs/ingressroutes.yaml`, `infra/argocd/manifests/ingress.yaml`,
-`infra/cert-manager/manifests/`, `gtfs/keycloak/gtfs-realm.json`,
-`gtfs/dex/config.yaml` and `gtfs/traccar/traccar.xml`.
+`infra/cert-manager/manifests/`, `gtfs/keycloak/gtfs-realm.json` and
+`gtfs/traccar/traccar.xml`.
 
 ```bash
 # 1. install ArgoCD (once, out of band; it is deliberately NOT self-managed)
