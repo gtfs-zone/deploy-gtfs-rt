@@ -70,6 +70,37 @@ spec:
 ---
 # Keycloak, on its own host (id.gtfs.zone). Public by design: this is the
 # login flow itself. Covered by the *.gtfs.zone wildcard in gtfs-zone-tls.
+#
+# Keycloak has no "default realm": it hardcodes `/` -> `/admin/` ->
+# `/admin/master/console/`, which lands every visitor on the console of the
+# built-in server-admin realm, where none of our users have an account. The two
+# redirects below land people in the `gtfs` realm instead. `master` is not
+# deletable and is still reachable at its full URL; it stays break-glass.
+#
+# 302, not 301: a permanent redirect on a bare hostname is cached by browsers
+# indefinitely and is painful to walk back.
+apiVersion: traefik.io/v1alpha1
+kind: Middleware
+metadata:
+  name: keycloak-root-redirect
+  namespace: gtfs
+spec:
+  redirectRegex:
+    regex: ".*"
+    replacement: "https://id.gtfs.zone/realms/gtfs/account/"
+    permanent: false
+---
+apiVersion: traefik.io/v1alpha1
+kind: Middleware
+metadata:
+  name: keycloak-admin-redirect
+  namespace: gtfs
+spec:
+  redirectRegex:
+    regex: ".*"
+    replacement: "https://id.gtfs.zone/admin/gtfs/console/"
+    permanent: false
+---
 apiVersion: traefik.io/v1alpha1
 kind: IngressRoute
 metadata:
@@ -80,8 +111,27 @@ metadata:
 spec:
   entryPoints: [websecure]
   routes:
+    # Explicit priorities: Traefik otherwise ranks by rule length, and these two
+    # must outrank the catch-all Host rule they share a host with.
+    - match: Host(`id.gtfs.zone`) && Path(`/`)
+      kind: Rule
+      priority: 100
+      middlewares:
+        - name: keycloak-root-redirect
+      services:
+        - name: keycloak
+          port: 8080
+    - match: Host(`id.gtfs.zone`) && (Path(`/admin`) || Path(`/admin/`))
+      kind: Rule
+      priority: 100
+      middlewares:
+        - name: keycloak-admin-redirect
+      services:
+        - name: keycloak
+          port: 8080
     - match: Host(`id.gtfs.zone`)
       kind: Rule
+      priority: 10
       services:
         - name: keycloak
           port: 8080
