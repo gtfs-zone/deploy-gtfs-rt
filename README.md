@@ -440,10 +440,23 @@ Keep this running in a separate terminal:
 ssh -N -L 6443:127.0.0.1:6443 kcfam
 ```
 
-Get ArgoCD admin credentials:
+ArgoCD signs in through Keycloak ("Log in via Keycloak"), and authorizes on the
+`argocd-admins` group; `argocd login argocd.gtfs.zone --sso` does the same for
+the CLI. The local `admin` account stays enabled as break-glass, since Keycloak
+depends on the database ArgoCD deploys:
 
 ```bash
 kubectl -n argocd get secret argocd-initial-admin-secret -o jsonpath="{.data.password}" | base64 -d
+```
+
+### Updating ArgoCD itself
+
+ArgoCD is deliberately not self-managed, so `infra/argocd/values.yaml` is not
+reconciled by a sync. Apply it by hand, always with `--version`, or the change
+silently becomes an ArgoCD upgrade as well:
+
+```bash
+helm upgrade argocd argo/argo-cd -n argocd --version 10.1.4 -f infra/argocd/values.yaml
 ```
 
 ### Database access
@@ -518,9 +531,13 @@ Populate at minimum:
 
 - `infra/secrets/`: Porkbun API key/secret, once per consuming namespace
   (`cert-manager` uses `PORKBUN_API_KEY`/`PORKBUN_SECRET_API_KEY`,
-  `external-dns` uses `API_KEY`/`API_SECRET`).
+  `external-dns` uses `API_KEY`/`API_SECRET`), plus `argocd-oidc.enc.yaml`
+  (`clientSecret`), which argocd-server reads for Keycloak SSO. It must equal
+  `KEYCLOAK_ARGOCD_CLIENT_SECRET` in `gtfs-app-secrets`, and must exist before
+  ArgoCD starts with `oidc.config` set.
 - `gtfs/secrets/gtfs-app-secrets.enc.yaml`: session key, oauth2-proxy cookie
-  secret, Keycloak↔oauth2-proxy and Keycloak↔Traccar client secrets, the
+  secret, the Keycloak↔oauth2-proxy, ↔Traccar, ↔cafe-car and ↔ArgoCD client
+  secrets (`KEYCLOAK_*_CLIENT_SECRET`), the
   Keycloak bootstrap admin password, OAuth connector credentials,
   `INGEST_API_TOKEN`, and the `TRACCAR_ADMIN_*` pair.
 - `gtfs/secrets/postgres-*.enc.yaml`: CNPG role passwords.
@@ -534,7 +551,8 @@ referenced in `gtfs/ingressroutes.yaml`, `infra/argocd/manifests/ingress.yaml`,
 
 ```bash
 # 1. install ArgoCD (once, out of band; it is deliberately NOT self-managed)
-helm install argocd argo/argo-cd -n argocd --create-namespace -f infra/argocd/values.yaml
+helm install argocd argo/argo-cd -n argocd --create-namespace --version 10.1.4 \
+  -f infra/argocd/values.yaml
 
 # 2. give it the age key so it can decrypt secrets
 kubectl -n argocd create secret generic sops-age --from-file=keys.txt=age.key
@@ -545,6 +563,12 @@ kubectl apply -f apps/root.yaml
 
 Watch it converge with `kubectl get app -n argocd`. Sync waves bring things up in
 order: storage/database operators → edge and DNS → issuers and secrets → the app.
+
+On a cold bootstrap, ArgoCD's `oidc.config` references the `argocd-oidc` Secret
+that step 3 is what creates, so the Keycloak login button does not work until
+`infra-secrets` (wave 2) has synced. Use the local `admin` account until then;
+the `argocd-admins` group membership also has to be assigned by hand, since
+group membership is per-user and not part of the realm import.
 
 ## Step 5: First run
 

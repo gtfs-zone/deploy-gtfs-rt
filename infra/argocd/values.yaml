@@ -1,5 +1,12 @@
 ## infra/argocd/values.yaml
-## Helm values for Argo CD (chart argo/argo-cd, appVersion v3.4.5).
+## Helm values for Argo CD (chart argo/argo-cd 10.1.4, appVersion v3.4.5).
+##
+## ArgoCD is NOT self-managed: the release is installed out of band, so changes
+## here need a manual `helm upgrade` (see README "Updating ArgoCD itself").
+## Always pass --version, or the upgrade also bumps ArgoCD.
+##
+## Adds Keycloak SSO (configs.cm.oidc.config) plus group-based RBAC
+## (configs.rbac). The local `admin` account stays enabled as break-glass.
 ##
 ## Adds a **KSOPS** Config Management Plugin (CMP) sidecar to the repo-server so
 ## that SOPS-encrypted Secrets (`*.enc.yaml`, referenced by a ksops kustomize
@@ -16,12 +23,57 @@ global:
   affinity:
     podAntiAffinity: soft
 
+# argocd-server speaks OIDC to Keycloak directly (configs.cm.oidc.config below),
+# so the bundled Dex is an unused auth path. Turn it off rather than leave it.
+dex:
+  enabled: false
+
 configs:
   params:
     # TLS is terminated upstream (home-docker Traefik → k3s Traefik). Run the
     # API/UI server in insecure (HTTP) mode so it sits cleanly behind a proxy.
     # Until the IngressRoute exists (Phase 7) access is via `kubectl port-forward`.
     server.insecure: true
+
+  cm:
+    # ArgoCD builds its OIDC redirect_uri from this, so SSO breaks outright if
+    # it is wrong. It sat at the chart default https://argocd.example.com until
+    # SSO was added.
+    url: https://argocd.gtfs.zone
+
+    # Break-glass, deliberately left on. Keycloak runs in the `gtfs` namespace
+    # against the CNPG cluster this ArgoCD deploys, so an SSO-only ArgoCD has no
+    # way in whenever the `gtfs` app is the thing that is broken. Password:
+    # kubectl -n argocd get secret argocd-initial-admin-secret -o jsonpath="{.data.password}" | base64 -d
+    admin.enabled: true
+
+    # Keycloak realm `gtfs` (gtfs/keycloak/), the same issuer oauth2-proxy and
+    # Traccar use. `groups` is a realm client scope carrying an
+    # oidc-group-membership-mapper; configs.rbac below matches on that claim.
+    #
+    # The client secret comes from the `argocd-oidc` Secret in this namespace
+    # (infra/secrets/argocd-oidc.enc.yaml). The `$name:key` form works because
+    # that Secret is labelled app.kubernetes.io/part-of: argocd.
+    oidc.config: |
+      name: Keycloak
+      issuer: https://id.gtfs.zone/realms/gtfs
+      clientID: argocd
+      clientSecret: $argocd-oidc:clientSecret
+      requestedScopes: ["openid", "profile", "email", "groups"]
+
+  rbac:
+    create: true
+    # Read group membership from the `groups` claim.
+    scopes: '[groups]'
+    # Authenticating is not authorization. All three brokered IdPs are public
+    # sign-up, so anyone can complete the OIDC flow; without this they would
+    # land on whatever the chart's default role happens to be.
+    #
+    # `scopes` and `policy.default` currently match the chart defaults. They are
+    # pinned here so the posture lives in git rather than being inherited.
+    policy.default: ''
+    policy.csv: |
+      g, argocd-admins, role:admin
 
   # Create the ConfigMap `argocd-cmp-cm` holding the KSOPS plugin spec. The
   # sidecar below mounts data key `ksops.yaml` at cmp-server/config/plugin.yaml.
