@@ -74,7 +74,7 @@
     {
       "clientId": "argocd",
       "name": "Argo CD",
-      "description": "argocd.gtfs.zone. ArgoCD speaks OIDC directly (its bundled Dex is disabled) so it gets a real subject and the groups claim its RBAC keys on.",
+      "description": "argocd.gtfs.zone. ArgoCD speaks OIDC directly (its bundled Dex is disabled) so it gets a real subject and the groups claim its RBAC keys on. Do NOT set pkce.code.challenge.method here: it forces a code_challenge on every flow of the client, and argocd-server's browser login is a plain confidential-client code flow that sends none, so sign-in dies with 'Missing parameter: code_challenge_method'.",
       "enabled": true,
       "protocol": "openid-connect",
       "publicClient": false,
@@ -88,9 +88,6 @@
         "http://localhost:8085/auth/callback"
       ],
       "webOrigins": ["https://argocd.gtfs.zone"],
-      "attributes": {
-        "pkce.code.challenge.method": "S256"
-      },
       "defaultClientScopes": [
         "acr",
         "basic",
