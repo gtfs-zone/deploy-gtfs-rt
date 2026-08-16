@@ -49,10 +49,25 @@ tunnel is up**:
 ssh -N -L 6443:127.0.0.1:6443 kcfam
 ```
 
-ArgoCD UI: `https://argocd.gtfs.zone`. Admin password:
+ArgoCD UI: `https://argocd.gtfs.zone`, via **Log in via Keycloak** (the `argocd`
+client in the `gtfs` realm). Access requires membership in the `argocd-admins`
+Keycloak group; `policy.default` is empty, so a realm account without it can
+sign in and see nothing. CLI: `argocd login argocd.gtfs.zone --sso`.
+
+The local `admin` account is kept enabled as **break-glass**, because Keycloak
+runs in the `gtfs` namespace against the CNPG cluster ArgoCD itself deploys:
+if the `gtfs` app is broken, SSO is down too.
 
 ```bash
 kubectl -n argocd get secret argocd-initial-admin-secret -o jsonpath="{.data.password}" | base64 -d
+```
+
+**ArgoCD is not self-managed.** `infra/argocd/values.yaml` (SSO, RBAC, the KSOPS
+sidecar) is applied by hand, and always with a pinned chart version so the
+change does not also bump ArgoCD:
+
+```bash
+helm upgrade argocd argo/argo-cd -n argocd --version 10.1.4 -f infra/argocd/values.yaml
 ```
 
 ## Working on this repo
