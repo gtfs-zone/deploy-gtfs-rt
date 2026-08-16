@@ -42,17 +42,35 @@ Namespaces: `gtfs`, `argocd`, `cert-manager`, `traefik`, `external-dns`,
 
 ## Cluster access
 
-The kubeconfig points at `127.0.0.1:6443`, so **kubectl only works while an SSH
-tunnel is up**:
+**Run kubectl on the node over SSH.** The `KUBECONFIG` export is required: the
+remote user's `~/.kube/config` is an empty stub. `/etc/rancher/k3s/k3s.yaml` is
+mode 644, so no sudo.
+
+```bash
+ssh kcfam 'export KUBECONFIG=/etc/rancher/k3s/k3s.yaml; kubectl -n argocd get pods'
+```
+
+An SSH tunnel also works, but it has proven flaky under load (it died mid-run
+during a helm upgrade and hung the openapi fetch):
 
 ```bash
 ssh -N -L 6443:127.0.0.1:6443 kcfam
 ```
 
+`helm` is not in the node's default PATH; there is a copy at `~/bin/helm` on
+`kcfam`, put there because running helm on the node beats running it through the
+tunnel.
+
 ArgoCD UI: `https://argocd.gtfs.zone`, via **Log in via Keycloak** (the `argocd`
 client in the `gtfs` realm). Access requires membership in the `argocd-admins`
 Keycloak group; `policy.default` is empty, so a realm account without it can
 sign in and see nothing. CLI: `argocd login argocd.gtfs.zone --sso`.
+
+Keycloak admin console: `https://id.gtfs.zone/admin/gtfs/console`, with a normal
+realm account (GitHub/Google/GitLab brokered) that is in the `keycloak-admins`
+group; that group carries the `realm-management` `realm-admin` client role and
+scopes to the `gtfs` realm only. The master-realm `admin`
+(`KEYCLOAK_ADMIN_PASSWORD` in `gtfs-app-secrets`) stays break-glass.
 
 The local `admin` account is kept enabled as **break-glass**, because Keycloak
 runs in the `gtfs` namespace against the CNPG cluster ArgoCD itself deploys:
@@ -86,6 +104,10 @@ re-read: `kubectl annotate app <name> -n argocd argocd.argoproj.io/refresh=hard 
 PATH="$HOME/.local/bin:$PATH" SOPS_AGE_KEY_FILE=$PWD/age.key \
   kustomize build --enable-alpha-plugins --enable-exec gtfs
 ```
+
+Standalone `kustomize` is not installed on the dev machine; install it for the
+above. `kubectl kustomize --enable-alpha-plugins gtfs` renders everything else
+but silently skips the KSOPS generator, so it does not check secrets.
 
 **Validate Helm value changes by rendering the real chart** rather than reasoning
 about defaults; several chart-default bugs in this stack were only visible in
@@ -223,6 +245,11 @@ Each of these cost real debugging time.
   file provider template the *entire file, comments included*. A template
   expression written in a comment to document syntax gets executed, and the whole
   file is discarded, silently, in Traefik's case.
+- **Keycloak's `pkce.code.challenge.method` is a requirement, not an offer.**
+  Setting it on a client makes Keycloak demand a `code_challenge` on *every*
+  flow of that client. argocd-server's browser login is a confidential-client
+  code flow that sends none, so the whole sign-in failed with `invalid_request:
+  Missing parameter: code_challenge_method`. The argocd client does not set it.
 - **Helm `pre-upgrade` hooks under ArgoCD** become PreSync hooks and run before
   the chart's own ServiceAccount exists. Longhorn ships one; it is disabled via
   `preUpgradeChecker.jobEnabled: false`.

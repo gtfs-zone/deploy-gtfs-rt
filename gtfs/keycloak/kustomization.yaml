@@ -23,6 +23,17 @@
 # also refuses any leftover placeholder, so do not write a dollar-brace sequence
 # anywhere in the realm file.
 #
+# Groups: `argocd-admins` keys ArgoCD's RBAC off the groups claim.
+# `keycloak-admins` carries the realm-management `realm-admin` client role, which
+# is what lets a realm account (i.e. a GitHub/Google/GitLab-brokered login) into
+# the gtfs admin console at /admin/gtfs/console. It only ever grants the gtfs
+# realm; the master-realm `admin` stays the break-glass account.
+#
+# Do NOT put `pkce.code.challenge.method` on the argocd client. Keycloak reads it
+# as "require a code_challenge on every flow", and argocd-server's browser login
+# is a confidential-client code flow that sends none, so sign-in fails with
+# "Missing parameter: code_challenge_method".
+#
 # trustEmail is true on all three brokers, and that is load-bearing: cafe-car
 # matches a person to a pending feed invite, and to an account-link candidate,
 # only on a *verified* address. With trustEmail false, first-broker-login stores
