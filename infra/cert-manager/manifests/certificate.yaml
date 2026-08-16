@@ -5,7 +5,7 @@
 ##
 ## Two SANs, and both are load-bearing:
 ##
-##   *.gtfs.zone     rt · dex · auth · uptime · status · traccar
+##   *.gtfs.zone     rt · id · auth · uptime · status · traccar
 ##   *.rt.gtfs.zone  manage.rt.gtfs.zone
 ##
 ## A DNS wildcard matches exactly ONE label, so `*.gtfs.zone` does NOT cover
