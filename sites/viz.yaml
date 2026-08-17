@@ -1,0 +1,105 @@
+# ── viz.rt.gtfs.zone (test-track) ─────────────────────────────────────────────
+# Same shape as edit.yaml (see it for the rationale on the image workflow, the
+# unprivileged nginx, and why the IngressRoute lives in `gtfs`).
+#
+# TLS: viz.rt.gtfs.zone is two labels deep, so it is covered by the
+# `*.rt.gtfs.zone` SAN on gtfs-zone-tls, not by `*.gtfs.zone`.
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: viz
+  namespace: sites
+  labels:
+    app: viz
+spec:
+  replicas: 1
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxUnavailable: 0
+      maxSurge: 1
+  selector:
+    matchLabels:
+      app: viz
+  template:
+    metadata:
+      labels:
+        app: viz
+    spec:
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 101
+        runAsGroup: 101
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: nginx
+          image: git.kcfam.us/gtfs.zone/test-track
+          ports:
+            - name: http
+              containerPort: 8080
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop: [ALL]
+          volumeMounts:
+            - name: tmp
+              mountPath: /tmp
+            - name: cache
+              mountPath: /var/cache/nginx
+          readinessProbe:
+            httpGet:
+              path: /healthz
+              port: http
+            initialDelaySeconds: 2
+            periodSeconds: 10
+          livenessProbe:
+            httpGet:
+              path: /healthz
+              port: http
+            initialDelaySeconds: 10
+            periodSeconds: 30
+          resources:
+            requests:
+              cpu: 5m
+              memory: 16Mi
+            limits:
+              memory: 64Mi
+      volumes:
+        - name: tmp
+          emptyDir: {}
+        - name: cache
+          emptyDir: {}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: viz
+  namespace: sites
+spec:
+  selector:
+    app: viz
+  ports:
+    - name: http
+      port: 80
+      targetPort: http
+---
+apiVersion: traefik.io/v1alpha1
+kind: IngressRoute
+metadata:
+  name: viz
+  namespace: gtfs
+  annotations:
+    external-dns.alpha.kubernetes.io/target: "73.4.232.254"
+spec:
+  entryPoints: [websecure]
+  routes:
+    - match: Host(`viz.rt.gtfs.zone`)
+      kind: Rule
+      services:
+        - name: viz
+          namespace: sites
+          port: 80
+  tls:
+    secretName: gtfs-zone-tls

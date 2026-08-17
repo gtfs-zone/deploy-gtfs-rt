@@ -58,6 +58,11 @@ jobs:
           kustomize build --enable-alpha-plugins --enable-exec gtfs \
             | tee rendered/gtfs.yaml
 
+      # sites/ holds no encrypted files, so it renders with plain kustomize.
+      - name: Render sites
+        run: |
+          kustomize build sites | tee rendered/sites.yaml
+
       # Schema-check the rendered output plus the raw-manifest trees ArgoCD serves
       # as plain directories. CRDs (IngressRoute, Cluster, Certificate, Application,
       # Middleware, …) have no upstream schema, so missing schemas are ignored;

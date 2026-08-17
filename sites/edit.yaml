@@ -1,0 +1,120 @@
+# ── edit.gtfs.zone (coloring-book) ────────────────────────────────────────────
+# Static site served from an immutable image: CI builds `dist/` into
+# `git.kcfam.us/gtfs.zone/coloring-book` on a `v*` tag, pushes it, then commits
+# the new digest into sites/kustomization.yaml, and ArgoCD rolls it out. There is
+# no shared volume and no in-place file copy: a deploy is an image swap, and a
+# rollback is `kustomize edit set image` back to the previous digest.
+#
+# The image is `nginxinc/nginx-unprivileged` based, so it listens on :8080 as
+# uid 101 and needs no root anywhere in the chain.
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: edit
+  namespace: sites
+  labels:
+    app: edit
+spec:
+  replicas: 1
+  # Bring the new pod up before the old one goes away: with a single replica,
+  # maxUnavailable 0 is what keeps the site answering across a deploy.
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxUnavailable: 0
+      maxSurge: 1
+  selector:
+    matchLabels:
+      app: edit
+  template:
+    metadata:
+      labels:
+        app: edit
+    spec:
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 101
+        runAsGroup: 101
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: nginx
+          image: git.kcfam.us/gtfs.zone/coloring-book
+          ports:
+            - name: http
+              containerPort: 8080
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop: [ALL]
+          # nginx writes its pid to /tmp and its temp paths under
+          # /var/cache/nginx at startup; both must be writable even though the
+          # site content itself is read-only.
+          volumeMounts:
+            - name: tmp
+              mountPath: /tmp
+            - name: cache
+              mountPath: /var/cache/nginx
+          readinessProbe:
+            httpGet:
+              path: /healthz
+              port: http
+            initialDelaySeconds: 2
+            periodSeconds: 10
+          livenessProbe:
+            httpGet:
+              path: /healthz
+              port: http
+            initialDelaySeconds: 10
+            periodSeconds: 30
+          resources:
+            requests:
+              cpu: 5m
+              memory: 16Mi
+            limits:
+              memory: 64Mi
+      volumes:
+        - name: tmp
+          emptyDir: {}
+        - name: cache
+          emptyDir: {}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: edit
+  namespace: sites
+spec:
+  selector:
+    app: edit
+  ports:
+    - name: http
+      port: 80
+      targetPort: http
+---
+# The route lives in `gtfs`, not `sites`: Traefik resolves `tls.secretName` in
+# the IngressRoute's own namespace, and the cert-manager Secrets are there.
+# Pointing at a Service in another namespace is fine — the chart runs with
+# `providers.kubernetesCRD.allowCrossNamespace: true`.
+#
+# edit.gtfs.zone is covered by the `*.gtfs.zone` SAN on gtfs-zone-tls, so this
+# needs no new certificate.
+apiVersion: traefik.io/v1alpha1
+kind: IngressRoute
+metadata:
+  name: edit
+  namespace: gtfs
+  annotations:
+    external-dns.alpha.kubernetes.io/target: "73.4.232.254"
+spec:
+  entryPoints: [websecure]
+  routes:
+    - match: Host(`edit.gtfs.zone`)
+      kind: Rule
+      services:
+        - name: edit
+          namespace: sites
+          port: 80
+  tls:
+    secretName: gtfs-zone-tls

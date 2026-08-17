@@ -1,0 +1,9 @@
+# Namespace for the static sites migrated off the home-docker `static-sites`
+# nginx container. Workloads (Deployment + Service) live here; their
+# IngressRoutes are declared in the same files but land in the `gtfs` namespace,
+# because a Traefik IngressRoute can only reference a TLS Secret in its own
+# namespace and the cert-manager certificates live in `gtfs`.
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: sites

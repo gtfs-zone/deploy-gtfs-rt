@@ -1,0 +1,34 @@
+## apps/sites.yaml: the static sites (gtfs.zone, edit.gtfs.zone,
+## viz.rt.gtfs.zone), migrated off the home-docker `static-sites` container.
+##
+## Wave 3, same as the gtfs stack: it needs Traefik's IngressRoute CRD (wave 1)
+## and the cert-manager Certificates (wave 2), and its IngressRoutes land in the
+## `gtfs` namespace, which the gtfs Application also creates.
+##
+## Plain Kustomize source (no ksops plugin): this tree holds no encrypted files.
+## Images are public in the Forgejo registry, so no imagePullSecret is needed.
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: sites
+  namespace: argocd
+  annotations:
+    argocd.argoproj.io/sync-wave: "3"
+  finalizers:
+    - resources-finalizer.argocd.argoproj.io
+spec:
+  project: default
+  source:
+    repoURL: https://git.kcfam.us/gtfs.zone/deploy-gtfs-rt.git
+    targetRevision: main
+    path: sites
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: sites
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=true
+      - ServerSideApply=true
