@@ -1,0 +1,43 @@
+## infra/cert-manager/manifests/certificate-apex.yaml
+##
+## Certificate for the bare apex `gtfs.zone`, needed once the landing page moved
+## into the cluster (sites/apex.yaml). A DNS wildcard matches at least one label,
+## so the `*.gtfs.zone` SAN on gtfs-zone-tls does not cover the apex, and the
+## apex cannot simply be added to that Certificate either — see below.
+##
+## THE COLLISION, and why this is a separate Certificate rather than an extra SAN
+## on certificate.yaml:
+##
+##   The apex and `*.gtfs.zone` both validate via a TXT record at the SAME name,
+##   `_acme-challenge.gtfs.zone`. The Porkbun webhook REPLACES that record
+##   instead of appending, so two challenges presented at once overwrite each
+##   other. Inside one Certificate both challenges are presented together and
+##   the wildcard never propagates — that is the failure documented in
+##   certificate.yaml, and it is why the apex was left out at migration time.
+##
+##   Split across two Certificates, the two issuances happen at different times
+##   (they were created days apart and renew 30d before their own expiry), so in
+##   the normal case they never overlap. If they ever do — a full resync, a
+##   deleted Secret — the loser fails its challenge and cert-manager retries with
+##   backoff, which converges once the other one is finished. Slow, not stuck.
+##
+##   The permanent fix is a webhook that appends TXT records; ACME DNS alias mode
+##   (`cnameStrategy: Follow` + a delegated `_acme-challenge` CNAME) does NOT
+##   help here, because the apex and the wildcard would follow the same CNAME to
+##   the same target name and collide exactly as before.
+##
+## Kept out of the `gtfs-zone-tls` Secret deliberately: a separate secretName
+## means a failed apex renewal can never invalidate the wildcard that every other
+## route depends on.
+apiVersion: cert-manager.io/v1
+kind: Certificate
+metadata:
+  name: gtfs-zone-apex-tls
+  namespace: gtfs
+spec:
+  secretName: gtfs-zone-apex-tls
+  dnsNames:
+    - "gtfs.zone"
+  issuerRef:
+    name: letsencrypt-porkbun
+    kind: ClusterIssuer

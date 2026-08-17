@@ -1,0 +1,115 @@
+# ── gtfs.zone (landing-zone) ──────────────────────────────────────────────────
+# Same shape as edit.yaml (see it for the rationale on the image workflow, the
+# unprivileged nginx, and why the IngressRoute lives in `gtfs`).
+#
+# The apex is the one host here that needs its own certificate: a DNS wildcard
+# matches at least one label, so `*.gtfs.zone` does NOT cover the bare apex.
+# infra/cert-manager/manifests/certificate-apex.yaml issues `gtfs-zone-apex-tls`
+# and documents the `_acme-challenge.gtfs.zone` collision it has to live with.
+#
+# Reaching this pod also requires the home-docker Traefik to SNI-passthrough the
+# apex: its passthrough rule matches `^.+\.gtfs\.zone$`, which excludes
+# `gtfs.zone` itself, so a `HostSNI(`gtfs.zone`)` router has to be added there
+# alongside it.
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: apex
+  namespace: sites
+  labels:
+    app: apex
+spec:
+  replicas: 1
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxUnavailable: 0
+      maxSurge: 1
+  selector:
+    matchLabels:
+      app: apex
+  template:
+    metadata:
+      labels:
+        app: apex
+    spec:
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 101
+        runAsGroup: 101
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: nginx
+          image: git.kcfam.us/gtfs.zone/landing-zone
+          ports:
+            - name: http
+              containerPort: 8080
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop: [ALL]
+          volumeMounts:
+            - name: tmp
+              mountPath: /tmp
+            - name: cache
+              mountPath: /var/cache/nginx
+          readinessProbe:
+            httpGet:
+              path: /healthz
+              port: http
+            initialDelaySeconds: 2
+            periodSeconds: 10
+          livenessProbe:
+            httpGet:
+              path: /healthz
+              port: http
+            initialDelaySeconds: 10
+            periodSeconds: 30
+          resources:
+            requests:
+              cpu: 5m
+              memory: 16Mi
+            limits:
+              memory: 64Mi
+      volumes:
+        - name: tmp
+          emptyDir: {}
+        - name: cache
+          emptyDir: {}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: apex
+  namespace: sites
+spec:
+  selector:
+    app: apex
+  ports:
+    - name: http
+      port: 80
+      targetPort: http
+---
+apiVersion: traefik.io/v1alpha1
+kind: IngressRoute
+metadata:
+  name: apex
+  namespace: gtfs
+  annotations:
+    # external-dns owns this A record once the pre-existing manual apex record is
+    # deleted at Porkbun; until then external-dns sees a record it has no TXT
+    # ownership entry for and leaves it alone.
+    external-dns.alpha.kubernetes.io/target: "73.4.232.254"
+spec:
+  entryPoints: [websecure]
+  routes:
+    - match: Host(`gtfs.zone`)
+      kind: Rule
+      services:
+        - name: apex
+          namespace: sites
+          port: 80
+  tls:
+    secretName: gtfs-zone-apex-tls

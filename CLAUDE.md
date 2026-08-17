@@ -34,11 +34,18 @@ sidecar on the argocd-repo-server.
 - `gtfs/`: the application stack (Kustomize): Postgres (CNPG), Redis, Keycloak,
   oauth2-proxy, rt-api, celery, uptime-kuma, Traccar, vehicle-poser,
   hell-gate-bridge, IngressRoutes, and SOPS-encrypted `secrets/*.enc.yaml`.
+- `sites/`: the three static sites (Kustomize, no secrets): `gtfs.zone`
+  (landing-zone), `edit.gtfs.zone` (coloring-book), `viz.rt.gtfs.zone`
+  (test-track). Each is an nginx image built by its own repo's CI and pushed to
+  the Forgejo registry; that CI then runs `kustomize edit set image` here and
+  commits, so `sites/kustomization.yaml` is the deploy record. Rollback = point
+  the image back at an earlier digest. Their IngressRoutes deliberately live in
+  the `gtfs` namespace, where the TLS Secrets are.
 - `.sops.yaml`: age recipient + encryption rules. The private key (`age.key`)
   is gitignored.
 
-Namespaces: `gtfs`, `argocd`, `cert-manager`, `traefik`, `external-dns`,
-`cnpg-system`, `longhorn-system`.
+Namespaces: `gtfs`, `sites`, `argocd`, `cert-manager`, `traefik`,
+`external-dns`, `cnpg-system`, `longhorn-system`.
 
 ## Cluster access
 

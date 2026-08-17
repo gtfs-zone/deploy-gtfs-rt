@@ -1,0 +1,27 @@
+# sites: the three static sites that used to live in home-docker's `static-sites`
+# nginx container (one shared Docker volume, filled by a `cp -r` step in each
+# repo's CI). Each is now an immutable image served by its own Deployment.
+#
+# No secrets in this tree, so no KSOPS: the `sites` ArgoCD Application uses a
+# plain Kustomize source.
+#
+# The `images:` block below is the deploy trigger. Each site's CI, after pushing
+# a new image, runs
+#   kustomize edit set image git.kcfam.us/gtfs.zone/<repo>=<repo>@sha256:<digest>
+# in this directory and commits, so what is deployed is always a digest recorded
+# in git. `newTag` is only the human-readable starting point; once CI has run at
+# least once these entries carry digests.
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+resources:
+  - namespace.yaml
+  - apex.yaml
+  - edit.yaml
+  - viz.yaml
+images:
+  - name: git.kcfam.us/gtfs.zone/coloring-book
+    newTag: v0.26.0
+  - name: git.kcfam.us/gtfs.zone/test-track
+    newTag: v0.6.1
+  - name: git.kcfam.us/gtfs.zone/landing-zone
+    newTag: v0.5.3
