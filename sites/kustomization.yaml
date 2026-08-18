@@ -22,8 +22,9 @@ images:
 - digest: sha256:0244381013c54b6be4712bf3eac24e4e7f0939c391963b427ef8d643912ed133
   name: git.kcfam.us/gtfs.zone/coloring-book
   newName: git.kcfam.us/gtfs.zone/coloring-book
-- name: git.kcfam.us/gtfs.zone/landing-zone
-  newTag: v0.5.3
+- digest: sha256:918147ec19760bf87b954418972084c0b98a3b73e65d9af0d44802e6aa68f844
+  name: git.kcfam.us/gtfs.zone/landing-zone
+  newName: git.kcfam.us/gtfs.zone/landing-zone
 - digest: sha256:913e2a39451b4059e8de67f1a9677781889c92e8cbfa2c4cbb9fafbf7a9d148c
   name: git.kcfam.us/gtfs.zone/test-track
   newName: git.kcfam.us/gtfs.zone/test-track
