@@ -14,14 +14,15 @@
 apiVersion: kustomize.config.k8s.io/v1beta1
 kind: Kustomization
 resources:
-  - namespace.yaml
-  - apex.yaml
-  - edit.yaml
-  - viz.yaml
+- namespace.yaml
+- apex.yaml
+- edit.yaml
+- viz.yaml
 images:
-  - name: git.kcfam.us/gtfs.zone/coloring-book
-    newTag: v0.26.0
-  - name: git.kcfam.us/gtfs.zone/test-track
-    newTag: v0.6.1
-  - name: git.kcfam.us/gtfs.zone/landing-zone
-    newTag: v0.5.3
+- digest: sha256:0244381013c54b6be4712bf3eac24e4e7f0939c391963b427ef8d643912ed133
+  name: git.kcfam.us/gtfs.zone/coloring-book
+  newName: git.kcfam.us/gtfs.zone/coloring-book
+- name: git.kcfam.us/gtfs.zone/landing-zone
+  newTag: v0.5.3
+- name: git.kcfam.us/gtfs.zone/test-track
+  newTag: v0.6.1
