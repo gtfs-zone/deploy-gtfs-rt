@@ -59,8 +59,14 @@ spec:
               value: https://id.gtfs.zone/realms/gtfs
             - name: OAUTH2_PROXY_OIDC_JWKS_URL
               value: http://keycloak:8080/realms/gtfs/protocol/openid-connect/certs
+            # `groups` puts the Keycloak group claim in the access token, which
+            # reaches cafe-car as X-Auth-Request-Access-Token; that is how it
+            # decides who is a gtfs-admins admin. Deliberately NO
+            # OAUTH2_PROXY_ALLOWED_GROUPS: manage.rt and uptime stay open to
+            # every realm account, and only cafe-car's own scoping narrows what
+            # they see. Admin-only gating for Traccar lives in Traccar, not here.
             - name: OAUTH2_PROXY_SCOPE
-              value: openid email profile
+              value: openid email profile groups
             # X-Auth-Request-User carries this claim, and it is what cafe-car
             # keys an Identity on. It MUST be `sub`, the stable Keycloak UUID.
             # Dev previously used `name`, which is mutable and not unique across
