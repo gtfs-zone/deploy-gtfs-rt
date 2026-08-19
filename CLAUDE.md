@@ -194,7 +194,7 @@ positions and an **empty `trip_updates.pb`**.
 | Storage | Longhorn (default StorageClass, 1 replica) |
 | Database | CloudNativePG `Cluster` `postgres` → `rt_api`, `keycloak`, `traccar` databases |
 | Cache | Redis (DB 0 oauth2-proxy · 1 rt-api+poser · 3 celery broker · 4 celery result) |
-| Auth | Keycloak (OIDC, `id.gtfs.zone`, brokers GitHub/Google/GitLab) + oauth2-proxy (ForwardAuth via two Middlewares). Traccar is a separate Keycloak client with its own login, see `gtfs/keycloak/CUTOVER.md` |
+| Auth | Keycloak (OIDC, `id.gtfs.zone`, brokers GitHub/Google/GitLab) + oauth2-proxy (ForwardAuth via two Middlewares). Traccar is a separate Keycloak client with its own login, gated on the `gtfs-admins` group, see `gtfs/keycloak/CUTOVER.md` |
 | Application | rt-api (`gtfs-api` :8000 public, `gtfs-manager` :8001 protected), celery worker + beat |
 | Ingest | Traccar, vehicle-poser, trip-updogger, hell-gate-bridge ×2 |
 | Monitoring | Uptime Kuma |
@@ -257,6 +257,12 @@ Each of these cost real debugging time.
   flow of that client. argocd-server's browser login is a confidential-client
   code flow that sends none, so the whole sign-in failed with `invalid_request:
   Missing parameter: code_challenge_method`. The argocd client does not set it.
+- **Keycloak realm import is create-only.** `gtfs/keycloak/gtfs-realm.json` is
+  applied when the realm does not exist and never again, so editing it changes
+  nothing on the running Keycloak. Every group, client scope and client change
+  has to be made a second time by hand (admin console, or `kcadm.sh` inside the
+  pod) and the file kept in sync for the next fresh realm. Nothing detects the
+  drift.
 - **Helm `pre-upgrade` hooks under ArgoCD** become PreSync hooks and run before
   the chart's own ServiceAccount exists. Longhorn ships one; it is disabled via
   `preUpgradeChecker.jobEnabled: false`.
@@ -306,7 +312,9 @@ Each of these cost real debugging time.
   OutOfSync again on a *new* field after a chart/operator upgrade, diff
   `helm template`/`kubectl get -o yaml` output against the live object to find
   the newly-defaulted path and add it to the same list.
-- Traccar scopes device visibility per user, so an OIDC-provisioned manager sees
-  no devices until they are shared (`POST /api/permissions`).
+- Traccar scopes device visibility per user, but `openid.adminGroup` makes every
+  OIDC login an administrator, so nobody who can log in at all needs the per-user
+  `POST /api/permissions` share any more. It still applies to a user created by
+  hand or by the local password login.
 - No backups yet. CNPG scheduled backups + Longhorn snapshots are the obvious
   next step now that Traccar keeps durable position history.

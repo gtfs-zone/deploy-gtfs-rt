@@ -17,8 +17,10 @@
   Verified in-cluster: with OPENID_CLIENTSECRET the value never reaches Traccar
   and every /api/server call 500s on a null clientSecret.
 
-  NOTE: for OIDC logins to auto-create their Traccar user, "registration" must be
-  enabled in the server settings (a DB-backed flag, not a config key). See Phase 8.
+  NOTE: the server-settings "registration" flag (DB-backed, not a config key)
+  must stay OFF, or the public sign-up form bypasses the OIDC group gate below.
+  openid.allowRegistration is what still lets an allowed OIDC login provision
+  itself.
 -->
 <properties>
     <entry key='database.driver'>org.postgresql.Driver</entry>
@@ -33,6 +35,30 @@
          stays healthy. -->
     <entry key='openid.clientId'>traccar</entry>
     <entry key='openid.issuerUrl'>https://id.gtfs.zone/realms/gtfs</entry>
+
+    <!-- Traccar is admin-only. allowGroup is the gate: a realm account outside
+         gtfs-admins is refused at the callback and never gets a Traccar user at
+         all. adminGroup then makes the ones who pass Traccar administrators, so
+         they see every device without the per-user POST /api/permissions share.
+
+         Both read the `groups` claim (openid.groupsClaimName defaults to it).
+         Keycloak's `groups` client scope maps with full.path=false, so the claim
+         value is the bare name; a leading slash here would match nothing and
+         lock everyone out. The scope is a DEFAULT scope on the traccar client,
+         so it rides along without Traccar asking for it.
+
+         openid.force is deliberately NOT set: the local password login stays as
+         break-glass, and cafe-car's REST API session login (TRACCAR_EMAIL /
+         TRACCAR_PASSWORD) keeps working. allowGroup only gates the OIDC path. -->
+    <entry key='openid.allowGroup'>gtfs-admins</entry>
+    <entry key='openid.adminGroup'>gtfs-admins</entry>
+
+    <!-- Auto-create the Traccar user for an OIDC login that passed allowGroup,
+         even though the server's own "registration" setting is off. That pairing
+         is the point: the public sign-up form is closed, but group members still
+         provision themselves on first login. Turning registration back on in the
+         server settings would reopen the form and undo the gate above. -->
+    <entry key='openid.allowRegistration'>true</entry>
 
     <!-- Forward each position to the vehicle-poser HTTP shim, which resolves the
          tracker's trip via railroad-club and writes the vehicle:{tracker_id}:{deviceId}
