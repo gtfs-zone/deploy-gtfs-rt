@@ -312,9 +312,20 @@ Each of these cost real debugging time.
   OutOfSync again on a *new* field after a chart/operator upgrade, diff
   `helm template`/`kubectl get -o yaml` output against the live object to find
   the newly-defaulted path and add it to the same list.
-- Traccar scopes device visibility per user, but `openid.adminGroup` makes every
-  OIDC login an administrator, so nobody who can log in at all needs the per-user
-  `POST /api/permissions` share any more. It still applies to a user created by
-  hand or by the local password login.
+- **Traccar scopes device visibility per user, and being an administrator does
+  not change that.** `openid.adminGroup` grants the admin console (Users,
+  Settings) but the device list is still driven by the `tc_user_device` join
+  table, so a fresh OIDC admin logs in and sees zero devices until each one is
+  shared with `POST /api/permissions`. Confirmed the hard way: all 7 devices were
+  linked only to `admin@gtfs.zone` (cafe-car's service account), and the first
+  real OIDC admin login saw none of them. The table is many-to-many, so granting
+  a second user does not take access away from the first.
+
+  Mitigated, not closed: every device now belongs to the Traccar group **All
+  Vehicles** (`settings.traccar_device_group`, set by cafe-car's
+  `ensure_device`), so a new admin is one share of that group rather than one
+  share per device. That share is still manual, in the UI or
+  `POST /api/permissions {"userId": N, "groupId": G}`. A device created outside
+  cafe-car, by hand in the Traccar UI, gets no group and stays invisible.
 - No backups yet. CNPG scheduled backups + Longhorn snapshots are the obvious
   next step now that Traccar keeps durable position history.
