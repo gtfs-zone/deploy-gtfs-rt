@@ -4,8 +4,9 @@ One Keycloak group, `gtfs-admins`, is the single source of truth for admin
 across the stack. Traccar is admin-only; cafe-car admins see and edit every feed
 with full owner powers. `manage.rt.gtfs.zone` stays open to every realm account.
 
-Shipped in `cafe-car@cbadf9b`, `music-student@c7e5341`, and the commit that
-carries this file.
+Shipped and live: `cafe-car@cbadf9b`, `music-student@c7e5341`,
+`deploy-gtfs-rt@d7fa288` (the gate) and `@51c61a2` (the `cafe-car:cbadf9b` pin).
+ArgoCD synced `gtfs` to `51c61a2`, Synced/Healthy.
 
 ## Applied by hand to prod Keycloak
 
@@ -13,7 +14,10 @@ Realm import is create-only (see the trap in `CLAUDE.md`), so the
 `gtfs-realm.json` edit does nothing to the running realm. These were applied
 with `kcadm.sh` in the keycloak pod, and are already reflected in the file:
 
-- group `gtfs-admins` created (id `0dba582f-e63e-4aa8-8973-001d36c8f370`)
+- group `gtfs-admins` created (id `0dba582f-e63e-4aa8-8973-001d36c8f370`), with
+  `maxtkc` / maxkatzchristy@gmail.com (id
+  `caedf9ea-6ec2-4b5d-a7e7-8c08a5be926d`) as its only member. `maxtkc@mit.edu`
+  is a separate realm account and is deliberately **not** an admin.
 - `groups` added as a **Default** client scope on the `traccar` client
 - `groups` added as a **Default** client scope on the `oauth2-proxy` client
 
@@ -32,47 +36,45 @@ Traccar users and the sign-up flag are DB state with no config key.
 `maxkatzchristy@gmail.com` is still `administrator = f`; `openid.adminGroup`
 promotes it on the next OIDC login.
 
-## Still to do
+## Verified in prod after the sync
 
-### 1. Put yourself in `gtfs-admins`
+- ArgoCD `gtfs` Synced/Healthy at `51c61a2`; `gtfs-api`, `gtfs-manager`,
+  `keycloak`, `traccar` and `oauth2-proxy` all rolled, `gtfs-migrate` completed.
+- oauth2-proxy crash-looped 3x on OIDC discovery 503 purely because Keycloak was
+  restarting at the same moment, then came up clean. Expected race, not a bug.
+- Redis DB0 (oauth2-proxy sessions) flushed, 3 keys to 0. db1/db3/db4 untouched.
+- Traccar `GET /api/server` 200 with `registration:false`, `openIdEnabled:true`,
+  `openIdForce:false`. Also 200 through the edge at `traccar.gtfs.zone`.
+- Keycloak `generate-example-access-token` for the **traccar** client as
+  `maxtkc` emits `groups: [argocd-admins, gtfs-admins, keycloak-admins]` as bare
+  names, which is what `openid.allowGroup` matches. The same call for
+  `irvashing@gmail.com` emits **no** `groups` claim, so that account is refused
+  at the callback and creates no `tc_users` row.
+- The **oauth2-proxy** client emits the same claim, with `sub` as the UUID, which
+  is what cafe-car keys an Identity on.
+- Ingest untouched: Traccar `:5055/osmand` answers 400 for an unknown device id,
+  not 401/403.
+- `rt.gtfs.zone/health` and `/docs` 200; `manage.rt.gtfs.zone` 401 with the
+  sign-in body, which is correct per `CLAUDE.md`.
 
-**Blocking.** The group has no members. With `openid.allowGroup` live and an
-empty group, every OIDC login to Traccar is refused (the local `admin` password
-login and the master-realm admin still work, which is why `openid.force` is
-deliberately unset).
+## Still to do: browser only
 
-```bash
-ssh kcfam 'export KUBECONFIG=/etc/rancher/k3s/k3s.yaml; kubectl -n gtfs exec \
-  pod/keycloak-7674cb94f9-rxdtc -c keycloak -- /opt/keycloak/bin/kcadm.sh update \
-  users/caedf9ea-6ec2-4b5d-a7e7-8c08a5be926d/groups/0dba582f-e63e-4aa8-8973-001d36c8f370 \
-  -r gtfs -n'
-```
+The token evaluation above proves both halves separately. The real OIDC redirect
+round trip has still never been walked end to end, in prod or in dev.
 
-`caedf9ea…` is `maxtkc` / maxkatzchristy@gmail.com. `maxtkc@mit.edu` is a
-separate realm account and is **not** an admin; add it too if you want it.
-
-### 2. Flush oauth2-proxy sessions after the sync
-
-Existing sessions carry a token minted before the `groups` scope existed.
-
-```bash
-ssh kcfam 'export KUBECONFIG=/etc/rancher/k3s/k3s.yaml; kubectl -n gtfs exec deploy/redis -- redis-cli -n 0 FLUSHDB'
-```
-
-### 3. Verify in prod
-
-1. A `gtfs-admins` member logs into `traccar.gtfs.zone` via OpenID and lands as
-   an administrator seeing every device.
-2. A realm account not in the group is refused and creates no `tc_users` row.
-3. `GET /api/server` returns 200. This is the canary: a mistyped
-   `OPENID_CLIENT_SECRET` 500s here while the pod stays healthy.
-4. The same non-admin still works normally at `manage.rt.gtfs.zone`.
-5. Driver phones still post to `/osmand`, which is untouched and unauthenticated
-   by design.
-6. The "Transfer ownership to" control renders in the cafe-car members panel for
-   an admin who is not the owner. Never eyeballed in a browser; the banner and
-   the 200 say the controls are reachable, and the select may simply render
-   empty when there is nobody to transfer to.
+1. Log into `traccar.gtfs.zone` via OpenID as a `gtfs-admins` member and confirm
+   you land as an administrator seeing every device. On that first login
+   `openid.adminGroup` should flip `tc_users.administrator` to `t` for
+   maxkatzchristy@gmail.com, which is still `f`:
+   ```bash
+   ssh kcfam 'export KUBECONFIG=/etc/rancher/k3s/k3s.yaml; kubectl -n gtfs exec postgres-1 -c postgres -- psql -d traccar -c "SELECT id, email, administrator, disabled FROM tc_users ORDER BY id;"'
+   ```
+2. Confirm a realm account outside the group is refused and creates no new row
+   in that same table.
+3. Confirm the "Transfer ownership to" control renders in the cafe-car members
+   panel for an admin who is not the owner. The banner and the 200 say the
+   controls are reachable; the select may simply render empty when there is
+   nobody to transfer to.
 
 ## Deferred
 
@@ -91,3 +93,6 @@ ssh kcfam 'export KUBECONFIG=/etc/rancher/k3s/k3s.yaml; kubectl -n gtfs exec dep
   role split surfaced no incompatibility, but surfacing exactly this was the
   point of the split.
 - **`cafe-car/MBTA_GTFS.zip`** is an untracked stray, left alone.
+- **`keycloak-admins` and `argocd-admins` are now redundant-ish.** All three
+  groups have exactly one member, `maxtkc`. Not a problem, but if a second admin
+  ever appears, decide whether `gtfs-admins` subsumes them.
