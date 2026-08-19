@@ -76,6 +76,29 @@ round trip has still never been walked end to end, in prod or in dev.
    controls are reachable; the select may simply render empty when there is
    nobody to transfer to.
 
+## Device visibility, found during the browser check
+
+The first real OIDC admin login worked (admin console reachable,
+`tc_users.administrator` flipped to `t`) but showed **zero devices**. Being a
+Traccar administrator does not bypass the `tc_user_device` scoping; all 7
+devices were linked only to `admin@gtfs.zone`, cafe-car's service account.
+
+Fixed with a device group rather than per-device shares:
+
+- Traccar group **All Vehicles** (id 1) created; all 7 devices moved into it;
+  the group linked to `maxtkc` (user 2). `admin@gtfs.zone` kept its 7 direct
+  links, so cafe-car's provisioning is undisturbed.
+- `cafe-car@0729883` puts every device it provisions into that group
+  (`settings.traccar_device_group`), so new devices are visible to every admin
+  already linked to the group. Deployed as `deploy-gtfs-rt@20d84ae`.
+
+Still manual: linking the group to each *new* admin, once. A device created by
+hand in the Traccar UI gets no group and stays invisible.
+
+**Not yet verified live:** that a newly provisioned device actually lands in the
+group. Six unit tests cover it against `httpx.MockTransport`; the next real
+tracker provision is the end-to-end proof.
+
 ## Deferred
 
 - **Declarative realm state.** Nothing reconciles `gtfs-realm.json` against the
