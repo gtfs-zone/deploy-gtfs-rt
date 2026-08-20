@@ -197,7 +197,7 @@ positions and an **empty `trip_updates.pb`**.
 | Auth | Keycloak (OIDC, `id.gtfs.zone`, brokers GitHub/Google/GitLab) + oauth2-proxy (ForwardAuth via two Middlewares). Traccar is a separate Keycloak client with its own login, gated on the `gtfs-admins` group, see `gtfs/keycloak/CUTOVER.md` |
 | Application | rt-api (`gtfs-api` :8000 public, `gtfs-manager` :8001 protected), celery worker + beat |
 | Ingest | Traccar, vehicle-poser, trip-updogger, hell-gate-bridge ×2 |
-| Monitoring | Gatus, config-as-code in `gtfs/gatus/config.yaml`, public page at `status.gtfs.zone` |
+| Monitoring | Gatus, config-as-code in `gtfs/gatus/config.yaml`, public page at `status.gtfs.zone`, Telegram alerts |
 
 ### Related repositories
 
@@ -218,11 +218,20 @@ config file and no supported API; it ran for weeks with zero monitors and no
 status page and nothing surfaced it. Adding a check is an edit to
 `gtfs/gatus/config.yaml`, which is hash-suffixed into a ConfigMap so the edit
 rolls the Deployment. Gatus stores history in memory only: no PVC, no database,
-history resets on restart. Validate a config change by running the image against
+history resets on restart.
+
+Alerts go to Telegram, to the same `@kcfam_bot` and chat that home-docker's
+Uptime Kuma uses, so gtfs.zone and kcfam.us page the same place. The token and
+chat id live in `gtfs-app-secrets` (`TELEGRAM_BOT_TOKEN`, `TELEGRAM_CHAT_ID`)
+and reach the config as `${VAR}`, so they never enter the ConfigMap. Note that
+`default-alert` under the provider is a **template, not an opt-out**: an endpoint
+sends nothing unless it also carries its own `alerts: - type: telegram`.
+Verified against v5.36.0. Validate a config change by running the image against
 the file before pushing:
 
 ```bash
-docker run --rm -v $PWD/gtfs/gatus/config.yaml:/config/config.yaml:ro \
+docker run --rm -e TELEGRAM_BOT_TOKEN=1:x -e TELEGRAM_CHAT_ID=1 \
+  -v $PWD/gtfs/gatus/config.yaml:/config/config.yaml:ro \
   twinproduction/gatus:v5.36.0
 ```
 
