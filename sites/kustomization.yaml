@@ -25,6 +25,6 @@ images:
 - digest: sha256:918147ec19760bf87b954418972084c0b98a3b73e65d9af0d44802e6aa68f844
   name: git.kcfam.us/gtfs.zone/landing-zone
   newName: git.kcfam.us/gtfs.zone/landing-zone
-- digest: sha256:913e2a39451b4059e8de67f1a9677781889c92e8cbfa2c4cbb9fafbf7a9d148c
+- digest: sha256:5ea1fa5b3f3586a8d726f5124365c058fe001b0162de92dfa8140e320d2c5b0e
   name: git.kcfam.us/gtfs.zone/test-track
   newName: git.kcfam.us/gtfs.zone/test-track
