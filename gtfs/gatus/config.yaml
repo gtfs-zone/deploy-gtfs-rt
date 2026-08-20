@@ -218,3 +218,14 @@ endpoints:
       - "[BODY] == 73.4.232.254"
     alerts:
       - type: telegram
+
+  - name: Alert delivery test
+    group: Feed
+    url: http://127.0.0.1:9/dead
+    interval: 10s
+    conditions:
+      - "[STATUS] == 200"
+    alerts:
+      - type: telegram
+        failure-threshold: 1
+        success-threshold: 1
