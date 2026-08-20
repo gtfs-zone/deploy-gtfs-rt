@@ -5,6 +5,9 @@
 # and no status page and nothing noticed. Gatus is configured by exactly one YAML
 # file (config.yaml here), which is what makes status.gtfs.zone reconcilable.
 #
+# Alerts go to the same Telegram bot and chat as home-docker's Uptime Kuma, so
+# gtfs.zone and kcfam.us page the same place.
+#
 # Storage is in-memory by design: history resets on restart, there is no PVC and
 # no database. The status page shows the recent window, which is what a public
 # page is for.
@@ -38,6 +41,18 @@ spec:
           env:
             - name: GATUS_CONFIG_PATH
               value: /config/config.yaml
+            # Telegram alerting. config.yaml refers to these as ${VAR}; Gatus
+            # substitutes at load, so the bot token never enters the ConfigMap.
+            - name: TELEGRAM_BOT_TOKEN
+              valueFrom:
+                secretKeyRef:
+                  name: gtfs-app-secrets
+                  key: TELEGRAM_BOT_TOKEN
+            - name: TELEGRAM_CHAT_ID
+              valueFrom:
+                secretKeyRef:
+                  name: gtfs-app-secrets
+                  key: TELEGRAM_CHAT_ID
           volumeMounts:
             - name: config
               mountPath: /config
