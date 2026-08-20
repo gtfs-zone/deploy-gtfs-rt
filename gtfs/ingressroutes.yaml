@@ -7,8 +7,8 @@
 # external-dns creates the matching Porkbun record; this is what retired dns.tf.
 #
 # Auth: the two oauth2 Middlewares (oauth2-proxy.yaml) replace the TF ForwardAuth
-# labels. Public by design: rt (the GTFS-RT feed), status (the Uptime Kuma status
-# page), id + auth (the login flow itself), and both Traccar routes.
+# labels. Public by design: rt (the GTFS-RT feed), status (the Gatus status page),
+# id + auth (the login flow itself), and both Traccar routes.
 #
 # TLS reaches this cluster untouched: home-docker's Traefik does SNI passthrough
 # for *.gtfs.zone, so k3s owns gtfs.zone certificates end to end.
@@ -156,35 +156,9 @@ spec:
   tls:
     secretName: gtfs-zone-tls
 ---
-apiVersion: traefik.io/v1alpha1
-kind: IngressRoute
-metadata:
-  name: uptime
-  namespace: gtfs
-  annotations:
-    external-dns.alpha.kubernetes.io/target: "73.4.232.254"
-spec:
-  entryPoints: [websecure]
-  routes:
-    # Same /oauth2/ ForwardAuth bypass as manage-rt above.
-    - match: Host(`uptime.gtfs.zone`) && PathPrefix(`/oauth2/`)
-      kind: Rule
-      services:
-        - name: oauth2-proxy
-          port: 4180
-    - match: Host(`uptime.gtfs.zone`)
-      kind: Rule
-      middlewares:
-        - name: oauth2-errors
-        - name: oauth2-proxy
-      services:
-        - name: uptime-kuma
-          port: 3001
-  tls:
-    secretName: gtfs-zone-tls
----
-# Same Uptime Kuma instance, intentionally unauthenticated: it serves the public
-# status page here and the protected dashboard at uptime.gtfs.zone.
+# Gatus, intentionally unauthenticated: the status page is the whole UI, and it is
+# public by design. There is no separate dashboard host any more (uptime.gtfs.zone
+# went away with Uptime Kuma); the check set lives in gtfs/gatus/config.yaml.
 apiVersion: traefik.io/v1alpha1
 kind: IngressRoute
 metadata:
@@ -198,8 +172,8 @@ spec:
     - match: Host(`status.gtfs.zone`)
       kind: Rule
       services:
-        - name: uptime-kuma
-          port: 3001
+        - name: gatus
+          port: 8080
   tls:
     secretName: gtfs-zone-tls
 ---

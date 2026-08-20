@@ -32,7 +32,7 @@ sidecar on the argocd-repo-server.
   plus `manifests/` for its Certificate + IngressRoute), and `secrets/`
   (SOPS-encrypted Porkbun creds, one per consuming namespace).
 - `gtfs/`: the application stack (Kustomize): Postgres (CNPG), Redis, Keycloak,
-  oauth2-proxy, rt-api, celery, uptime-kuma, Traccar, vehicle-poser,
+  oauth2-proxy, rt-api, celery, Gatus, Traccar, vehicle-poser,
   hell-gate-bridge, IngressRoutes, and SOPS-encrypted `secrets/*.enc.yaml`.
 - `sites/`: the three static sites (Kustomize, no secrets): `gtfs.zone`
   (landing-zone), `edit.gtfs.zone` (coloring-book), `viz.rt.gtfs.zone`
@@ -141,7 +141,7 @@ Internet :80/:443
                                                    │
    k3s single node ─────────────────────────────────┘
      Traefik (Helm), websecure entrypoint on host :8443 via ServiceLB
-       └─ IngressRoute: rt · manage.rt · id · auth · uptime · status · traccar
+       └─ IngressRoute: rt · manage.rt · id · auth · status · traccar
           (+ argocd, in the argocd namespace)
      cert-manager (Porkbun DNS-01) · external-dns · Longhorn · CNPG · ArgoCD
 ```
@@ -197,7 +197,7 @@ positions and an **empty `trip_updates.pb`**.
 | Auth | Keycloak (OIDC, `id.gtfs.zone`, brokers GitHub/Google/GitLab) + oauth2-proxy (ForwardAuth via two Middlewares). Traccar is a separate Keycloak client with its own login, gated on the `gtfs-admins` group, see `gtfs/keycloak/CUTOVER.md` |
 | Application | rt-api (`gtfs-api` :8000 public, `gtfs-manager` :8001 protected), celery worker + beat |
 | Ingest | Traccar, vehicle-poser, trip-updogger, hell-gate-bridge ×2 |
-| Monitoring | Uptime Kuma |
+| Monitoring | Gatus, config-as-code in `gtfs/gatus/config.yaml`, public page at `status.gtfs.zone` |
 
 ### Related repositories
 
@@ -211,6 +211,26 @@ positions and an **empty `trip_updates.pb`**.
 - **[landing-zone](https://git.kcfam.us/gtfs.zone/landing-zone)**: static homepage at the apex
 
 ## Patterns worth knowing
+
+**Monitoring is declarative.** Uptime Kuma was replaced by Gatus because Kuma
+keeps monitors, notifications and status pages only in a SQLite file, with no
+config file and no supported API; it ran for weeks with zero monitors and no
+status page and nothing surfaced it. Adding a check is an edit to
+`gtfs/gatus/config.yaml`, which is hash-suffixed into a ConfigMap so the edit
+rolls the Deployment. Gatus stores history in memory only: no PVC, no database,
+history resets on restart. Validate a config change by running the image against
+the file before pushing:
+
+```bash
+docker run --rm -v $PWD/gtfs/gatus/config.yaml:/config/config.yaml:ro \
+  twinproduction/gatus:v5.36.0
+```
+
+The in-cluster checks (Postgres, Redis, vehicle-poser, the osmand port) fail
+under that local run, by design; the public ones are real. Public hostnames are
+checked by their real URL, not Service DNS, so a check exercises DNS, the edge
+passthrough and the cert; hairpin NAT back to `73.4.232.254` works from inside
+the cluster.
 
 **Database migrations** run as an ArgoCD **PreSync hook Job**
 (`gtfs/rt-api-migrate.yaml`) using the `railroad-club` migrations, so Alembic
@@ -298,9 +318,6 @@ Each of these cost real debugging time.
 - The `columbia-county` poller crashes every cycle on a `"departed"` string in
   buswhere's `stop_eta` (app bug; written up in `hell-gate-bridge`'s
   `BUSWHERE_DEPARTED_BUG.md`). Amtrak is unaffected.
-- Uptime Kuma's public status page must be created in its UI: `status.gtfs.zone/`
-  redirects to the private `/dashboard` until one exists. The old `tf-monitors/`
-  root that configured this via API was deleted and not replaced.
 - `infra-longhorn`'s CRDs and `gtfs`'s `Cluster/postgres` no longer show spurious
   OutOfSync, see `ignoreDifferences` in `apps/infra-longhorn.yaml` and
   `apps/gtfs.yaml`. Both the Longhorn CRD conversion webhook (self-injected
