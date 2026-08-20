@@ -8,6 +8,23 @@
 storage:
   type: memory
 
+# Telegram, the same bot and chat that home-docker's Uptime Kuma alerts to
+# (kcfam status page). Both values come from the gtfs-app-secrets Secret as env;
+# Gatus substitutes ${VAR} at load time.
+#
+# `default-alert` is a template, NOT an opt-out: an endpoint only alerts if it
+# also carries `alerts: - type: telegram`. Verified against v5.36.0; with the
+# template alone and no per-endpoint block, nothing is ever sent.
+alerting:
+  telegram:
+    token: "${TELEGRAM_BOT_TOKEN}"
+    id: "${TELEGRAM_CHAT_ID}"
+    default-alert:
+      enabled: true
+      failure-threshold: 3
+      success-threshold: 2
+      send-on-resolved: true
+
 ui:
   title: gtfs.zone status
   header: gtfs.zone
@@ -25,6 +42,8 @@ endpoints:
       - "[BODY].status == ok"
       # cert-manager renews at 30d; alert well before the edge serves a dead cert.
       - "[CERTIFICATE_EXPIRATION] > 240h"
+    alerts:
+      - type: telegram
 
   - name: Amtrak vehicle positions
     group: Feed
@@ -34,6 +53,11 @@ endpoints:
       - "[STATUS] == 200"
       - "[BODY].header.gtfsRealtimeVersion == 2.0"
       - "len([BODY].entity) > 0"
+    alerts:
+      - type: telegram
+        # An empty feed at 03:00 is plausible, a stalled producer is not.
+        # 30 x 120s means an hour of continuous emptiness before it pages.
+        failure-threshold: 30
 
   - name: Amtrak trip updates
     group: Feed
@@ -43,6 +67,11 @@ endpoints:
       - "[STATUS] == 200"
       # Empty here is the trip-updogger failure mode: positions fine, delays gone.
       - "len([BODY].entity) > 0"
+    alerts:
+      - type: telegram
+        # An empty feed at 03:00 is plausible, a stalled producer is not.
+        # 30 x 120s means an hour of continuous emptiness before it pages.
+        failure-threshold: 30
 
   - name: Feed catalog
     group: Feed
@@ -53,12 +82,17 @@ endpoints:
       - "len([BODY]) > 0"
 
   # ── Sites ───────────────────────────────────────────────────────────────────
+    alerts:
+      - type: telegram
+
   - name: gtfs.zone
     group: Sites
     url: https://gtfs.zone/
     interval: 120s
     conditions:
       - "[STATUS] == 200"
+    alerts:
+      - type: telegram
 
   - name: edit.gtfs.zone
     group: Sites
@@ -67,6 +101,8 @@ endpoints:
     conditions:
       - "[STATUS] == 200"
       - "[CERTIFICATE_EXPIRATION] > 240h"
+    alerts:
+      - type: telegram
 
   - name: viz.rt.gtfs.zone
     group: Sites
@@ -78,6 +114,9 @@ endpoints:
       - "[CERTIFICATE_EXPIRATION] > 240h"
 
   # ── Auth ────────────────────────────────────────────────────────────────────
+    alerts:
+      - type: telegram
+
   - name: Keycloak realm
     group: Auth
     url: https://id.gtfs.zone/realms/gtfs
@@ -85,6 +124,8 @@ endpoints:
     conditions:
       - "[STATUS] == 200"
       - "[BODY].realm == gtfs"
+    alerts:
+      - type: telegram
 
   - name: oauth2-proxy
     group: Auth
@@ -92,6 +133,8 @@ endpoints:
     interval: 60s
     conditions:
       - "[STATUS] == 200"
+    alerts:
+      - type: telegram
 
   - name: Manager (gated)
     group: Auth
@@ -100,6 +143,8 @@ endpoints:
     conditions:
       # 401 is the correct answer: it means ForwardAuth is still enforcing.
       - "[STATUS] == 401"
+    alerts:
+      - type: telegram
 
   - name: ArgoCD
     group: Auth
@@ -109,12 +154,17 @@ endpoints:
       - "[STATUS] == 200"
 
   # ── Ingest ──────────────────────────────────────────────────────────────────
+    alerts:
+      - type: telegram
+
   - name: Traccar console
     group: Ingest
     url: https://traccar.gtfs.zone/api/server
     interval: 60s
     conditions:
       - "[STATUS] == 200"
+    alerts:
+      - type: telegram
 
   - name: Traccar osmand port
     group: Ingest
@@ -122,6 +172,8 @@ endpoints:
     interval: 60s
     conditions:
       - "[CONNECTED] == true"
+    alerts:
+      - type: telegram
 
   - name: vehicle-poser
     group: Ingest
@@ -131,12 +183,17 @@ endpoints:
       - "[STATUS] == 200"
 
   # ── Data ────────────────────────────────────────────────────────────────────
+    alerts:
+      - type: telegram
+
   - name: Postgres
     group: Data
     url: tcp://postgres-rw.gtfs.svc.cluster.local:5432
     interval: 60s
     conditions:
       - "[CONNECTED] == true"
+    alerts:
+      - type: telegram
 
   - name: Redis
     group: Data
@@ -146,6 +203,9 @@ endpoints:
       - "[CONNECTED] == true"
 
   # ── DNS ─────────────────────────────────────────────────────────────────────
+    alerts:
+      - type: telegram
+
   - name: Porkbun record for rt.gtfs.zone
     group: DNS
     url: 1.1.1.1
@@ -156,3 +216,5 @@ endpoints:
     conditions:
       - "[DNS_RCODE] == NOERROR"
       - "[BODY] == 73.4.232.254"
+    alerts:
+      - type: telegram
