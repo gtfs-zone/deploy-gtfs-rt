@@ -1,0 +1,158 @@
+# Gatus check set. This file IS the monitoring config: it is hash-suffixed into a
+# ConfigMap, so editing it rolls the Deployment and the status page follows git.
+#
+# Public hostnames are checked by their real URL, not by Service DNS: the point is
+# to exercise the whole path (Porkbun DNS, home-docker SNI passthrough, k3s
+# Traefik, cert-manager TLS). Hairpin NAT out to 73.4.232.254 and back works from
+# inside the cluster, verified.
+storage:
+  type: memory
+
+ui:
+  title: gtfs.zone status
+  header: gtfs.zone
+  description: Live status of the gtfs.zone GTFS-RT stack.
+  link: https://gtfs.zone
+
+endpoints:
+  # ── Feed ────────────────────────────────────────────────────────────────────
+  - name: GTFS-RT API
+    group: Feed
+    url: https://rt.gtfs.zone/health
+    interval: 60s
+    conditions:
+      - "[STATUS] == 200"
+      - "[BODY].status == ok"
+      # cert-manager renews at 30d; alert well before the edge serves a dead cert.
+      - "[CERTIFICATE_EXPIRATION] > 240h"
+
+  - name: Amtrak vehicle positions
+    group: Feed
+    url: https://rt.gtfs.zone/amtrak/vehicle_positions.json
+    interval: 120s
+    conditions:
+      - "[STATUS] == 200"
+      - "[BODY].header.gtfsRealtimeVersion == 2.0"
+      - "len([BODY].entity) > 0"
+
+  - name: Amtrak trip updates
+    group: Feed
+    url: https://rt.gtfs.zone/amtrak/trip_updates.json
+    interval: 120s
+    conditions:
+      - "[STATUS] == 200"
+      # Empty here is the trip-updogger failure mode: positions fine, delays gone.
+      - "len([BODY].entity) > 0"
+
+  - name: Feed catalog
+    group: Feed
+    url: https://rt.gtfs.zone/feeds
+    interval: 300s
+    conditions:
+      - "[STATUS] == 200"
+      - "len([BODY]) > 0"
+
+  # ── Sites ───────────────────────────────────────────────────────────────────
+  - name: gtfs.zone
+    group: Sites
+    url: https://gtfs.zone/
+    interval: 120s
+    conditions:
+      - "[STATUS] == 200"
+
+  - name: edit.gtfs.zone
+    group: Sites
+    url: https://edit.gtfs.zone/
+    interval: 120s
+    conditions:
+      - "[STATUS] == 200"
+      - "[CERTIFICATE_EXPIRATION] > 240h"
+
+  - name: viz.rt.gtfs.zone
+    group: Sites
+    url: https://viz.rt.gtfs.zone/
+    interval: 120s
+    conditions:
+      - "[STATUS] == 200"
+      # Wildcards match one label, so this host rides the *.rt.gtfs.zone SAN.
+      - "[CERTIFICATE_EXPIRATION] > 240h"
+
+  # ── Auth ────────────────────────────────────────────────────────────────────
+  - name: Keycloak realm
+    group: Auth
+    url: https://id.gtfs.zone/realms/gtfs
+    interval: 60s
+    conditions:
+      - "[STATUS] == 200"
+      - "[BODY].realm == gtfs"
+
+  - name: oauth2-proxy
+    group: Auth
+    url: https://auth.gtfs.zone/ping
+    interval: 60s
+    conditions:
+      - "[STATUS] == 200"
+
+  - name: Manager (gated)
+    group: Auth
+    url: https://manage.rt.gtfs.zone/
+    interval: 120s
+    conditions:
+      # 401 is the correct answer: it means ForwardAuth is still enforcing.
+      - "[STATUS] == 401"
+
+  - name: ArgoCD
+    group: Auth
+    url: https://argocd.gtfs.zone/healthz
+    interval: 120s
+    conditions:
+      - "[STATUS] == 200"
+
+  # ── Ingest ──────────────────────────────────────────────────────────────────
+  - name: Traccar console
+    group: Ingest
+    url: https://traccar.gtfs.zone/api/server
+    interval: 60s
+    conditions:
+      - "[STATUS] == 200"
+
+  - name: Traccar osmand port
+    group: Ingest
+    url: tcp://traccar-osmand.gtfs.svc.cluster.local:5055
+    interval: 60s
+    conditions:
+      - "[CONNECTED] == true"
+
+  - name: vehicle-poser
+    group: Ingest
+    url: http://vehicle-poser.gtfs.svc.cluster.local:8080/health
+    interval: 60s
+    conditions:
+      - "[STATUS] == 200"
+
+  # ── Data ────────────────────────────────────────────────────────────────────
+  - name: Postgres
+    group: Data
+    url: tcp://postgres-rw.gtfs.svc.cluster.local:5432
+    interval: 60s
+    conditions:
+      - "[CONNECTED] == true"
+
+  - name: Redis
+    group: Data
+    url: tcp://redis.gtfs.svc.cluster.local:6379
+    interval: 60s
+    conditions:
+      - "[CONNECTED] == true"
+
+  # ── DNS ─────────────────────────────────────────────────────────────────────
+  - name: Porkbun record for rt.gtfs.zone
+    group: DNS
+    url: 1.1.1.1
+    dns:
+      query-name: rt.gtfs.zone
+      query-type: A
+    interval: 300s
+    conditions:
+      - "[DNS_RCODE] == NOERROR"
+      - "[BODY] == 73.4.232.254"
