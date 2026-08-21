@@ -31,6 +31,9 @@ spec:
               value: redis://redis:6379/3
             - name: CELERY_RESULT_BACKEND
               value: redis://redis:6379/4
+            # Load-status events; cafe-car subscribes on the same db.
+            - name: REDIS_URL
+              value: redis://redis:6379/1
             - name: CELERY_WORKER_CONCURRENCY
               value: "2"
             - name: CELERY_MAX_TASKS_PER_CHILD
@@ -101,6 +104,9 @@ spec:
               value: redis://redis:6379/3
             - name: CELERY_RESULT_BACKEND
               value: redis://redis:6379/4
+            # Load-status events; cafe-car subscribes on the same db.
+            - name: REDIS_URL
+              value: redis://redis:6379/1
             - name: CELERY_WORKER_CONCURRENCY
               value: "2"
             - name: CELERY_MAX_TASKS_PER_CHILD
