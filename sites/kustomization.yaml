@@ -19,7 +19,7 @@ resources:
 - edit.yaml
 - viz.yaml
 images:
-- digest: sha256:c99889050c3961e5ce814da34699ee2c7b5b9f798a9da4d4fbd6923ee7b55ef3
+- digest: sha256:8bf29d3a4b0e14457f7bda2a773579309f25a2fe7a493514121d48e42f5946a2
   name: git.kcfam.us/gtfs.zone/coloring-book
   newName: git.kcfam.us/gtfs.zone/coloring-book
 - digest: sha256:207b00a585912b2151ff47d73fe849b7598ec4f319b4fe960ca9cdbc17e86b2b
