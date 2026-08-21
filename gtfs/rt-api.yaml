@@ -80,6 +80,24 @@ spec:
             # Safe as a wildcard: the CORS middleware allows GET only and sends
             # no credentials, and /ingest/* is POST behind a bearer token, so a
             # cross-origin call to it never gets past preflight.
+            # Object storage for uploaded GTFS zips. garage-init imports this
+            # key and grants it read/write on the bucket.
+            - name: S3_ENDPOINT
+              value: http://garage:3900
+            - name: S3_BUCKET
+              value: gtfs-feeds
+            - name: S3_REGION
+              value: garage
+            - name: S3_ACCESS_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: gtfs-app-secrets
+                  key: S3_ACCESS_KEY
+            - name: S3_SECRET_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: gtfs-app-secrets
+                  key: S3_SECRET_KEY
             - name: CORS_ALLOWED_ORIGINS
               value: '["*"]'
           readinessProbe:
@@ -201,6 +219,24 @@ spec:
                   key: KEYCLOAK_CAFE_CAR_CLIENT_SECRET
             - name: KEYCLOAK_ACCOUNT_URL
               value: https://id.gtfs.zone/realms/gtfs/account
+            # Object storage for uploaded GTFS zips. garage-init imports this
+            # key and grants it read/write on the bucket.
+            - name: S3_ENDPOINT
+              value: http://garage:3900
+            - name: S3_BUCKET
+              value: gtfs-feeds
+            - name: S3_REGION
+              value: garage
+            - name: S3_ACCESS_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: gtfs-app-secrets
+                  key: S3_ACCESS_KEY
+            - name: S3_SECRET_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: gtfs-app-secrets
+                  key: S3_SECRET_KEY
             - name: CORS_ALLOWED_ORIGINS
               value: '["https://manage.rt.gtfs.zone","https://rt.gtfs.zone"]'
 ---
