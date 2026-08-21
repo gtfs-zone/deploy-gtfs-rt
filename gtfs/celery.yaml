@@ -42,6 +42,24 @@ spec:
                   key: password
             - name: DATABASE_URL
               value: postgresql+psycopg2://rt_api:$(POSTGRES_RT_API_PASSWORD)@postgres-rw:5432/rt_api
+            # Object storage for uploaded GTFS zips. garage-init imports this
+            # key and grants it read/write on the bucket.
+            - name: S3_ENDPOINT
+              value: http://garage:3900
+            - name: S3_BUCKET
+              value: gtfs-feeds
+            - name: S3_REGION
+              value: garage
+            - name: S3_ACCESS_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: gtfs-app-secrets
+                  key: S3_ACCESS_KEY
+            - name: S3_SECRET_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: gtfs-app-secrets
+                  key: S3_SECRET_KEY
 ---
 apiVersion: apps/v1
 kind: Deployment
@@ -94,3 +112,21 @@ spec:
                   key: password
             - name: DATABASE_URL
               value: postgresql+psycopg2://rt_api:$(POSTGRES_RT_API_PASSWORD)@postgres-rw:5432/rt_api
+            # Object storage for uploaded GTFS zips. garage-init imports this
+            # key and grants it read/write on the bucket.
+            - name: S3_ENDPOINT
+              value: http://garage:3900
+            - name: S3_BUCKET
+              value: gtfs-feeds
+            - name: S3_REGION
+              value: garage
+            - name: S3_ACCESS_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: gtfs-app-secrets
+                  key: S3_ACCESS_KEY
+            - name: S3_SECRET_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: gtfs-app-secrets
+                  key: S3_SECRET_KEY

@@ -13,6 +13,7 @@ resources:
   - secrets
   - postgres-cluster.yaml
   - redis.yaml
+  - garage.yaml
   - keycloak
   - oauth2-proxy.yaml
   - rt-api.yaml
