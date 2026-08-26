@@ -198,16 +198,18 @@ spec:
             - name: data
               mountPath: /var/lib/garage/data
           readinessProbe:
-            # The admin API answers before a layout exists, which is what
-            # garage-init needs: ready here means reachable, not usable.
-            httpGet:
-              path: /health
+            # A TCP check, not /health: /health 503s until a cluster layout
+            # is applied, and that layout is applied by garage-init, an
+            # ArgoCD PostSync hook that only runs once this StatefulSet is
+            # Healthy. An HTTP check on /health would deadlock the first
+            # bring-up. Ready here means reachable, not usable, which is all
+            # garage-init needs.
+            tcpSocket:
               port: admin
             initialDelaySeconds: 5
             periodSeconds: 10
           livenessProbe:
-            httpGet:
-              path: /health
+            tcpSocket:
               port: admin
             initialDelaySeconds: 30
             periodSeconds: 20
