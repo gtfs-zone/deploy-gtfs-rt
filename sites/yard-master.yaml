@@ -1,0 +1,135 @@
+# ── manage-next.rt.gtfs.zone (yard-master) ────────────────────────────────────
+# Same shape as edit.yaml/viz.yaml for the Deployment and Service (see edit.yaml
+# for the image-workflow rationale, the unprivileged nginx, and why the
+# IngressRoute lives in `gtfs`).
+#
+# The IngressRoute differs from the other sites: yard-master is not a
+# standalone static site, it is the SPA half of the same app cafe-car's
+# `gtfs-manager` serves the JSON API for, same-origin, so `/api/*` here is
+# proxied straight to `gtfs-manager` rather than living in a separate image.
+# Both are behind oauth2-proxy, same as `manage-rt` in ingressroutes.yaml.
+#
+# `manage-next` is temporary: it exists so yard-master can be used for real
+# work side by side with the SQLAdmin app still on `manage.rt.gtfs.zone`. Once
+# the parity review is done, `manage-rt` is repointed at this same shape and
+# this route is retired.
+#
+# TLS: manage-next.rt.gtfs.zone is two labels deep, covered by the
+# `*.rt.gtfs.zone` SAN on gtfs-zone-tls, not `*.gtfs.zone`.
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: yard-master
+  namespace: sites
+  labels:
+    app: yard-master
+spec:
+  replicas: 1
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxUnavailable: 0
+      maxSurge: 1
+  selector:
+    matchLabels:
+      app: yard-master
+  template:
+    metadata:
+      labels:
+        app: yard-master
+    spec:
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 101
+        runAsGroup: 101
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: nginx
+          image: git.kcfam.us/gtfs.zone/yard-master
+          ports:
+            - name: http
+              containerPort: 8080
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop: [ALL]
+          volumeMounts:
+            - name: tmp
+              mountPath: /tmp
+            - name: cache
+              mountPath: /var/cache/nginx
+          readinessProbe:
+            httpGet:
+              path: /healthz
+              port: http
+            initialDelaySeconds: 2
+            periodSeconds: 10
+          livenessProbe:
+            httpGet:
+              path: /healthz
+              port: http
+            initialDelaySeconds: 10
+            periodSeconds: 30
+          resources:
+            requests:
+              cpu: 5m
+              memory: 16Mi
+            limits:
+              memory: 64Mi
+      volumes:
+        - name: tmp
+          emptyDir: {}
+        - name: cache
+          emptyDir: {}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: yard-master
+  namespace: sites
+spec:
+  selector:
+    app: yard-master
+  ports:
+    - name: http
+      port: 80
+      targetPort: http
+---
+apiVersion: traefik.io/v1alpha1
+kind: IngressRoute
+metadata:
+  name: manage-next
+  namespace: gtfs
+  annotations:
+    external-dns.alpha.kubernetes.io/target: "73.4.232.254"
+spec:
+  entryPoints: [websecure]
+  routes:
+    # oauth2-proxy's own endpoints must bypass ForwardAuth, same reason as
+    # manage-rt: otherwise the sign-in page's CSS/JS re-enter the auth chain.
+    - match: Host(`manage-next.rt.gtfs.zone`) && PathPrefix(`/oauth2/`)
+      kind: Rule
+      services:
+        - name: oauth2-proxy
+          port: 4180
+    - match: Host(`manage-next.rt.gtfs.zone`) && PathPrefix(`/api`)
+      kind: Rule
+      middlewares:
+        - name: oauth2-errors
+        - name: oauth2-proxy
+      services:
+        - name: gtfs-manager
+          port: 8001
+    - match: Host(`manage-next.rt.gtfs.zone`)
+      kind: Rule
+      middlewares:
+        - name: oauth2-errors
+        - name: oauth2-proxy
+      services:
+        - name: yard-master
+          namespace: sites
+          port: 80
+  tls:
+    secretName: gtfs-zone-tls

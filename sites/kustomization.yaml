@@ -18,6 +18,7 @@ resources:
 - apex.yaml
 - edit.yaml
 - viz.yaml
+- yard-master.yaml
 images:
 - digest: sha256:8bf29d3a4b0e14457f7bda2a773579309f25a2fe7a493514121d48e42f5946a2
   name: git.kcfam.us/gtfs.zone/coloring-book
