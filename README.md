@@ -378,6 +378,16 @@ stateDiagram-v2
     hgb --> cp : POST /ingest/*
 ```
 
+### Object storage (Garage)
+
+`gtfs/garage.yaml` runs a single-node `dxflrs/garage` StatefulSet, holding the
+GTFS zips uploaded through `manage.rt.gtfs.zone`: cafe-car writes and serves
+them, schedule-foamer reads them to load the schedule. Both talk the S3 API
+rather than Garage's own, so swapping in AWS, R2 or B2 later is a matter of
+changing `S3_ENDPOINT`. A `garage-init` Job (an ArgoCD `PostSync` hook)
+applies the single-node layout, creates the `gtfs-feeds` bucket and imports
+the app-facing access key — Garage refuses every S3 call until that runs.
+
 ### Real-time data pipeline
 
 A position from a driver's phone becoming a GTFS-RT protobuf response.
