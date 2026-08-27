@@ -97,20 +97,32 @@ kind: IngressRoute
 metadata:
   name: apex
   namespace: gtfs
-  annotations:
-    # external-dns owns this A record once the pre-existing manual apex record is
-    # deleted at Porkbun; until then external-dns sees a record it has no TXT
-    # ownership entry for and leaves it alone.
-    external-dns.alpha.kubernetes.io/target: "73.4.232.254"
-    # The Porkbun webhook cannot EDIT an apex record: it derives the record name
-    # by trimming the zone off the FQDN, which leaves "" at the apex, and its
-    # Record.Name is `json:"name,omitempty"`, so `/dns/edit/{domain}/{id}` is
-    # called with no name at all and Porkbun answers 400 EDIT_ERROR. A failed
-    # record fails the whole zone's batch, so anything that provokes an edit of
-    # this record freezes every other name in gtfs.zone too. Creates and deletes
-    # are fine; only edits are lost. TTL is pinned to what Porkbun already
-    # stores so a TTL difference is never one of those provocations.
-    external-dns.alpha.kubernetes.io/ttl: "600"
+  # No `external-dns.alpha.kubernetes.io/target` here, deliberately: gtfs.zone's
+  # own A record is maintained by hand at Porkbun, and this is the annotation
+  # that would hand it to external-dns. Without a target the traefik source
+  # emits no endpoint for this route at all (there is no status fallback for
+  # IngressRoute), so external-dns neither creates nor deletes the apex.
+  #
+  # It is the one record external-dns cannot manage here, for two reasons that
+  # compound:
+  #   - Its ownership TXT would have to be named `a-gtfs.zone`. external-dns
+  #     builds that name by prefixing `a-` to the first label, which at a
+  #     two-label apex lands outside the zone entirely -- `a-gtfs.zone` is a
+  #     different registrable domain, not a name in gtfs.zone. It cannot be
+  #     created at Porkbun, and the webhook's attempt to force it back in wrote
+  #     `a-gtfs.zone.gtfs.zone`, which external-dns never looks for.
+  #   - The Porkbun webhook cannot EDIT an apex record regardless: it derives
+  #     the record name by trimming the zone off the FQDN, leaving "" at the
+  #     apex, and Record.Name is `json:"name,omitempty"`, so `/dns/edit` goes
+  #     out with no name and Porkbun answers 400 EDIT_ERROR.
+  # With the apex missing its marker, external-dns forced that impossible edit
+  # every 60s, and a failed record fails the whole zone's batch. Leaving the
+  # apex alone is what keeps every other name in gtfs.zone reconciling.
+  #
+  # The apex is a fair thing to keep by hand: it is one static A record for the
+  # home IP, it was manually created to begin with, and home-docker already
+  # needs a hand-written `HostSNI(`gtfs.zone`)` rule for it because its
+  # passthrough wildcard `^.+\.gtfs\.zone$` does not match the bare domain.
 spec:
   entryPoints: [websecure]
   routes:
