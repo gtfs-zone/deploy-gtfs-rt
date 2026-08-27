@@ -102,10 +102,14 @@ metadata:
     # deleted at Porkbun; until then external-dns sees a record it has no TXT
     # ownership entry for and leaves it alone.
     external-dns.alpha.kubernetes.io/target: "73.4.232.254"
-    # Pinned to what Porkbun already stores. The webhook only sends `ttl` on an
-    # edit when the endpoint sets one explicitly, and Porkbun's edit endpoint
-    # rejects the call without it -- which is how the apex A record became the
-    # one change that failed and took the whole zone's reconcile down with it.
+    # The Porkbun webhook cannot EDIT an apex record: it derives the record name
+    # by trimming the zone off the FQDN, which leaves "" at the apex, and its
+    # Record.Name is `json:"name,omitempty"`, so `/dns/edit/{domain}/{id}` is
+    # called with no name at all and Porkbun answers 400 EDIT_ERROR. A failed
+    # record fails the whole zone's batch, so anything that provokes an edit of
+    # this record freezes every other name in gtfs.zone too. Creates and deletes
+    # are fine; only edits are lost. TTL is pinned to what Porkbun already
+    # stores so a TTL difference is never one of those provocations.
     external-dns.alpha.kubernetes.io/ttl: "600"
 spec:
   entryPoints: [websecure]
