@@ -16,11 +16,13 @@ provider:
       # zone a second time, so the apex's new-format ownership TXT was written as
       # `a-gtfs.zone.gtfs.zone`. external-dns never sees `a-gtfs.zone`, keeps the
       # registry migration open, and forces an update of the apex A record every
-      # reconcile -- the one edit this webhook cannot make (see sites/apex.yaml),
-      # which fails the whole zone's batch. v0.2.23 fixed the double-domain
-      # naming and v0.3.0 dropped the no-op TXT updates, but neither repairs the
-      # record v0.2.19 already wrote: `a-gtfs.zone.gtfs.zone` has to be renamed
-      # to `a-gtfs.zone` by hand at Porkbun before the zone reconciles again.
+      # reconcile -- the one edit this webhook cannot make (see sites/apex.yaml).
+      # v0.2.19 applied UpdateOld before anything else, so that one failure
+      # aborted the batch and froze the whole zone: no record anywhere in
+      # gtfs.zone was created or pruned for hours. v0.3.0 applies deletes and
+      # creates first, so the same failure now costs only the updates. It does
+      # not repair the record v0.2.19 wrote: `a-gtfs.zone.gtfs.zone` still has
+      # to be renamed to `a-gtfs.zone` by hand at Porkbun to stop the churn.
       tag: v0.3.0
     env:
       - name: API_KEY
