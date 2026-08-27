@@ -69,39 +69,6 @@ spec:
   tls:
     secretName: gtfs-zone-tls
 ---
-# Temporary home for cafe-car's SQLAdmin app while it's retired. Same shape
-# manage-rt had before the yard-master cutover.
-apiVersion: traefik.io/v1alpha1
-kind: IngressRoute
-metadata:
-  name: manage-old
-  namespace: gtfs
-  annotations:
-    external-dns.alpha.kubernetes.io/target: "73.4.232.254"
-spec:
-  entryPoints: [websecure]
-  routes:
-    - match: Host(`manage-old.rt.gtfs.zone`) && PathPrefix(`/oauth2/`)
-      kind: Rule
-      services:
-        - name: oauth2-proxy
-          port: 4180
-    - match: Host(`manage-old.rt.gtfs.zone`) && PathPrefix(`/statics/`)
-      kind: Rule
-      services:
-        - name: gtfs-manager
-          port: 8001
-    - match: Host(`manage-old.rt.gtfs.zone`)
-      kind: Rule
-      middlewares:
-        - name: oauth2-errors
-        - name: oauth2-proxy
-      services:
-        - name: gtfs-manager
-          port: 8001
-  tls:
-    secretName: gtfs-zone-tls
----
 # Keycloak, on its own host (id.gtfs.zone). Public by design: this is the
 # login flow itself. Covered by the *.gtfs.zone wildcard in gtfs-zone-tls.
 #

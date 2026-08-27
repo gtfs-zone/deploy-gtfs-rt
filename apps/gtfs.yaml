@@ -70,3 +70,19 @@ spec:
       jqPathExpressions:
         - .spec.managed.roles[].connectionLimit
         - .spec.managed.roles[].inherit
+    ## garage's StatefulSet permanently drifts because the API server defaults
+    ## five fields into each volumeClaimTemplate on write (apiVersion, kind,
+    ## metadata.creationTimestamp, spec.volumeMode, and a whole status block),
+    ## none of which can be expressed in the applied manifest. Only the defaulted
+    ## leaves are ignored, not the templates themselves, so a storage-size change
+    ## still shows as drift -- though acting on one means recreating the
+    ## StatefulSet, since volumeClaimTemplates are immutable in place.
+    - group: apps
+      kind: StatefulSet
+      name: garage
+      jqPathExpressions:
+        - .spec.volumeClaimTemplates[].apiVersion
+        - .spec.volumeClaimTemplates[].kind
+        - .spec.volumeClaimTemplates[].metadata.creationTimestamp
+        - .spec.volumeClaimTemplates[].spec.volumeMode
+        - .spec.volumeClaimTemplates[].status

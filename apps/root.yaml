@@ -19,7 +19,6 @@ spec:
     # Repo is anonymously readable over HTTPS, so no ArgoCD repo credential is
     # needed. (Switch to an SSH/token creds Secret here if the repo goes private.)
     repoURL: https://git.kcfam.us/gtfs.zone/deploy-gtfs-rt.git
-    # TODO: switch to `main` once the k3s migration is merged.
     targetRevision: main
     path: apps
     directory:
@@ -36,3 +35,12 @@ spec:
       selfHeal: true
     syncOptions:
       - CreateNamespace=true
+  ## ArgoCD adds its own pre-delete finalizers to any Application whose source
+  ## renders PreDelete hooks (infra-longhorn, from the Longhorn chart), so the
+  ## live Application carries finalizers the manifest in apps/ never lists. The
+  ## finalizers we do declare are set on creation and are not what drifts.
+  ignoreDifferences:
+    - group: argoproj.io
+      kind: Application
+      jsonPointers:
+        - /metadata/finalizers

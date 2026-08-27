@@ -7,8 +7,7 @@
 # app cafe-car's `gtfs-manager` serves the JSON API for, same-origin. It is
 # `manage.rt.gtfs.zone` itself now; its IngressRoute lives in
 # `gtfs/ingressroutes.yaml` alongside the rest of that host's routing, not
-# here. The SQLAdmin app it replaced there is at `manage-old.rt.gtfs.zone` in
-# the same file, until it's retired for good.
+# here.
 apiVersion: apps/v1
 kind: Deployment
 metadata:
