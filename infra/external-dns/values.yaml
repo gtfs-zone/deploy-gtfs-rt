@@ -12,7 +12,17 @@ provider:
   webhook:
     image:
       repository: ghcr.io/konnektr-io/external-dns-porkbun-webhook
-      tag: v0.2.19
+      # v0.2.19 built the apex's new-format ownership TXT as
+      # `a-gtfs.zone.gtfs.zone`: it treated external-dns's `a-gtfs.zone` as a
+      # relative label and appended the zone again. external-dns then never saw
+      # `a-gtfs.zone`, so every reconcile planned a forced update of the apex A
+      # record, and the webhook could not resolve an apex record's ID to edit it
+      # (Porkbun 400 EDIT_ERROR). One bad record failed the whole batch, so the
+      # zone stopped reconciling entirely: no record was created or pruned for
+      # hours, the retired uptime.gtfs.zone among them. v0.2.23 fixed the
+      # double-domain naming, v0.3.0 added apex normalization and dropped the
+      # no-op TXT updates that provoked it.
+      tag: v0.3.0
     env:
       - name: API_KEY
         valueFrom:
