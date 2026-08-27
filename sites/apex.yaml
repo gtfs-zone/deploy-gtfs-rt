@@ -102,6 +102,11 @@ metadata:
     # deleted at Porkbun; until then external-dns sees a record it has no TXT
     # ownership entry for and leaves it alone.
     external-dns.alpha.kubernetes.io/target: "73.4.232.254"
+    # Pinned to what Porkbun already stores. The webhook only sends `ttl` on an
+    # edit when the endpoint sets one explicitly, and Porkbun's edit endpoint
+    # rejects the call without it -- which is how the apex A record became the
+    # one change that failed and took the whole zone's reconcile down with it.
+    external-dns.alpha.kubernetes.io/ttl: "600"
 spec:
   entryPoints: [websecure]
   routes:
