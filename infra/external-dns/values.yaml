@@ -87,6 +87,12 @@ extraArgs:
 
 # Full ownership: create AND delete records to match cluster state, tagged with a
 # TXT owner record so external-dns only touches records it created.
-policy: sync
+#
+# TEMPORARY: upsert-only while the apex A record is handed back to manual
+# management. Dropping gtfs.zone out of the desired set makes it owned-but-
+# unwanted, which under `sync` is a delete. upsert-only guarantees the record
+# survives the window. Restore `sync` once its ownership TXTs are gone from
+# Porkbun and it is neither owned nor desired.
+policy: upsert-only
 registry: txt
 txtOwnerId: gtfs-k3s
