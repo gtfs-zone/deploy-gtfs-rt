@@ -88,11 +88,10 @@ extraArgs:
 # Full ownership: create AND delete records to match cluster state, tagged with a
 # TXT owner record so external-dns only touches records it created.
 #
-# TEMPORARY: upsert-only while the apex A record is handed back to manual
-# management. Dropping gtfs.zone out of the desired set makes it owned-but-
-# unwanted, which under `sync` is a delete. upsert-only guarantees the record
-# survives the window. Restore `sync` once its ownership TXTs are gone from
-# Porkbun and it is neither owned nor desired.
-policy: upsert-only
+# gtfs.zone's own apex A record is deliberately outside this: it carries no
+# ownership TXT and no IngressRoute target annotation, so it is neither owned
+# nor desired and `sync` leaves it alone. See sites/apex.yaml for why it cannot
+# be managed here.
+policy: sync
 registry: txt
 txtOwnerId: gtfs-k3s
