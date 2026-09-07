@@ -28,6 +28,7 @@ starts the stopped two again on the next apply, so this is not drift to clean up
 |---|---|
 | 0 reclaim the space | done |
 | 1 recover the k3s cluster | done |
+| 0b prune fallout | immich fixed by hand; the rest needs the apply |
 | 1a tracker id mismatch | done, unrelated to the disk incident |
 | 2 interim backup fixes | code written, unapplied |
 | 3 restic | code written, unapplied; the migration in 3.3 is live work |
@@ -210,6 +211,72 @@ ssh kcfam 'docker run --rm --privileged --pid=host alpine sh -c "
 ```
 
 No multi-GB entries should remain.
+
+---
+
+## Phase 0b: what the prune took with it (found 2026-09-07)
+
+Phase 0's `docker container prune` deleted every **stopped** container, and on this
+host stopped does not mean unwanted. Three groups are routinely stopped and still
+load-bearing: containers offen stopped via `backup.stop` and never restarted because
+the run died on ENOSPC, everything sablier had scaled to zero, and the two backup
+containers that sit `Exited (0)` between runs.
+
+Declared in `tf/` and gone from the host afterwards:
+
+| Container | Why it was stopped | Recovery |
+|---|---|---|
+| `immich_postgres` | `backup.stop`, backup died mid-run | recreated by hand, below |
+| `grampsweb`, `grampsweb_celery`, `grampsweb_redis` | sablier scale-to-zero | `tofu apply` |
+| `openproject_*` (7) | already stopped | `tofu apply` |
+| `penpot-exporter` | already stopped | `tofu apply` |
+
+No data was lost. Every volume carries `prevent_destroy` and `docker volume prune`
+was correctly not run, so all of these recreate against their existing data.
+`alertmanager` and `restic-data` are also missing, but those are Phase 3/4 and have
+never existed.
+
+The prune warning now lives in `home-docker/CLAUDE.md` so it does not have to be
+rediscovered from this runbook.
+
+### immich_postgres, fixed by hand
+
+Immich is the only one of these that a user hits directly, and it was down for five
+hours: `im.kcfam.us` answered 500 and `immich_server` logged
+`getaddrinfo ENOTFOUND immich_postgres` every request. It was recreated to match
+`tf/compute_immich.tf` exactly, reading the password out of the running
+`immich_server` rather than retyping it (`secrets.auto.tfvars` is not on this
+machine):
+
+```bash
+ssh kcfam 'PW=$(docker inspect immich_server --format "{{range .Config.Env}}{{println .}}{{end}}" \
+    | sed -n "s/^DB_PASSWORD=//p")
+  docker run -d --name immich_postgres --restart always --network internal \
+    --shm-size 134217728 --label backup.stop=true \
+    -e POSTGRES_DB=immich -e POSTGRES_USER=immich -e POSTGRES_PASSWORD="$PW" \
+    -v nextcloud_immich_postgres:/var/lib/postgresql/data \
+    ghcr.io/immich-app/postgres:14-vectorchord1.1.1-pgvector0.8.5'
+ssh kcfam 'docker restart immich_server immich_microservices'
+```
+
+Postgres replayed WAL (`database system was not properly shut down; automatic
+recovery in progress`) and came up clean; `im.kcfam.us` and `/api/server/version`
+both 200. The next `tofu apply` will replace this container, since Terraform still
+holds the pruned container's id in state. That is a few seconds of Immich downtime
+and nothing else.
+
+### cadvisor had lost its Docker factory
+
+Found while checking whether anything could have caught the above. Nothing could
+have: cadvisor was up and scraping, but its Docker factory registration had failed
+(`failed to validate Docker info: ... /var/run/docker.sock: context deadline
+exceeded`, a timeout against the daemon during the ENOSPC window) and cadvisor never
+retries it. Without it, no `container_*` series carries a `name` or `image` label, so
+every container-level query and every Grafana container panel silently matched
+nothing.
+
+`docker restart cadvisor` re-registered it; 29 named containers report again. Phase 4
+gains two rules for both halves of this, see below.
 
 ---
 
@@ -630,7 +697,7 @@ three variables in `tf/variables.tf`.
 Both configs were checked against the real binaries, not by eye:
 
 ```
-promtool check rules  -> SUCCESS: 4 rules found
+promtool check rules  -> SUCCESS: 6 rules found
 promtool check config -> SUCCESS (built the actual image, so the Dockerfile COPY is
                          covered too)
 amtool check-config   -> SUCCESS, 1 receiver
@@ -646,7 +713,17 @@ from `alertmanager.yml.tftpl` with `templatefile()`) and its token arrive as `up
 blocks. This is strictly better anyway: the token never enters an image layer, and a
 config change no longer needs an image rebuild. `tf/images.tf` is unchanged.
 
-One rule was added beyond the four planned: `BackupMetricMissing`, an
+Three rules were added beyond the four planned. `CadvisorDockerFactoryDown` and
+`ContainerMissing` came out of Phase 0b: the first fires when no `container_*` series
+carries a `name` label, which is the state cadvisor sat in unnoticed; the second
+fires when a container on an explicit always-on list stops being seen, which is what
+`immich_postgres` did for five hours. `ContainerMissing` is guarded by
+`and on () (count(container_last_seen{name!=""}) > 0)` so a nameless cadvisor pages
+once for itself instead of once per listed container. The expression was checked
+against the live Prometheus, not just `promtool`: with cadvisor healthy it returns
+only the containers that genuinely do not exist.
+
+The third is `BackupMetricMissing`, an
 `absent()` guard. `BackupStale` subtracts from
 `homeserver_backup_last_success_timestamp_seconds`, so if that metric never appears,
 because the textfile collector is miswired or restic has never completed a run, the
@@ -671,6 +748,10 @@ New `~/Documents/home-docker/prometheus/alerts.yml`:
 - `DiskFillingFast`: `predict_linear(node_filesystem_avail_bytes{mountpoint="/srv"}[6h], 4*3600) < 0`
 - `BackupStale`: no new archive in 36h, via the node-exporter textfile collector fed
   by a `POST_COMMANDS_SUCCESS` hook on the restic container
+- `CadvisorDockerFactoryDown`: `absent(container_last_seen{name!=""})` for 15m
+- `ContainerMissing`: a listed always-on container unseen by cadvisor for 10m. The
+  list is the maintained part; it excludes `backup-daily`/`backup-weekly` (they exit
+  0 between runs) and anything sablier scales to zero
 
 `DiskSpaceLow` on `/srv` is the one that would have caught this incident: it is
 `df`-based, so it sees deleted-but-open files that `du` misses.
