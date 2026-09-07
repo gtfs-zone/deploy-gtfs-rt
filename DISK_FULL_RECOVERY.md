@@ -28,7 +28,7 @@ starts the stopped two again on the next apply, so this is not drift to clean up
 |---|---|
 | 0 reclaim the space | done |
 | 1 recover the k3s cluster | done |
-| 1a tracker id mismatch | open, unrelated to the disk incident |
+| 1a tracker id mismatch | done, unrelated to the disk incident |
 | 2 interim backup fixes | code written, unapplied |
 | 3 restic | code written, unapplied; the migration in 3.3 is live work |
 | 4 alerting | code written and validated, unapplied |
@@ -315,10 +315,24 @@ All Longhorn volumes `healthy`, no CrashLoopBackOff in `gtfs`, and
 **Not caused by the disk incident.** Found while verifying Phase 1. Independent of
 Phases 2-4 and can be done in any order.
 
+**Done 2026-09-07.** Both `INGEST_VEHICLE_ID` values now carry the surrogate
+`Tracker.id`. Within one poll the amtrak feed went to `has_vehicles: true` /
+`has_trip_updates: true`, `vehicle_positions.pb` from 15 bytes to 3375, the alert
+sync from `8 scraped -> 0 synced` to `8 scraped -> 8 synced`, and both Gatus feed
+checks from `success=false` to `success=true`. cafe-car was hardened alongside it
+(see *Hardening* below) so the same misconfiguration cannot be silent again.
+
 Every feed serves a valid but **empty** protobuf, and `/feeds` reports
-`has_vehicles: false` on all six. Ingest is healthy: hell-gate-bridge logs
+`has_vehicles: false` on all six. Ingest looks healthy: hell-gate-bridge logs
 `amtrak: 37 vehicles -> 37 positions, 36 trip-updates published`, cafe-car answers
-every `POST /ingest/*` with 200, and Redis DB1 holds ~73 live keys.
+every `POST /ingest/position` and `/ingest/trip-update` with 200, and Redis DB1
+holds ~73 live keys.
+
+One path was **not** silent, and was missed on the first pass:
+`POST /ingest/alerts` answered **403 Forbidden** every cycle
+(`alerts: 8 scraped -> 0 synced`), because `ingest.py` resolves the tracker there
+and rejects an id it cannot find. The `has_alerts: true` on the amtrak feed was
+stale Postgres rows, not a live sync. Three ingest paths, one cause.
 
 The keys are written under the wrong name. `gtfs/hell-gate-bridge.yaml` sets:
 
@@ -364,13 +378,29 @@ PATH="$HOME/.local/bin:$PATH" SOPS_AGE_KEY_FILE=$PWD/age.key \
 Note the old `vehicle:amtrak-live:*` keys carry a 60s TTL, so they age out on their
 own; no Redis cleanup is needed.
 
-### Close the monitoring gap too
+### Monitoring was not the gap
 
-Gatus checks `rt.gtfs.zone` for liveness only, which is why an empty feed looked
-green for five weeks. Add a check in `gtfs/gatus/config.yaml` that asserts the feed
-is non-empty, e.g. against `https://rt.gtfs.zone/amtrak/vehicle_positions.json` with
-a body condition requiring at least one entity. An empty `FeedMessage` is 15 bytes,
-so even `[BODY_SIZE] > 100` would have caught it.
+Written up here as a gap, but it is not one: `gtfs/gatus/config.yaml` already
+carries `len([BODY].entity) > 0` on both the Amtrak vehicle-positions and
+trip-updates checks, and both were correctly reporting `success=false` when this was
+found. They page on a `failure-threshold: 30`, so an hour of continuous emptiness.
+Nothing to add.
+
+### Hardening
+
+Pinning the right ids fixes today's outage but not the class of bug, so cafe-car
+(`src/cafe_car/routers/ingest.py`) was changed too:
+
+- A `_resolve_tracker` helper looks a tracker up by `Tracker.id` and falls back to
+  `device_key`, the same order `provisioning.upsert_tracker` already used. A
+  producer configured with the readable `device_key` now works instead of writing
+  to a namespace nobody reads.
+- `/ingest/position` resolves before building the record and keys Redis off
+  `tracker.id`, never the value the producer sent.
+- A `tracker_id` that resolves to nothing is still stored and not published, but is
+  now **logged as a warning**. That single line is what was missing for five weeks:
+  every POST answered 200 while the feed served an empty protobuf.
+- `/ingest/alerts` resolves the same way, so a `device_key` no longer 403s.
 
 ### Verify
 
