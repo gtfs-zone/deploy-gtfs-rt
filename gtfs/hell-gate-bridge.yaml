@@ -6,9 +6,16 @@
 #   amtrak    → Amtrak's getTrainsData blob
 #   buswhere  → Columbia County's buswhere API + its published GTFS
 #
-# INGEST_VEHICLE_ID must equal a provisioned Tracker.id in the target feed:
-# cafe-car scans `vehicle:{tracker_id}:*`, so a mismatch is silent (no positions,
-# no error). Provisioned in Phase 8; the values here are the contract.
+# INGEST_VEHICLE_ID must equal a provisioned Tracker.id in the target feed: the
+# opaque uuid4 hex surrogate key, never the human-readable device_key. cafe-car
+# scans `vehicle:{tracker_id}:*` and /ingest/alerts rejects an id it cannot
+# resolve, so a mismatch loses positions and trip updates silently and only
+# alerts 403. Read the current values from the live database, not from memory:
+#
+#   kubectl -n gtfs exec postgres-1 -- \
+#     psql -U postgres -d rt_api -c "select id, device_key, nickname from tracker"
+#
+# Re-provisioning a tracker mints a new id, so these have to be re-read then.
 #
 # Deliberately NO PersistentVolumeClaim on /app/beat. The image creates and chowns
 # that directory for the non-root `bridge` user at build time; mounting a volume
@@ -41,7 +48,8 @@ spec:
             - name: POLL_INTERVAL
               value: "15"
             - name: INGEST_VEHICLE_ID
-              value: amtrak-live
+              # Tracker.id for device_key amtrak-live.
+              value: fbacbb1b6c1cfc37a37342f5db7b1f14
             - name: CAFE_CAR_INGEST_URL
               value: http://gtfs-api:8000
             - name: INGEST_API_TOKEN
@@ -74,7 +82,8 @@ spec:
             - name: SOURCE
               value: buswhere
             - name: INGEST_VEHICLE_ID
-              value: columbia-county
+              # Tracker.id for device_key columbia-county.
+              value: eac865d0127347eccc850b894baa6048
             # The raw.githubusercontent.com host, not github.com/.../raw/, the
             # latter 302s and hell-gate's httpx client does not follow redirects.
             - name: GTFS_URL
