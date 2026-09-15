@@ -29,6 +29,6 @@ images:
 - digest: sha256:8c9ba68392830d52463eeca6417cba8b78067f72c45fd2819feb9e62ee9189ba
   name: git.kcfam.us/gtfs.zone/test-track
   newName: git.kcfam.us/gtfs.zone/test-track
-- digest: sha256:616bd576cc62c6175e2f03dd16866acd09f2602f9860f9712d109787bb838acd
+- digest: sha256:d4542cca3afc766b3016b645f2d51d47d90e89457062566c5b145a9e536b43e9
   name: git.kcfam.us/gtfs.zone/yard-master
   newName: git.kcfam.us/gtfs.zone/yard-master
