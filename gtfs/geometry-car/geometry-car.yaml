@@ -176,6 +176,8 @@ spec:
               command: ["dagster-daemon", "liveness-check"]
             initialDelaySeconds: 60
             periodSeconds: 60
+            # The CLI's own import takes ~3s; the 1s default kills a live daemon.
+            timeoutSeconds: 15
       volumes:
         - name: dagster-config
           configMap:
