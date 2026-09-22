@@ -7,14 +7,18 @@
 #   role+db    rt_api / rt_api     ← bootstrap.initdb (owner role + its database)
 #   role       traccar             ← managed.roles (passwordSecret)
 #   db         traccar (owner ~)   ← Database CR below; Traccar migrates it itself
+#   role+db    geometry_car        ← managed.roles + Database CR below
 #
 # Single instance on Longhorn (start fresh, no data migration). Image pinned to
 # CNPG's Postgres 18.3 build to match the TF `postgres:18.3-alpine`.
 #
 # Sizing note: Traccar has no retention config key and writes every GPS fix to
-# tc_positions forever, so this volume grows with fleet size × fix rate. 10Gi is
-# the starting point; the nightly traccar-retention CronJob (gtfs/traccar/) is
-# what actually bounds it.
+# tc_positions forever, so this volume grows with fleet size × fix rate. The
+# nightly traccar-retention CronJob (gtfs/traccar/) is what actually bounds it.
+# Raised from 10Gi when geometry-car landed: Dagster's event log writes a row
+# per step per daily run over forty thousand sources, on the same volume as
+# tc_positions. There is a DISK_FULL_RECOVERY.md in this repo about what
+# happens when that volume fills.
 apiVersion: postgresql.cnpg.io/v1
 kind: Cluster
 metadata:
@@ -26,7 +30,7 @@ spec:
 
   storage:
     storageClass: longhorn
-    size: 10Gi
+    size: 25Gi
 
   # Expose the `postgres` superuser (password from the SOPS Secret) so admin
   # tasks work as they did against the TF container.
@@ -59,6 +63,14 @@ spec:
         login: true
         passwordSecret:
           name: postgres-keycloak
+      # geometry-car's login role. It owns both its own Alembic tables and
+      # Dagster's run/event-log storage, which Dagster creates for itself on
+      # first connection.
+      - name: geometry_car
+        ensure: present
+        login: true
+        passwordSecret:
+          name: postgres-geometry-car
 ---
 # The traccar database, owned by the managed `traccar` role. Traccar creates and
 # migrates its own tc_* schema inside it on first boot.
@@ -85,3 +97,17 @@ spec:
     name: postgres
   name: keycloak
   owner: keycloak
+---
+# The geometry_car database, holding this repo's check history alongside
+# Dagster's own run, event-log and schedule storage. A Database CR rather than a
+# second bootstrap.initdb: initdb is create-only and already ran.
+apiVersion: postgresql.cnpg.io/v1
+kind: Database
+metadata:
+  name: geometry-car
+  namespace: gtfs
+spec:
+  cluster:
+    name: postgres
+  name: geometry_car
+  owner: geometry_car

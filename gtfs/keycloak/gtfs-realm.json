@@ -22,8 +22,11 @@
       "implicitFlowEnabled": false,
       "directAccessGrantsEnabled": false,
       "serviceAccountsEnabled": false,
-      "redirectUris": ["https://auth.gtfs.zone/oauth2/callback"],
-      "webOrigins": ["https://auth.gtfs.zone"],
+      "redirectUris": [
+        "https://auth.gtfs.zone/oauth2/callback",
+        "https://dagster.gtfs.zone/oauth2/callback"
+      ],
+      "webOrigins": ["https://auth.gtfs.zone", "https://dagster.gtfs.zone"],
       "attributes": {
         "pkce.code.challenge.method": "S256"
       },

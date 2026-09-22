@@ -1,0 +1,43 @@
+# Dagster instance config, read from $DAGSTER_HOME/dagster.yaml by all three
+# processes. Mounted by subPath so the rest of DAGSTER_HOME stays writable; the
+# ConfigMap is hash-suffixed by the generator, so editing this file rolls the
+# pods rather than waiting for a process that never re-reads it.
+#
+# Module paths are the `dagster._core` ones: `dagster.core` was removed and is
+# not an alias, so the old spelling fails at startup with ImportError.
+
+# Runs, events and schedule ticks all in Postgres, so the three pods share one
+# view and nothing is lost when a pod is replaced. DATABASE_URL is the same
+# value the pipeline's own Alembic tables use; Dagster creates its tables in
+# that database itself and they collide with none of this repo's.
+storage:
+  postgres:
+    postgres_url:
+      env: DATABASE_URL
+
+# DefaultRunLauncher, not K8sRunLauncher: on a single node a per-run Pod buys
+# nothing and costs a ServiceAccount and RBAC. The cost is that a run executes
+# as a subprocess inside the code-server pod, so that pod is what has to be
+# sized for a whole run.
+run_launcher:
+  module: dagster._core.launcher
+  class: DefaultRunLauncher
+
+# Queued, so the daemon serialises runs: a daily run that overruns a day would
+# otherwise have a second copy of itself hammering forty thousand origins.
+run_coordinator:
+  module: dagster._core.run_coordinator
+  class: QueuedRunCoordinator
+  config:
+    max_concurrent_runs: 1
+
+# The webserver and the run live in different pods with no shared volume, so a
+# local compute-log manager would write files the UI can never read and show an
+# empty pane with no explanation. Structured events are in Postgres and visible
+# in the UI; raw stdout is in `kubectl logs` on geometry-car-code.
+compute_logs:
+  module: dagster._core.storage.noop_compute_log_manager
+  class: NoOpComputeLogManager
+
+telemetry:
+  enabled: false
