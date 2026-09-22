@@ -13,6 +13,14 @@
 # safe - Alembic tracks applied versions and `instance migrate` is a no-op on an
 # up-to-date schema.
 #
+# The instance config is written here rather than mounted from the
+# geometry-car-dagster ConfigMap, because at PreSync time that ConfigMap does
+# not exist: ArgoCD applies ordinary resources only after the hooks it gated
+# them behind have completed. A hook that mounts one sits in ContainerCreating
+# on FailedMount forever and takes the sync with it. Only the storage block is
+# duplicated, and both copies read the same DATABASE_URL, so they cannot point
+# at different databases.
+#
 # If this Job wedges, ArgoCD's hook-finalizer deadlocks against its own stuck
 # operation. Clear the operation first:
 #   kubectl patch app gtfs -n argocd --type merge -p '{"operation":null}'
@@ -38,7 +46,14 @@ spec:
           image: git.kcfam.us/gtfs.zone/geometry-car:75becfe
           command: ["/bin/sh", "-c"]
           args:
-            - dagster instance migrate && alembic upgrade head
+            - |
+              cat > "$DAGSTER_HOME/dagster.yaml" <<'YAML'
+              storage:
+                postgres:
+                  postgres_url:
+                    env: DATABASE_URL
+              YAML
+              dagster instance migrate && alembic upgrade head
           env:
             - name: DAGSTER_HOME
               value: /app/dagster_home
@@ -49,14 +64,3 @@ spec:
                   key: password
             - name: DATABASE_URL
               value: postgresql://geometry_car:$(POSTGRES_GEOMETRY_CAR_PASSWORD)@postgres-rw:5432/geometry_car
-          volumeMounts:
-            # `instance migrate` reads the storage config out of dagster.yaml,
-            # so this Job needs the same DAGSTER_HOME the workloads get.
-            - name: dagster-config
-              mountPath: /app/dagster_home/dagster.yaml
-              subPath: dagster.yaml
-              readOnly: true
-      volumes:
-        - name: dagster-config
-          configMap:
-            name: geometry-car-dagster
