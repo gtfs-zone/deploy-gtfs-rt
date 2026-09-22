@@ -29,16 +29,17 @@ sidecar on the argocd-repo-server.
   (CloudNativePG operator), `argocd/` (ArgoCD's own Helm values + KSOPS sidecar,
   plus `manifests/` for its Certificate + IngressRoute), and `secrets/`
   (SOPS-encrypted Porkbun creds, one per consuming namespace).
-- `gtfs/`: the application stack (Kustomize): Postgres (CNPG), Redis, Keycloak,
-  oauth2-proxy, rt-api, celery, Gatus, Traccar, vehicle-poser,
+- `gtfs/`: the application stack (Kustomize): Postgres (CNPG), Redis, Garage,
+  Keycloak, oauth2-proxy, rt-api, celery, Gatus, Traccar, vehicle-poser,
   hell-gate-bridge, IngressRoutes, and SOPS-encrypted `secrets/*.enc.yaml`.
-- `sites/`: the three static sites (Kustomize, no secrets): `gtfs.zone`
+- `sites/`: the four static sites (Kustomize, no secrets): `gtfs.zone`
   (landing-zone), `edit.gtfs.zone` (coloring-book), `viz.rt.gtfs.zone`
-  (test-track). Each is an nginx image built by its own repo's CI and pushed to
-  the Forgejo registry; that CI then runs `kustomize edit set image` here and
-  commits, so `sites/kustomization.yaml` is the deploy record. Rollback = point
-  the image back at an earlier digest. Their IngressRoutes deliberately live in
-  the `gtfs` namespace, where the TLS Secrets are.
+  (test-track) and `manage.rt.gtfs.zone` (yard-master). Each is an nginx image
+  built by its own repo's CI and pushed to the Forgejo registry; that CI runs
+  `kustomize edit set image` here and commits, so `sites/kustomization.yaml` is
+  the deploy record. Rollback = point the image back at an earlier digest.
+  Their IngressRoutes deliberately live in the `gtfs` namespace, where the TLS
+  Secrets are.
 - `.sops.yaml`: age recipient + encryption rules. The private key (`age.key`)
   is gitignored.
 
@@ -190,6 +191,7 @@ positions and an **empty `trip_updates.pb`**.
 | Edge | Traefik (Helm), `websecure` on host :8443; `IngressRoute`/`Middleware` CRDs |
 | TLS / DNS | cert-manager + Porkbun DNS-01 webhook; external-dns (Porkbun webhook) |
 | Storage | Longhorn (default StorageClass, 1 replica) |
+| Object storage | Garage (single-node StatefulSet, `gtfs-feeds` bucket, S3 API cluster-internal only; `garage-init` PostSync Job applies the layout, bucket and key) |
 | Database | CloudNativePG `Cluster` `postgres` → `rt_api`, `keycloak`, `traccar` databases |
 | Cache | Redis (DB 0 oauth2-proxy · 1 rt-api+poser · 3 celery broker · 4 celery result) |
 | Auth | Keycloak (OIDC, `id.gtfs.zone`, brokers GitHub/Google/GitLab) + oauth2-proxy (ForwardAuth via two Middlewares). Traccar is a separate Keycloak client with its own login, gated on the `gtfs-admins` group, see `gtfs/keycloak/CUTOVER.md` |
