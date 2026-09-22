@@ -1,0 +1,108 @@
+# ── list.gtfs.zone (globe-of-contents) ────────────────────────────────────────
+# Same shape as edit.yaml (see it for the rationale on the image workflow, the
+# unprivileged nginx, and why the IngressRoute lives in `gtfs`).
+#
+# TLS: list.gtfs.zone is one label deep, so the `*.gtfs.zone` SAN on
+# gtfs-zone-tls covers it.
+#
+# The catalogue data is not in this image: the site fetches it at runtime from
+# data.gtfs.zone (Garage's public bucket, written by geometry-car).
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: list
+  namespace: sites
+  labels:
+    app: list
+spec:
+  replicas: 1
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxUnavailable: 0
+      maxSurge: 1
+  selector:
+    matchLabels:
+      app: list
+  template:
+    metadata:
+      labels:
+        app: list
+    spec:
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 101
+        runAsGroup: 101
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: nginx
+          image: git.kcfam.us/gtfs.zone/globe-of-contents
+          ports:
+            - name: http
+              containerPort: 8080
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop: [ALL]
+          volumeMounts:
+            - name: tmp
+              mountPath: /tmp
+            - name: cache
+              mountPath: /var/cache/nginx
+          readinessProbe:
+            httpGet:
+              path: /healthz
+              port: http
+            initialDelaySeconds: 2
+            periodSeconds: 10
+          livenessProbe:
+            httpGet:
+              path: /healthz
+              port: http
+            initialDelaySeconds: 10
+            periodSeconds: 30
+          resources:
+            requests:
+              cpu: 5m
+              memory: 16Mi
+            limits:
+              memory: 64Mi
+      volumes:
+        - name: tmp
+          emptyDir: {}
+        - name: cache
+          emptyDir: {}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: list
+  namespace: sites
+spec:
+  selector:
+    app: list
+  ports:
+    - name: http
+      port: 80
+      targetPort: http
+---
+apiVersion: traefik.io/v1alpha1
+kind: IngressRoute
+metadata:
+  name: list
+  namespace: gtfs
+  annotations:
+    external-dns.alpha.kubernetes.io/target: "73.4.232.254"
+spec:
+  entryPoints: [websecure]
+  routes:
+    - match: Host(`list.gtfs.zone`)
+      kind: Rule
+      services:
+        - name: list
+          namespace: sites
+          port: 80
+  tls:
+    secretName: gtfs-zone-tls
