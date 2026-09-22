@@ -63,13 +63,15 @@ data:
     CAPACITY="${GARAGE_CAPACITY_BYTES:-40000000000}"
 
     # One line per bucket:
-    #   <bucket> <key name> <access key env> <secret key env> <website>
+    #   <bucket> <key name> <access key env> <secret key env> <website> <owner>
     # Each bucket gets its own key, so a compromised pipeline credential
     # reaches one bucket and not the other. `website yes` is what makes the
-    # bucket readable over plain HTTP at its own hostname.
+    # bucket readable over plain HTTP at its own hostname. `owner yes` lets the
+    # key change that one bucket's config: Garage refuses PutBucketCors from a
+    # key without it.
     BUCKETS="
-    gtfs-feeds     gtfs         S3_ACCESS_KEY               S3_SECRET_KEY               no
-    data.gtfs.zone geometry-car GEOMETRY_CAR_S3_ACCESS_KEY  GEOMETRY_CAR_S3_SECRET_KEY  yes
+    gtfs-feeds     gtfs         S3_ACCESS_KEY               S3_SECRET_KEY               no  no
+    data.gtfs.zone geometry-car GEOMETRY_CAR_S3_ACCESS_KEY  GEOMETRY_CAR_S3_SECRET_KEY  yes yes
     "
 
     api() {
@@ -104,7 +106,7 @@ data:
       echo "==> layout already applied"
     fi
 
-    echo "$BUCKETS" | while read -r BUCKET KEY_NAME ACCESS_VAR SECRET_VAR WEBSITE; do
+    echo "$BUCKETS" | while read -r BUCKET KEY_NAME ACCESS_VAR SECRET_VAR WEBSITE OWNER; do
       [ -n "$BUCKET" ] || continue
       eval "ACCESS_KEY=\${${ACCESS_VAR}:?}"
       eval "SECRET_KEY=\${${SECRET_VAR}:?}"
@@ -130,16 +132,18 @@ data:
           '{accessKeyId:$id,secretAccessKey:$secret,name:$n}')" >/dev/null
       fi
 
-      echo "==> granting ${KEY_NAME} read/write on ${BUCKET}"
+      # AllowBucketKey only sets the flags passed as true, so owner:false never
+      # revokes an existing grant.
+      echo "==> granting ${KEY_NAME} read/write (owner: ${OWNER}) on ${BUCKET}"
       api POST /AllowBucketKey -d "$(jq -nc \
-        --arg b "$bucket_id" --arg id "$ACCESS_KEY" \
-        '{bucketId:$b,accessKeyId:$id,permissions:{read:true,write:true,owner:false}}')" \
+        --arg b "$bucket_id" --arg id "$ACCESS_KEY" --arg o "$OWNER" \
+        '{bucketId:$b,accessKeyId:$id,permissions:{read:true,write:true,owner:($o == "yes")}}')" \
         >/dev/null
 
       # Website access is what the s3_web endpoint serves from; without it a
       # GET on data.gtfs.zone is a 404 that never mentions the setting. The
       # CORS rule is set by geometry-car, not here: it is an S3 call, and the
-      # admin API has no equivalent.
+      # admin API has no equivalent. That is why geometry-car's key is owner.
       if [ "$WEBSITE" = yes ]; then
         echo "==> enabling website access on ${BUCKET}"
         api POST "/UpdateBucket?id=${bucket_id}" -d "$(jq -nc \
