@@ -156,3 +156,165 @@ spec:
       name: oauth2-proxy
       port: 4180
     query: /oauth2/sign_in?rd={url}
+---
+# ── oauth2-proxy-admin ────────────────────────────────────────────────────────
+# A second instance, for the hosts that must be admin-only. The instance above
+# is deliberately ungated and stays that way: manage.rt is meant to be reachable
+# by any realm account, with cafe-car scoping what each one sees. A UI that can
+# launch pipeline runs and delete history is a different question, so it gets
+# its own proxy with OAUTH2_PROXY_ALLOWED_GROUPS instead.
+#
+# Everything that could collide with the shared instance is separated: its own
+# cookie name, its own Redis session database, and a cookie domain of exactly
+# the host it serves. Two proxies sharing `_oauth2_proxy` on `.gtfs.zone` would
+# hand each other's sessions back and forth.
+#
+# Same Keycloak client as the shared instance, with a second redirect URI. The
+# group claim is already in its `groups` scope, so nothing else changes there.
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: oauth2-proxy-admin
+  namespace: gtfs
+  labels:
+    app: oauth2-proxy-admin
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: oauth2-proxy-admin
+  template:
+    metadata:
+      labels:
+        app: oauth2-proxy-admin
+    spec:
+      containers:
+        - name: oauth2-proxy
+          image: quay.io/oauth2-proxy/oauth2-proxy:v7.14.3
+          ports:
+            - name: http
+              containerPort: 4180
+          env:
+            - name: OAUTH2_PROXY_HTTP_ADDRESS
+              value: "0.0.0.0:4180"
+            # The callback is on the protected host itself, served by the
+            # unprotected PathPrefix(`/oauth2/`) route in ingressroutes.yaml.
+            # There is no second auth.gtfs.zone for this instance.
+            - name: OAUTH2_PROXY_REDIRECT_URL
+              value: https://dagster.gtfs.zone/oauth2/callback
+            - name: OAUTH2_PROXY_COOKIE_NAME
+              value: _oauth2_proxy_admin
+            - name: OAUTH2_PROXY_COOKIE_DOMAINS
+              value: dagster.gtfs.zone
+            - name: OAUTH2_PROXY_WHITELIST_DOMAINS
+              value: dagster.gtfs.zone
+            - name: OAUTH2_PROXY_EMAIL_DOMAINS
+              value: "*"
+            # This is the whole reason the second instance exists: membership of
+            # the Keycloak gtfs-admins group, checked before anything reaches
+            # the upstream.
+            - name: OAUTH2_PROXY_ALLOWED_GROUPS
+              value: gtfs-admins
+            - name: OAUTH2_PROXY_SKIP_PROVIDER_BUTTON
+              value: "false"
+            - name: OAUTH2_PROXY_SESSION_STORE_TYPE
+              value: redis
+            # Redis db 2. 0 is the shared oauth2-proxy, 1 is rt-api and the
+            # poser, 3 and 4 are celery's broker and result backend.
+            - name: OAUTH2_PROXY_REDIS_CONNECTION_URL
+              value: redis://redis:6379/2
+            - name: OAUTH2_PROXY_COOKIE_SECURE
+              value: "true"
+            - name: OAUTH2_PROXY_REVERSE_PROXY
+              value: "true"
+            - name: OAUTH2_PROXY_DEFAULT_REDIRECT_URL
+              value: https://dagster.gtfs.zone
+            - name: OAUTH2_PROXY_PROVIDER
+              value: oidc
+            - name: OAUTH2_PROXY_CLIENT_ID
+              value: oauth2-proxy
+            - name: OAUTH2_PROXY_OIDC_ISSUER_URL
+              value: https://id.gtfs.zone/realms/gtfs
+            - name: OAUTH2_PROXY_OIDC_JWKS_URL
+              value: http://keycloak:8080/realms/gtfs/protocol/openid-connect/certs
+            # `groups` is what ALLOWED_GROUPS reads; without it every login is
+            # rejected as not a member.
+            - name: OAUTH2_PROXY_SCOPE
+              value: openid email profile groups
+            - name: OAUTH2_PROXY_USER_ID_CLAIM
+              value: sub
+            - name: OAUTH2_PROXY_CODE_CHALLENGE_METHOD
+              value: S256
+            - name: OAUTH2_PROXY_BACKEND_LOGOUT_URL
+              value: http://keycloak:8080/realms/gtfs/protocol/openid-connect/logout?id_token_hint={id_token}
+            - name: OAUTH2_PROXY_SET_XAUTHREQUEST
+              value: "true"
+            - name: OAUTH2_PROXY_PASS_ACCESS_TOKEN
+              value: "true"
+            - name: OAUTH2_PROXY_CLIENT_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: gtfs-app-secrets
+                  key: KEYCLOAK_OAUTH2_PROXY_CLIENT_SECRET
+            # Its own, not the shared instance's: two proxies signing cookies
+            # with one secret is how a session from one is accepted by the other.
+            - name: OAUTH2_PROXY_COOKIE_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: gtfs-app-secrets
+                  key: OAUTH2_PROXY_ADMIN_COOKIE_SECRET
+          readinessProbe:
+            httpGet:
+              path: /ping
+              port: http
+            initialDelaySeconds: 5
+            periodSeconds: 10
+          livenessProbe:
+            httpGet:
+              path: /ping
+              port: http
+            initialDelaySeconds: 15
+            periodSeconds: 20
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: oauth2-proxy-admin
+  namespace: gtfs
+spec:
+  selector:
+    app: oauth2-proxy-admin
+  ports:
+    - name: http
+      port: 4180
+      targetPort: http
+---
+# The admin pair of Middlewares, same shape as the two above, pointed at the
+# admin instance. Attached in that order: errors first, then forwardAuth.
+apiVersion: traefik.io/v1alpha1
+kind: Middleware
+metadata:
+  name: oauth2-admin
+  namespace: gtfs
+spec:
+  forwardAuth:
+    address: http://oauth2-proxy-admin.gtfs.svc.cluster.local:4180/oauth2/auth
+    trustForwardHeader: true
+    authResponseHeaders:
+      - X-Auth-Request-User
+      - X-Auth-Request-Email
+      - X-Auth-Request-Access-Token
+---
+apiVersion: traefik.io/v1alpha1
+kind: Middleware
+metadata:
+  name: oauth2-admin-errors
+  namespace: gtfs
+spec:
+  errors:
+    status:
+      - "401-403"
+    service:
+      name: oauth2-proxy-admin
+      port: 4180
+    query: /oauth2/sign_in?rd={url}

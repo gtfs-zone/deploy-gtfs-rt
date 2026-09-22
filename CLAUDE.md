@@ -193,7 +193,7 @@ positions and an **empty `trip_updates.pb`**.
 | Storage | Longhorn (default StorageClass, 1 replica) |
 | Object storage | Garage (single-node StatefulSet, `gtfs-feeds` bucket, S3 API cluster-internal only; `garage-init` PostSync Job applies the layout, bucket and key) |
 | Database | CloudNativePG `Cluster` `postgres` → `rt_api`, `keycloak`, `traccar` databases |
-| Cache | Redis (DB 0 oauth2-proxy · 1 rt-api+poser · 3 celery broker · 4 celery result) |
+| Cache | Redis (DB 0 oauth2-proxy, 1 rt-api+poser, 2 oauth2-proxy-admin, 3 celery broker, 4 celery result) |
 | Auth | Keycloak (OIDC, `id.gtfs.zone`, brokers GitHub/Google/GitLab) + oauth2-proxy (ForwardAuth via two Middlewares). Traccar is a separate Keycloak client with its own login, gated on the `gtfs-admins` group, see `gtfs/keycloak/CUTOVER.md` |
 | Application | rt-api (`gtfs-api` :8000 public, `gtfs-manager` :8001 protected), celery worker + beat |
 | Ingest | Traccar, vehicle-poser, trip-updogger, hell-gate-bridge ×2 |

@@ -1,0 +1,14 @@
+# geometry-car component: the three Dagster Deployments, their two Services and
+# the instance-config ConfigMap. Its own directory because the generator
+# hash-suffixes that ConfigMap, so editing dagster.yaml or workspace.yaml rolls
+# the pods - the gtfs/gatus/ pattern.
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+namespace: gtfs
+resources:
+  - geometry-car.yaml
+configMapGenerator:
+  - name: geometry-car-dagster
+    files:
+      - dagster.yaml
+      - workspace.yaml

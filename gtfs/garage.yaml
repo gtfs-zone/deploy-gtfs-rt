@@ -37,6 +37,16 @@ data:
     api_bind_addr = "[::]:3900"
     root_domain = ".s3.garage.internal"
 
+    # Static web serving, which is what makes data.gtfs.zone a public HTTP
+    # endpoint rather than an S3 API only reachable with a signed request.
+    # Garage picks the bucket from the Host header: a Host that does not end in
+    # root_domain is looked up as a global alias, which is why the public
+    # bucket is aliased literally `data.gtfs.zone`.
+    [s3_web]
+    bind_addr = "[::]:3902"
+    root_domain = ".web.garage.internal"
+    index = "index.html"
+
     [admin]
     api_bind_addr = "[::]:3903"
 
@@ -50,11 +60,17 @@ data:
     set -eu
 
     ADMIN="http://garage:3903/v2"
-    BUCKET="${S3_BUCKET:?}"
-    KEY_NAME="${GARAGE_KEY_NAME:-gtfs}"
-    ACCESS_KEY="${S3_ACCESS_KEY:?}"
-    SECRET_KEY="${S3_SECRET_KEY:?}"
     CAPACITY="${GARAGE_CAPACITY_BYTES:-40000000000}"
+
+    # One line per bucket:
+    #   <bucket> <key name> <access key env> <secret key env> <website>
+    # Each bucket gets its own key, so a compromised pipeline credential
+    # reaches one bucket and not the other. `website yes` is what makes the
+    # bucket readable over plain HTTP at its own hostname.
+    BUCKETS="
+    gtfs-feeds     gtfs         S3_ACCESS_KEY               S3_SECRET_KEY               no
+    data.gtfs.zone geometry-car GEOMETRY_CAR_S3_ACCESS_KEY  GEOMETRY_CAR_S3_SECRET_KEY  yes
+    "
 
     api() {
       method="$1"; path="$2"; shift 2
@@ -88,32 +104,49 @@ data:
       echo "==> layout already applied"
     fi
 
-    bucket_id=$(api GET /ListBuckets \
-      | jq -r --arg b "$BUCKET" '.[] | select(.globalAliases[]? == $b) | .id')
-    if [ -z "$bucket_id" ]; then
-      echo "==> creating bucket ${BUCKET}"
-      bucket_id=$(api POST /CreateBucket -d "$(jq -nc --arg b "$BUCKET" \
-        '{globalAlias:$b}')" | jq -r '.id')
-    else
-      echo "==> bucket ${BUCKET} already exists"
-    fi
+    echo "$BUCKETS" | while read -r BUCKET KEY_NAME ACCESS_VAR SECRET_VAR WEBSITE; do
+      [ -n "$BUCKET" ] || continue
+      eval "ACCESS_KEY=\${${ACCESS_VAR}:?}"
+      eval "SECRET_KEY=\${${SECRET_VAR}:?}"
 
-    # Imported, not created: a created key is random, and the apps read theirs
-    # from gtfs-app-secrets. Import is how a known pair gets in.
-    if api GET "/GetKeyInfo?id=${ACCESS_KEY}" >/dev/null 2>&1; then
-      echo "==> key ${KEY_NAME} already imported"
-    else
-      echo "==> importing key ${KEY_NAME}"
-      api POST /ImportKey -d "$(jq -nc \
-        --arg id "$ACCESS_KEY" --arg secret "$SECRET_KEY" --arg n "$KEY_NAME" \
-        '{accessKeyId:$id,secretAccessKey:$secret,name:$n}')" >/dev/null
-    fi
+      bucket_id=$(api GET /ListBuckets \
+        | jq -r --arg b "$BUCKET" '.[] | select(.globalAliases[]? == $b) | .id')
+      if [ -z "$bucket_id" ]; then
+        echo "==> creating bucket ${BUCKET}"
+        bucket_id=$(api POST /CreateBucket -d "$(jq -nc --arg b "$BUCKET" \
+          '{globalAlias:$b}')" | jq -r '.id')
+      else
+        echo "==> bucket ${BUCKET} already exists"
+      fi
 
-    echo "==> granting ${KEY_NAME} read/write on ${BUCKET}"
-    api POST /AllowBucketKey -d "$(jq -nc \
-      --arg b "$bucket_id" --arg id "$ACCESS_KEY" \
-      '{bucketId:$b,accessKeyId:$id,permissions:{read:true,write:true,owner:false}}')" \
-      >/dev/null
+      # Imported, not created: a created key is random, and the apps read theirs
+      # from gtfs-app-secrets. Import is how a known pair gets in.
+      if api GET "/GetKeyInfo?id=${ACCESS_KEY}" >/dev/null 2>&1; then
+        echo "==> key ${KEY_NAME} already imported"
+      else
+        echo "==> importing key ${KEY_NAME}"
+        api POST /ImportKey -d "$(jq -nc \
+          --arg id "$ACCESS_KEY" --arg secret "$SECRET_KEY" --arg n "$KEY_NAME" \
+          '{accessKeyId:$id,secretAccessKey:$secret,name:$n}')" >/dev/null
+      fi
+
+      echo "==> granting ${KEY_NAME} read/write on ${BUCKET}"
+      api POST /AllowBucketKey -d "$(jq -nc \
+        --arg b "$bucket_id" --arg id "$ACCESS_KEY" \
+        '{bucketId:$b,accessKeyId:$id,permissions:{read:true,write:true,owner:false}}')" \
+        >/dev/null
+
+      # Website access is what the s3_web endpoint serves from; without it a
+      # GET on data.gtfs.zone is a 404 that never mentions the setting. The
+      # CORS rule is set by geometry-car, not here: it is an S3 call, and the
+      # admin API has no equivalent.
+      if [ "$WEBSITE" = yes ]; then
+        echo "==> enabling website access on ${BUCKET}"
+        api POST "/UpdateBucket?id=${bucket_id}" -d "$(jq -nc \
+          '{websiteAccess:{enabled:true,indexDocument:"index.html",errorDocument:"error.html"}}')" \
+          >/dev/null
+      fi
+    done
 
     echo "==> garage is ready"
 ---
@@ -135,6 +168,9 @@ spec:
     - name: rpc
       port: 3901
       targetPort: rpc
+    - name: web
+      port: 3902
+      targetPort: web
     - name: admin
       port: 3903
       targetPort: admin
@@ -188,6 +224,8 @@ spec:
               containerPort: 3900
             - name: rpc
               containerPort: 3901
+            - name: web
+              containerPort: 3902
             - name: admin
               containerPort: 3903
           volumeMounts:
@@ -266,8 +304,6 @@ spec:
                 secretKeyRef:
                   name: gtfs-app-secrets
                   key: GARAGE_ADMIN_TOKEN
-            - name: S3_BUCKET
-              value: gtfs-feeds
             - name: S3_ACCESS_KEY
               valueFrom:
                 secretKeyRef:
@@ -278,6 +314,18 @@ spec:
                 secretKeyRef:
                   name: gtfs-app-secrets
                   key: S3_SECRET_KEY
+            # geometry-car's own pair, scoped to the public data.gtfs.zone
+            # bucket so the pipeline cannot reach the private gtfs-feeds.
+            - name: GEOMETRY_CAR_S3_ACCESS_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: gtfs-app-secrets
+                  key: GEOMETRY_CAR_S3_ACCESS_KEY
+            - name: GEOMETRY_CAR_S3_SECRET_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: gtfs-app-secrets
+                  key: GEOMETRY_CAR_S3_SECRET_KEY
           volumeMounts:
             - name: config
               mountPath: /etc/garage

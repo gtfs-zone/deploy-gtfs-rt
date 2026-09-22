@@ -1,0 +1,9 @@
+# What the webserver and the daemon load code from: the gRPC code server, not a
+# local module. That is the whole point of the split - the code server can be
+# rolled to a new image while the webserver and daemon stay up, and a module
+# that fails to import takes out one location rather than the UI.
+load_from:
+  - grpc_server:
+      host: geometry-car-code
+      port: 4000
+      location_name: geometry_car

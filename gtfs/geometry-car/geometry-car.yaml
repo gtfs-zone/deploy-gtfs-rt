@@ -1,0 +1,265 @@
+# ── geometry-car (Dagster) ────────────────────────────────────────────────────
+# The pipeline that inventories the world of GTFS: it ingests the Transitland
+# Atlas DMFR corpus and the Mobility Database daily, checks whether each feed
+# endpoint still answers, keeps the history in Postgres, and publishes the JSON
+# artifacts consumers read from data.gtfs.zone.
+#
+# Three Deployments off one image, which is how Dagster is meant to be run:
+#
+#   geometry-car-code       gRPC code server; the run itself executes here
+#   geometry-car-daemon     schedule ticks and the run queue
+#   geometry-car-webserver  the UI, behind oauth2-proxy-admin at dagster.gtfs.zone
+#
+# DAGSTER_HOME is /app/dagster_home because /app is root-owned and the image
+# runs as `bridge`: the image creates and chowns exactly that directory. The
+# instance config is mounted into it by subPath, so the directory itself stays
+# writable. This is the same trap as celery-beat's --schedule flag, and it
+# fails late and confusingly rather than at startup.
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: geometry-car-code
+  namespace: gtfs
+  labels:
+    app: geometry-car-code
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: geometry-car-code
+  template:
+    metadata:
+      labels:
+        app: geometry-car-code
+    spec:
+      containers:
+        - name: geometry-car
+          image: git.kcfam.us/gtfs.zone/geometry-car:75becfe
+          # The image's own CMD, spelled out because this is the pod where it
+          # matters: the webserver and the daemon both override it.
+          command:
+            - dagster
+            - api
+            - grpc
+            - -h
+            - 0.0.0.0
+            - -p
+            - "4000"
+            - -m
+            - geometry_car.definitions
+          ports:
+            - name: grpc
+              containerPort: 4000
+          env:
+            - name: DAGSTER_HOME
+              value: /app/dagster_home
+            - name: POSTGRES_GEOMETRY_CAR_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: postgres-geometry-car
+                  key: password
+            - name: DATABASE_URL
+              value: postgresql://geometry_car:$(POSTGRES_GEOMETRY_CAR_PASSWORD)@postgres-rw:5432/geometry_car
+            # The public artifact bucket, not gtfs-feeds. S3_REGION is part of
+            # the SigV4 signature, so a mismatch with garage.toml's s3_region
+            # is a 403, not a redirect.
+            - name: S3_ENDPOINT
+              value: http://garage:3900
+            - name: S3_BUCKET
+              value: data.gtfs.zone
+            - name: S3_REGION
+              value: garage
+            - name: S3_ACCESS_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: gtfs-app-secrets
+                  key: GEOMETRY_CAR_S3_ACCESS_KEY
+            - name: S3_SECRET_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: gtfs-app-secrets
+                  key: GEOMETRY_CAR_S3_SECRET_KEY
+            # A refresh token, exchanged for a short-lived access token at the
+            # start of each run. Empty is not an error: the run then covers
+            # Transitland and the curated set alone.
+            - name: MOBILITY_DB_REFRESH_TOKEN
+              valueFrom:
+                secretKeyRef:
+                  name: gtfs-app-secrets
+                  key: MOBILITY_DB_REFRESH_TOKEN
+          volumeMounts:
+            - name: dagster-config
+              mountPath: /app/dagster_home/dagster.yaml
+              subPath: dagster.yaml
+              readOnly: true
+          # gRPC, so a TCP check is the whole check available without a probe
+          # client. The code server binds only once the module imports, which
+          # is the failure worth catching here.
+          readinessProbe:
+            tcpSocket:
+              port: grpc
+            initialDelaySeconds: 10
+            periodSeconds: 10
+          livenessProbe:
+            tcpSocket:
+              port: grpc
+            initialDelaySeconds: 30
+            periodSeconds: 20
+      volumes:
+        - name: dagster-config
+          configMap:
+            name: geometry-car-dagster
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: geometry-car-code
+  namespace: gtfs
+spec:
+  selector:
+    app: geometry-car-code
+  ports:
+    - name: grpc
+      port: 4000
+      targetPort: grpc
+---
+# The daemon: schedule ticks and the run queue. replicas 1 and Recreate, never
+# two: a second daemon submits the daily schedule a second time, the same
+# reason celery-beat is pinned to one.
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: geometry-car-daemon
+  namespace: gtfs
+  labels:
+    app: geometry-car-daemon
+spec:
+  replicas: 1
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app: geometry-car-daemon
+  template:
+    metadata:
+      labels:
+        app: geometry-car-daemon
+    spec:
+      containers:
+        - name: geometry-car
+          image: git.kcfam.us/gtfs.zone/geometry-car:75becfe
+          command: ["dagster-daemon", "run", "-w", "/app/dagster_home/workspace.yaml"]
+          env:
+            - name: DAGSTER_HOME
+              value: /app/dagster_home
+            - name: POSTGRES_GEOMETRY_CAR_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: postgres-geometry-car
+                  key: password
+            - name: DATABASE_URL
+              value: postgresql://geometry_car:$(POSTGRES_GEOMETRY_CAR_PASSWORD)@postgres-rw:5432/geometry_car
+          volumeMounts:
+            - name: dagster-config
+              mountPath: /app/dagster_home/dagster.yaml
+              subPath: dagster.yaml
+              readOnly: true
+            - name: dagster-config
+              mountPath: /app/dagster_home/workspace.yaml
+              subPath: workspace.yaml
+              readOnly: true
+          # The daemon's own check: it fails while the heartbeat in run storage
+          # is stale, which is exactly the silent failure mode - a daemon that
+          # is up but has stopped ticking looks healthy to anything else.
+          livenessProbe:
+            exec:
+              command: ["dagster-daemon", "liveness-check"]
+            initialDelaySeconds: 60
+            periodSeconds: 60
+      volumes:
+        - name: dagster-config
+          configMap:
+            name: geometry-car-dagster
+---
+# The UI. Public exposure is dagster.gtfs.zone, gated by oauth2-proxy-admin on
+# the gtfs-admins group: this UI can launch runs and delete history, so it is
+# not one of the ungated hosts.
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: geometry-car-webserver
+  namespace: gtfs
+  labels:
+    app: geometry-car-webserver
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: geometry-car-webserver
+  template:
+    metadata:
+      labels:
+        app: geometry-car-webserver
+    spec:
+      containers:
+        - name: geometry-car
+          image: git.kcfam.us/gtfs.zone/geometry-car:75becfe
+          command:
+            - dagster-webserver
+            - -h
+            - 0.0.0.0
+            - -p
+            - "3000"
+            - -w
+            - /app/dagster_home/workspace.yaml
+          ports:
+            - name: http
+              containerPort: 3000
+          env:
+            - name: DAGSTER_HOME
+              value: /app/dagster_home
+            - name: POSTGRES_GEOMETRY_CAR_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: postgres-geometry-car
+                  key: password
+            - name: DATABASE_URL
+              value: postgresql://geometry_car:$(POSTGRES_GEOMETRY_CAR_PASSWORD)@postgres-rw:5432/geometry_car
+          volumeMounts:
+            - name: dagster-config
+              mountPath: /app/dagster_home/dagster.yaml
+              subPath: dagster.yaml
+              readOnly: true
+            - name: dagster-config
+              mountPath: /app/dagster_home/workspace.yaml
+              subPath: workspace.yaml
+              readOnly: true
+          readinessProbe:
+            httpGet:
+              path: /server_info
+              port: http
+            initialDelaySeconds: 15
+            periodSeconds: 10
+          livenessProbe:
+            httpGet:
+              path: /server_info
+              port: http
+            initialDelaySeconds: 45
+            periodSeconds: 20
+      volumes:
+        - name: dagster-config
+          configMap:
+            name: geometry-car-dagster
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: geometry-car-webserver
+  namespace: gtfs
+spec:
+  selector:
+    app: geometry-car-webserver
+  ports:
+    - name: http
+      port: 3000
+      targetPort: http

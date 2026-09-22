@@ -8,7 +8,8 @@
 #
 # Auth: the two oauth2 Middlewares (oauth2-proxy.yaml) replace the TF ForwardAuth
 # labels. Public by design: rt (the GTFS-RT feed), status (the Gatus status page),
-# id + auth (the login flow itself), and both Traccar routes.
+# id + auth (the login flow itself), data (geometry-car's published artifacts)
+# and both Traccar routes.
 #
 # TLS reaches this cluster untouched: home-docker's Traefik does SNI passthrough
 # for *.gtfs.zone, so k3s owns gtfs.zone certificates end to end.
@@ -209,5 +210,60 @@ spec:
       services:
         - name: traccar
           port: 8082
+  tls:
+    secretName: gtfs-zone-tls
+---
+# The public artifact bucket, served by Garage's own s3_web endpoint rather than
+# the S3 API: geometry-car's JSON is meant to be fetched by a browser with no
+# credentials. Garage picks the bucket from the Host header, matching it against
+# the bucket's global alias, which is why the bucket is aliased literally
+# `data.gtfs.zone`. Deliberately NO Host-rewrite middleware: rewriting the Host
+# is rewriting the bucket name, and the answer is a 404 that never says why.
+apiVersion: traefik.io/v1alpha1
+kind: IngressRoute
+metadata:
+  name: data
+  namespace: gtfs
+  annotations:
+    external-dns.alpha.kubernetes.io/target: "73.4.232.254"
+spec:
+  entryPoints: [websecure]
+  routes:
+    - match: Host(`data.gtfs.zone`)
+      kind: Rule
+      services:
+        - name: garage
+          port: 3902
+  tls:
+    secretName: gtfs-zone-tls
+---
+# Dagster's UI, behind the admin oauth2-proxy: it can launch runs and delete
+# history, so unlike manage.rt it is gated on the gtfs-admins group.
+apiVersion: traefik.io/v1alpha1
+kind: IngressRoute
+metadata:
+  name: dagster
+  namespace: gtfs
+  annotations:
+    external-dns.alpha.kubernetes.io/target: "73.4.232.254"
+spec:
+  entryPoints: [websecure]
+  routes:
+    # Unprotected and longer, so Traefik prefers it: the sign-in page's own CSS
+    # and the /callback must not re-enter the auth chain, or they come back as
+    # 401 HTML and the login never completes.
+    - match: Host(`dagster.gtfs.zone`) && PathPrefix(`/oauth2/`)
+      kind: Rule
+      services:
+        - name: oauth2-proxy-admin
+          port: 4180
+    - match: Host(`dagster.gtfs.zone`)
+      kind: Rule
+      middlewares:
+        - name: oauth2-admin-errors
+        - name: oauth2-admin
+      services:
+        - name: geometry-car-webserver
+          port: 3000
   tls:
     secretName: gtfs-zone-tls

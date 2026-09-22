@@ -6,6 +6,9 @@
 # application layer (Keycloak, oauth2-proxy, rt-api + migrate hook, celery, uptime-kuma).
 # Phase 6a adds the ingest layer (Traccar, vehicle-poser, hell-gate-bridge ×2).
 # The IngressRoutes that expose these are added in Phase 7.
+#
+# The list below is flat rather than indented because `kustomize edit set image`
+# rewrites this whole file, and geometry-car's CI runs it here on every push.
 apiVersion: kustomize.config.k8s.io/v1beta1
 kind: Kustomization
 resources:
@@ -24,7 +27,11 @@ resources:
 - vehicle-poser.yaml
 - trip-updogger.yaml
 - hell-gate-bridge.yaml
+- geometry-car
+- geometry-car-migrate.yaml
 - ingressroutes.yaml
+# Written by geometry-car's CI after it pushes, so what is deployed is the
+# digest of exactly what was built rather than a moving tag.
 images:
 - digest: sha256:5bed73f56da88a0e51cc3ba07a3152c678e9e7ea05d35d5e903513ecab440436
   name: git.kcfam.us/gtfs.zone/geometry-car
