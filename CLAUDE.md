@@ -168,7 +168,7 @@ passed through: it stays on home-docker's static-sites container.
                                             │      trip-updogger
                                             │      (project fix on schedule)
                                             │            ▼
-                                            ├──▶ trip_update:{trip} (DB1, 300s)
+                                            ├──▶ trip_update:{tracker}:{trip} (DB1, 300s)
                                             ▼
                                      cafe-car (rt-api)
                                      GTFS-RT at rt.gtfs.zone

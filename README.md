@@ -109,12 +109,12 @@ sequenceDiagram
     driver->>tc: POST /osmand?id=…&lat=…&lon= (HTTPS)
     tc->>vp: forward.type=json → POST /forward
     vp->>postgres: resolve tracker → trip
-    vp->>Redis: SET vehicle:{tracker}:{trip} (60s TTL)
+    vp->>Redis: SET vehicle:{tracker}:{vehicle} (60s TTL)
 
     Note over tu,Redis: Delay derivation
     tu->>Redis: sweep vehicle:*
     tu->>postgres: load the trip's stop_times
-    tu->>Redis: SET trip_update:{trip_id} (300s TTL)
+    tu->>Redis: SET trip_update:{tracker}:{trip_id} (300s TTL)
 
     Note over hgb,pub: Upstream feed polling
     hgb->>hgb: poll Amtrak / Columbia County
@@ -403,7 +403,7 @@ flowchart LR
     end
 
     subgraph store["State"]
-        redis[("Redis DB1<br>vehicle:{tracker}:{trip} 60s<br>trip_update:{trip} 300s")]
+        redis[("Redis DB1<br>vehicle:{tracker}:{vehicle} 60s<br>trip_update:{tracker}:{trip} 300s")]
         pg[("Postgres<br>trackers · trips · alerts")]
     end
 

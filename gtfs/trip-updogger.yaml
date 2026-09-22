@@ -3,7 +3,7 @@
 # `vehicle:*` in Redis DB1 every POLL_INTERVAL, loads the trip's scheduled
 # stop_times from Postgres, projects the fix onto the route with `compute_delay`,
 # and writes
-#   trip_update:{trip_id}[:{start_date}]  → Redis DB1, 300s TTL
+#   trip_update:{tracker_id}:{trip_id}[:{start_date}]  → Redis DB1, 300s TTL
 # which is the key cafe-car's gtfs_rt.py::trip_updates reads. Without this,
 # Traccar-sourced feeds serve positions but an empty trip_updates.pb: only
 # hell-gate-bridge writes trip updates, and only for its own upstream feeds.
