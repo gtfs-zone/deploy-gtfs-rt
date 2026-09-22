@@ -79,7 +79,7 @@ kubectl exec -n gtfs postgres-1 -c postgres -- \
 This is the step with the silent failure. Each poller is hardcoded to a tracker
 id, and a mismatch produces **no positions and no error anywhere**.
 
-| Poller Deployment | `INGEST_VEHICLE_ID` | Tracker id you must create |
+| Poller Deployment | `INGEST_TRACKER_ID` | Tracker id you must create |
 |---|---|---|
 | `hell-gate-bridge-amtrak` | `amtrak-live` | **`amtrak-live`** |
 | `hell-gate-bridge-buswhere` | `columbia-county` | **`columbia-county`** |
@@ -87,7 +87,7 @@ id, and a mismatch produces **no positions and no error anywhere**.
 Confirm what the pods are actually set to rather than trusting this table:
 ```bash
 kubectl get deploy -n gtfs -l app.kubernetes.io/name=hell-gate-bridge \
-  -o jsonpath='{range .items[*]}{.metadata.name}{"\t"}{.spec.template.spec.containers[0].env[?(@.name=="INGEST_VEHICLE_ID")].value}{"\n"}{end}'
+  -o jsonpath='{range .items[*]}{.metadata.name}{"\t"}{.spec.template.spec.containers[0].env[?(@.name=="INGEST_TRACKER_ID")].value}{"\n"}{end}'
 ```
 
 Create a third tracker for the **west** feed, that is the one the driver phone

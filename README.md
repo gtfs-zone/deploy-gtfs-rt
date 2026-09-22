@@ -633,7 +633,7 @@ group membership is per-user and not part of the realm import.
    different password silently breaks the integration. Then enable registration
    (`PUT /api/server {"registration": true}`) so OIDC logins auto-provision.
 4. Create feeds and their trackers, and make sure each poller's
-   `INGEST_VEHICLE_ID` matches a real tracker id: a mismatch produces no
+   `INGEST_TRACKER_ID` matches a real tracker id: a mismatch produces no
    positions and no error.
 5. Uptime Kuma's public status page must be created in its UI before
    `status.<domain>` shows anything useful.
