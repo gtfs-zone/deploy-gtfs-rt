@@ -9,19 +9,23 @@
 apiVersion: kustomize.config.k8s.io/v1beta1
 kind: Kustomization
 resources:
-  - namespace.yaml
-  - secrets
-  - postgres-cluster.yaml
-  - redis.yaml
-  - garage.yaml
-  - keycloak
-  - oauth2-proxy.yaml
-  - rt-api.yaml
-  - rt-api-migrate.yaml
-  - celery.yaml
-  - gatus
-  - traccar
-  - vehicle-poser.yaml
-  - trip-updogger.yaml
-  - hell-gate-bridge.yaml
-  - ingressroutes.yaml
+- namespace.yaml
+- secrets
+- postgres-cluster.yaml
+- redis.yaml
+- garage.yaml
+- keycloak
+- oauth2-proxy.yaml
+- rt-api.yaml
+- rt-api-migrate.yaml
+- celery.yaml
+- gatus
+- traccar
+- vehicle-poser.yaml
+- trip-updogger.yaml
+- hell-gate-bridge.yaml
+- ingressroutes.yaml
+images:
+- digest: sha256:5bed73f56da88a0e51cc3ba07a3152c678e9e7ea05d35d5e903513ecab440436
+  name: git.kcfam.us/gtfs.zone/geometry-car
+  newName: git.kcfam.us/gtfs.zone/geometry-car
