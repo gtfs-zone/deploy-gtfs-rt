@@ -22,6 +22,9 @@ The stack is built from these open-source projects:
 | [railroad-club](https://git.kcfam.us/gtfs.zone/railroad-club) | Shared SQLAlchemy models and Alembic migrations |
 | [music-student](https://git.kcfam.us/gtfs.zone/music-student) | Docker Compose stack for local development and testing |
 | [landing-zone](https://git.kcfam.us/gtfs.zone/landing-zone) | Static homepage at gtfs.zone |
+| [geometry-car](https://git.kcfam.us/gtfs.zone/geometry-car) | Dagster pipeline: the GTFS source catalog, its reachability checks and logical feeds, published to data.gtfs.zone |
+| [globe-of-contents](https://git.kcfam.us/gtfs.zone/globe-of-contents) | list.gtfs.zone, the source catalog as a list and a world map |
+| [interlocking](https://git.kcfam.us/gtfs.zone/interlocking) | Shared browser library and app shell for the four map frontends |
 
 This repo provides the Kubernetes (k3s + ArgoCD) deployment that wires them
 together with supporting infrastructure.
@@ -47,6 +50,7 @@ flowchart LR
         tu(["**trip-updogger**<br>positions → trip updates"]):::repo
         hgb(["**hell-gate-bridge**<br>upstream feed pollers"]):::repo
         sf(["**schedule-foamer**<br>GTFS Static Downloader"]):::repo
+        gc(["**geometry-car**<br>source catalog pipeline"]):::repo
     end
 
     rc(["**railroad-club**<br>SQLAlchemy models + migrations"]):::repo
@@ -56,7 +60,7 @@ flowchart LR
     rc -->|"models"| vp
     rc -->|"models"| sf
 
-    cc & vp & tu & hgb & sf -->|"container image"| gtfsd
+    cc & vp & tu & hgb & sf & gc -->|"container image"| gtfsd
 
     gtfsd -.-|"mirrors for local dev"| ms
 ```
@@ -74,9 +78,13 @@ flowchart LR
 | `auth.<domain>` | oauth2-proxy sign-in |
 | `id.<domain>` | Keycloak OIDC provider (brokers GitHub/Google/GitLab) |
 | `traccar.<domain>` | Traccar console; `/osmand` takes phone position reports |
-| `uptime.<domain>` | Uptime Kuma dashboard (auth-gated) |
-| `status.<domain>` | Public status page |
+| `status.<domain>` | Public status page (Gatus) |
 | `argocd.<domain>` | ArgoCD UI |
+| `data.<domain>` | Public source-catalog artifacts (`feeds.json`, `sources.json`, ...) from Garage's public bucket |
+| `dagster.<domain>` | Dagster UI for geometry-car (gated on the `gtfs-admins` group) |
+| `list.<domain>` | Source catalog list and world map (globe-of-contents) |
+| `edit.<domain>` | GTFS editor (coloring-book) |
+| `viz.rt.<domain>` | Realtime visualiser (test-track) |
 
 
 ## System Diagrams
@@ -339,11 +347,13 @@ stateDiagram-v2
     edge : home-docker Traefik<br>owns :80/:443 · SNI passthrough for *.&ltdomain&gt
     tr : k3s Traefik<br>websecure :8443 · TLS from cert-manager
     tc : Traccar<br>:8082 console · :5055 osmand
-    uk : Uptime Kuma
+    gt : Gatus
     ag : ArgoCD
+    gw : Garage s3_web<br>public data.&ltdomain&gt bucket
 
     state "Auth" as auth {
         op : oauth2-proxy<br>ForwardAuth middleware
+        opa : oauth2-proxy-admin<br>requires gtfs-admins
         kc : Keycloak<br>OIDC provider · brokers GitHub/Google/GitLab
     }
 
@@ -357,6 +367,7 @@ stateDiagram-v2
         tu : trip-updogger
         hgb : hell-gate-bridge ×2
         sf : schedule-foamer<br>Celery worker + beat
+        gc : geometry-car<br>Dagster webserver · daemon · code server
     }
 
     [*] --> Internet
@@ -367,12 +378,16 @@ stateDiagram-v2
     tr --> op : manage.rt / auth.&ltdomain&gt
     tr --> kc : id.&ltdomain&gt
     tr --> tc : traccar.&ltdomain&gt (+ /osmand)
-    tr --> uk : status.&ltdomain&gt (public)
+    tr --> gt : status.&ltdomain&gt (public)
     tr --> ag : argocd.&ltdomain&gt
+    tr --> gw : data.&ltdomain&gt (public)
+    tr --> opa : dagster.&ltdomain&gt
 
     op --> ca : manage.rt.&ltdomain&gt (authed)
-    op --> uk : uptime.&ltdomain&gt (authed)
     op --> kc : OIDC token check
+    opa --> gc : dagster.&ltdomain&gt (gtfs-admins)
+    opa --> kc : OIDC token check
+    gc --> gw : publishes artifacts (S3 API)
 
     tc --> vp : forward.type=json
     hgb --> cp : POST /ingest/*
@@ -380,13 +395,56 @@ stateDiagram-v2
 
 ### Object storage (Garage)
 
-`gtfs/garage.yaml` runs a single-node `dxflrs/garage` StatefulSet, holding the
-GTFS zips uploaded through `manage.rt.gtfs.zone`: cafe-car writes and serves
-them, schedule-foamer reads them to load the schedule. Both talk the S3 API
-rather than Garage's own, so swapping in AWS, R2 or B2 later is a matter of
-changing `S3_ENDPOINT`. A `garage-init` Job (an ArgoCD `PostSync` hook)
-applies the single-node layout, creates the `gtfs-feeds` bucket and imports
-the app-facing access key — Garage refuses every S3 call until that runs.
+`gtfs/garage.yaml` runs a single-node `dxflrs/garage` StatefulSet with two
+buckets, each reached with its own access key, so a leaked pipeline credential
+reaches one bucket and not the other:
+
+- `gtfs-feeds` is **private**, reachable only over the cluster-internal S3 API.
+  It holds the GTFS zips uploaded through `manage.rt.gtfs.zone`: cafe-car writes
+  and serves them, schedule-foamer reads them to load the schedule.
+- `data.gtfs.zone` is **public**, written by geometry-car over the S3 API and
+  served read-only over plain HTTP by Garage's `s3_web` endpoint at
+  `data.gtfs.zone`. Garage picks the bucket from the Host header, which is why
+  the bucket's alias is literally the hostname and why the IngressRoute must not
+  rewrite the Host.
+
+Every writer talks the S3 API rather than Garage's own, so swapping in AWS, R2
+or B2 later is a matter of changing `S3_ENDPOINT`. A `garage-init` Job (an
+ArgoCD `PostSync` hook) applies the single-node layout, creates both buckets,
+imports their keys and enables website access on the public one; Garage
+refuses every S3 call until that runs.
+
+### Source catalog
+
+geometry-car ingests Transitland Atlas and the Mobility Database once a day,
+checks whether each endpoint answers, keeps history per normalized URL in its
+own Postgres database, and publishes JSON to `data.gtfs.zone`. The frontends
+read those artifacts at runtime rather than shipping a catalog baked in at build
+time: the edit and viz load modals list `feeds.json`, and `list.gtfs.zone` draws
+the whole catalog on a map.
+
+```mermaid
+flowchart LR
+    tl["Transitland Atlas"]
+    mdb["Mobility Database"]
+    ex["curated examples"]
+    gc["geometry-car<br>Dagster, daily"]
+    pg[("Postgres<br>geometry_car")]
+    bucket[("data.gtfs.zone<br>public bucket")]
+    edit["edit / viz<br>load modal"]
+    list["list.gtfs.zone"]
+
+    tl & mdb & ex --> gc
+    gc -->|"check history"| pg
+    gc -->|"feeds.json · sources.json · status.json<br>examples.json · summary.json · manifest.json"| bucket
+    bucket --> edit
+    bucket --> list
+```
+
+Catalog rows (`sources.json`) are kept one per catalog entry and never merged.
+Logical feeds (`feeds.json`) sit on top: one per transit system, bundling its
+scheduled and realtime endpoints across catalogs, with ids that stay stable
+across runs because they appear in shareable links.
 
 ### Real-time data pipeline
 
@@ -586,11 +644,14 @@ Populate at minimum:
   (`clientSecret`), which argocd-server reads for Keycloak SSO. It must equal
   `KEYCLOAK_ARGOCD_CLIENT_SECRET` in `gtfs-app-secrets`, and must exist before
   ArgoCD starts with `oidc.config` set.
-- `gtfs/secrets/gtfs-app-secrets.enc.yaml`: session key, oauth2-proxy cookie
-  secret, the Keycloak↔oauth2-proxy, ↔Traccar, ↔cafe-car and ↔ArgoCD client
-  secrets (`KEYCLOAK_*_CLIENT_SECRET`), the
+- `gtfs/secrets/gtfs-app-secrets.enc.yaml`: session key, the two oauth2-proxy
+  cookie secrets (`OAUTH2_PROXY_COOKIE_SECRET`,
+  `OAUTH2_PROXY_ADMIN_COOKIE_SECRET`), the Keycloak↔oauth2-proxy, ↔Traccar,
+  ↔cafe-car and ↔ArgoCD client secrets (`KEYCLOAK_*_CLIENT_SECRET`), the
   Keycloak bootstrap admin password, OAuth connector credentials,
-  `INGEST_API_TOKEN`, and the `TRACCAR_ADMIN_*` pair.
+  `INGEST_API_TOKEN`, the `TRACCAR_ADMIN_*` pair, the Garage secrets and both
+  buckets' key pairs (`S3_*`, `GEOMETRY_CAR_S3_*`), geometry-car's
+  `MOBILITY_DB_REFRESH_TOKEN`, and the Gatus Telegram and heartbeat tokens.
 - `gtfs/secrets/postgres-*.enc.yaml`: CNPG role passwords.
 
 ## Step 4: Bootstrap
@@ -635,8 +696,9 @@ group membership is per-user and not part of the realm import.
 4. Create feeds and their trackers, and make sure each poller's
    `INGEST_TRACKER_ID` matches a real tracker id: a mismatch produces no
    positions and no error.
-5. Uptime Kuma's public status page must be created in its UI before
-   `status.<domain>` shows anything useful.
+5. Trigger geometry-car's first run from `https://dagster.<domain>` rather than
+   waiting for the schedule; `data.<domain>/manifest.json` appears once it
+   finishes, and the load modals and `list.<domain>` are empty until then.
 
 ## Updating
 

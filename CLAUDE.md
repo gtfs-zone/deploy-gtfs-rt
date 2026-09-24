@@ -30,11 +30,16 @@ sidecar on the argocd-repo-server.
   plus `manifests/` for its Certificate + IngressRoute), and `secrets/`
   (SOPS-encrypted Porkbun creds, one per consuming namespace).
 - `gtfs/`: the application stack (Kustomize): Postgres (CNPG), Redis, Garage,
-  Keycloak, oauth2-proxy, rt-api, celery, Gatus, Traccar, vehicle-poser,
-  hell-gate-bridge, IngressRoutes, and SOPS-encrypted `secrets/*.enc.yaml`.
-- `sites/`: the four static sites (Kustomize, no secrets): `gtfs.zone`
+  Keycloak, oauth2-proxy (plus `oauth2-proxy-admin`), rt-api, celery, Gatus,
+  Traccar, vehicle-poser, hell-gate-bridge, geometry-car (`geometry-car/` for
+  the three Dagster Deployments and their instance config,
+  `geometry-car-migrate.yaml` for its PreSync hook), IngressRoutes, and
+  SOPS-encrypted `secrets/*.enc.yaml`. geometry-car's CI writes its image
+  digest into `gtfs/kustomization.yaml`'s `images:` block.
+- `sites/`: the five static sites (Kustomize, no secrets): `gtfs.zone`
   (landing-zone), `edit.gtfs.zone` (coloring-book), `viz.rt.gtfs.zone`
-  (test-track) and `manage.rt.gtfs.zone` (yard-master). Each is an nginx image
+  (test-track), `manage.rt.gtfs.zone` (yard-master) and `list.gtfs.zone`
+  (globe-of-contents). Each is an nginx image
   built by its own repo's CI and pushed to the Forgejo registry; that CI runs
   `kustomize edit set image` here and commits, so `sites/kustomization.yaml` is
   the deploy record. Rollback = point the image back at an earlier digest.
@@ -141,6 +146,8 @@ Internet :80/:443
    k3s single node ─────────────────────────────────┘
      Traefik (Helm), websecure entrypoint on host :8443 via ServiceLB
        └─ IngressRoute: rt · manage.rt · id · auth · status · traccar
+          · data (Garage s3_web :3902) · dagster (oauth2-proxy-admin)
+          · edit · viz · list (from sites/)
           (+ argocd, in the argocd namespace)
      cert-manager (Porkbun DNS-01) · external-dns · Longhorn · CNPG · ArgoCD
 ```
@@ -191,12 +198,14 @@ positions and an **empty `trip_updates.pb`**.
 | Edge | Traefik (Helm), `websecure` on host :8443; `IngressRoute`/`Middleware` CRDs |
 | TLS / DNS | cert-manager + Porkbun DNS-01 webhook; external-dns (Porkbun webhook) |
 | Storage | Longhorn (default StorageClass, 1 replica) |
-| Object storage | Garage (single-node StatefulSet, `gtfs-feeds` bucket, S3 API cluster-internal only; `garage-init` PostSync Job applies the layout, bucket and key) |
-| Database | CloudNativePG `Cluster` `postgres` → `rt_api`, `keycloak`, `traccar` databases |
+| Object storage | Garage (single-node StatefulSet; `garage-init` PostSync Job applies the layout, buckets and keys). Two buckets, each with its own key: `gtfs-feeds` is private, S3 API cluster-internal only (uploaded zips); `data.gtfs.zone` is public, served read-only over HTTP by Garage's `s3_web` endpoint at `data.gtfs.zone` (geometry-car's artifacts) |
+| Database | CloudNativePG `Cluster` `postgres` → `rt_api`, `keycloak`, `traccar`, `geometry_car` databases |
 | Cache | Redis (DB 0 oauth2-proxy, 1 rt-api+poser, 2 oauth2-proxy-admin, 3 celery broker, 4 celery result) |
-| Auth | Keycloak (OIDC, `id.gtfs.zone`, brokers GitHub/Google/GitLab) + oauth2-proxy (ForwardAuth via two Middlewares). Traccar is a separate Keycloak client with its own login, gated on the `gtfs-admins` group, see `gtfs/keycloak/CUTOVER.md` |
+| Auth | Keycloak (OIDC, `id.gtfs.zone`, brokers GitHub/Google/GitLab) + two oauth2-proxy instances, each ForwardAuth via its own pair of Middlewares: `oauth2-proxy` (`oauth2-errors` + `oauth2-proxy`) admits any realm account and fronts `manage.rt`; `oauth2-proxy-admin` (`oauth2-admin-errors` + `oauth2-admin`) requires the `gtfs-admins` group and fronts `dagster`. Traccar is a separate Keycloak client with its own login, gated on the same group, see `gtfs/keycloak/CUTOVER.md` |
 | Application | rt-api (`gtfs-api` :8000 public, `gtfs-manager` :8001 protected), celery worker + beat |
 | Ingest | Traccar, vehicle-poser, trip-updogger, hell-gate-bridge ×2 |
+| Catalog | geometry-car: Dagster webserver (`dagster.gtfs.zone`), daemon and code server, Postgres run storage, publishing to the `data.gtfs.zone` bucket |
+| Sites | nginx images in `sites/`, built by each repo's CI. The four map apps (edit, viz, manage.rt, list) share one app shell from `interlocking` |
 | Monitoring | Gatus, config-as-code in `gtfs/gatus/config.yaml`, public page at `status.gtfs.zone`, Telegram alerts |
 
 ### Related repositories
@@ -209,6 +218,50 @@ positions and an **empty `trip_updates.pb`**.
 - **[railroad-club](https://git.kcfam.us/gtfs.zone/railroad-club)**: shared SQLAlchemy models + Alembic migrations
 - **[music-student](https://git.kcfam.us/gtfs.zone/music-student)**: Docker Compose stack for local dev
 - **[landing-zone](https://git.kcfam.us/gtfs.zone/landing-zone)**: static homepage at the apex
+- **[geometry-car](https://git.kcfam.us/gtfs.zone/geometry-car)**: Dagster pipeline for the source catalog (Transitland Atlas + Mobility Database, reachability, logical feeds)
+- **[globe-of-contents](https://git.kcfam.us/gtfs.zone/globe-of-contents)**: `list.gtfs.zone`, the catalog as a list and a world map
+- **[interlocking](https://git.kcfam.us/gtfs.zone/interlocking)**: shared browser library and app shell for coloring-book, test-track, yard-master and globe-of-contents
+
+### Source catalog
+
+geometry-car is the one thing that inspects the world of GTFS. Once a day it
+ingests Transitland Atlas and the Mobility Database, checks every endpoint
+(HEAD, falling back to a ranged GET when the origin rejects HEAD; no feed bodies
+are stored), keeps history in its own `geometry_car` database, and publishes
+JSON to the public bucket:
+
+```
+ Transitland Atlas ─┐                       ┌─▶ data.gtfs.zone/feeds.json ──▶ edit/viz load modal
+ Mobility Database ─┼─▶ geometry-car ──────▶├─▶ sources.json, status.json,   globe-of-contents
+ curated examples ──┘   (Dagster, daily)    │   examples.json, summary.json  (list.gtfs.zone)
+                                            └─▶ manifest.json, written last
+```
+
+The catalog is a **published artifact, not a baked file**. The frontends used to
+ship a ~1MB `atlas-feeds.json` generated at build time; now every consumer
+fetches the same live artifacts at runtime, and the curated examples (edited in
+geometry-car's `src/geometry_car/data/examples.yaml`) get the same daily check
+as everything else.
+
+Three layers, each built on the one below:
+
+- **Catalog rows** (`sources.json`): one per catalog entry, never merged across
+  catalogs, cross-linked by normalized URL.
+- **Endpoints**: reachability history is kept per normalized URL (the `endpoint`
+  table), since the URL is what is actually checked. Rows and feeds derive their
+  state from their URLs.
+- **Logical feeds** (`feeds.json`): one per transit system, bundling the
+  scheduled and RT roles across catalogs. Grouped by shared normalized URL, MDB
+  `feed_references`, and RT URLs on one host differing only in a
+  vehicles/trips/alerts last segment. Feed ids are sticky: a regrouped feed
+  inherits the id of the existing feed it shares the most members with, since the
+  ids are in shareable URLs.
+
+Dated snapshots under `snapshots/` are deduped and retention-pruned; with the
+uploaded zips on the same 40Gi Garage volume, that retention is load-bearing.
+Gatus watches the result: `Data / Catalog publish` is an external-endpoint
+heartbeat geometry-car pushes after writing `manifest.json` (30h), and the
+manifest and `feeds.json` are polled for shape.
 
 ## Patterns worth knowing
 
@@ -309,6 +362,40 @@ Each of these cost real debugging time.
   `fs.inotify.max_user_instances`; at the default 128 they exhausted it and
   home-docker's Traefik could not start its file provider at all. Raised to 1024
   in `/etc/sysctl.d/99-inotify.conf`.
+- **Garage picks the bucket from the Host header.** The `s3_web` endpoint looks a
+  Host that does not end in its `root_domain` up as a bucket global alias, which
+  is why the public bucket is aliased literally `data.gtfs.zone`. A Traefik
+  Host-rewrite middleware in front of it rewrites the bucket name and returns a
+  404 that never says why. On the S3 side, `S3_REGION` is part of the SigV4
+  signature, so a mismatch with `garage.toml`'s `s3_region` is a 403 rather than a
+  redirect, and `PutBucketCors` is refused from a key without `owner` on the
+  bucket.
+- **`DAGSTER_HOME` must be a directory the image owns.** `/app` is root-owned and
+  the image runs as `bridge`, so the default lands somewhere unwritable and fails
+  late and confusingly, not at startup: the same trap as celery-beat's
+  `--schedule`. It is `/app/dagster_home`, and the instance config is mounted into
+  it by `subPath` so the directory itself stays writable.
+- **Dagster runs live inside the code-server pod.** With `DefaultRunLauncher`, an
+  image bump during the ~40 min daily run kills the run process, and nothing can
+  see it die (`DefaultRunLauncher` has no worker health check): the run sits in
+  STARTED, and with `max_concurrent_runs: 1` it holds the queue. What frees it is
+  `max_runtime_seconds` moving it to CANCELING and `cancel_timeout_seconds`
+  marking it CANCELED; a UI cancel alone leaves it in CANCELING forever.
+- **Two oauth2-proxies must not share anything.** `oauth2-proxy-admin` has its
+  own cookie name, its own Redis DB and a cookie domain of exactly
+  `dagster.gtfs.zone`; two instances both writing `_oauth2_proxy` on `.gtfs.zone`
+  hand each other's sessions back and forth. The protected host also needs an
+  unprotected, longer `PathPrefix(`/oauth2/`)` route, or the sign-in page's own
+  CSS and the callback re-enter the auth chain and the login never completes.
+- **Gatus conditions have no clock.** They cannot express "generated in the last
+  day", so freshness is an `external-endpoints` heartbeat the producer pushes, not
+  a condition on a polled body.
+- **The shared app shell has an import order.** Each app's `src/shell.ts` mounts
+  the markup and must stay the first import in `index.ts`, since other modules
+  look element ids up at evaluation time. The shell stylesheet's `@import` must
+  directly follow `@import 'tailwindcss'`: postcss rejects an `@import` after any
+  other statement. An interlocking tag pushed to only one remote breaks
+  `pnpm install` for every app that repins; push tags to both.
 
 ## Known gaps
 
@@ -353,5 +440,9 @@ Each of these cost real debugging time.
   share per device. That share is still manual, in the UI or
   `POST /api/permissions {"userId": N, "groupId": G}`. A device created outside
   cafe-car, by hand in the Traccar UI, gets no group and stays invisible.
+- **Logical feed grouping can false-merge,** and there is no override file yet.
+  Grouping is by URL and host/path shape only, so unrelated systems that share a
+  download URL become one feed (the largest group seen is 9, PTV's nested zips on
+  one download). The fix belongs in geometry-car.
 - No backups yet. CNPG scheduled backups + Longhorn snapshots are the obvious
   next step now that Traccar keeps durable position history.
