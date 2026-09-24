@@ -244,6 +244,19 @@ endpoints:
     alerts:
       - type: telegram
 
+  # Catches a run that publishes the manifest but not the feeds. Several MB, so
+  # hourly rather than with the manifest.
+  - name: Catalog feeds
+    group: Data
+    url: https://data.gtfs.zone/feeds.json
+    interval: 1h
+    conditions:
+      - "[STATUS] == 200"
+      - "has([BODY].generated_at) == true"
+      - "[BODY].count > 0"
+    alerts:
+      - type: telegram
+
   # ── DNS ─────────────────────────────────────────────────────────────────────
   - name: Porkbun record for rt.gtfs.zone
     group: DNS
