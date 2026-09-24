@@ -87,6 +87,14 @@ spec:
                 secretKeyRef:
                   name: gtfs-app-secrets
                   key: MOBILITY_DB_REFRESH_TOKEN
+            # Heartbeat pushed after each publish; Gatus pages when it stops.
+            - name: GATUS_URL
+              value: http://gatus:8080
+            - name: GATUS_TOKEN
+              valueFrom:
+                secretKeyRef:
+                  name: gtfs-app-secrets
+                  key: GATUS_GEOMETRY_CAR_TOKEN
           volumeMounts:
             - name: dagster-config
               mountPath: /app/dagster_home/dagster.yaml

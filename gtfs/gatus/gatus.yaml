@@ -53,6 +53,12 @@ spec:
                 secretKeyRef:
                   name: gtfs-app-secrets
                   key: TELEGRAM_CHAT_ID
+            # Bearer token geometry-car pushes its publish heartbeat with.
+            - name: GATUS_GEOMETRY_CAR_TOKEN
+              valueFrom:
+                secretKeyRef:
+                  name: gtfs-app-secrets
+                  key: GATUS_GEOMETRY_CAR_TOKEN
           volumeMounts:
             - name: config
               mountPath: /config
