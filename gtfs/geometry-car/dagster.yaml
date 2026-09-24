@@ -31,6 +31,22 @@ run_coordinator:
   config:
     max_concurrent_runs: 1
 
+# A run executes inside the code-server pod, so replacing that pod (an image
+# bump) kills the run process mid-run. DefaultRunLauncher has no worker health
+# check, so monitoring cannot see the process die; what reaches it instead is
+# the runtime cap. A daily run takes ~40 min, so one still STARTED at 4h is
+# dead: the daemon cancels it, the terminate reaches a code server that never
+# knew the run and fails, and the cancel timeout then marks it CANCELED. That
+# frees the single queue slot. The Gatus publish heartbeat is still the page.
+# max_resume_run_attempts is 0 because DefaultRunLauncher cannot resume.
+run_monitoring:
+  enabled: true
+  start_timeout_seconds: 300
+  cancel_timeout_seconds: 300
+  max_runtime_seconds: 14400
+  max_resume_run_attempts: 0
+  poll_interval_seconds: 120
+
 # The webserver and the run live in different pods with no shared volume, so a
 # local compute-log manager would write files the UI can never read and show an
 # empty pane with no explanation. Structured events are in Postgres and visible
