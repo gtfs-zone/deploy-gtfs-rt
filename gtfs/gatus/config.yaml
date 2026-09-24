@@ -80,11 +80,10 @@ endpoints:
     conditions:
       - "[STATUS] == 200"
       - "len([BODY]) > 0"
-
-  # ── Sites ───────────────────────────────────────────────────────────────────
     alerts:
       - type: telegram
 
+  # ── Sites ───────────────────────────────────────────────────────────────────
   - name: gtfs.zone
     group: Sites
     url: https://gtfs.zone/
@@ -112,11 +111,20 @@ endpoints:
       - "[STATUS] == 200"
       # Wildcards match one label, so this host rides the *.rt.gtfs.zone SAN.
       - "[CERTIFICATE_EXPIRATION] > 240h"
-
-  # ── Auth ────────────────────────────────────────────────────────────────────
     alerts:
       - type: telegram
 
+  - name: list.gtfs.zone
+    group: Sites
+    url: https://list.gtfs.zone/
+    interval: 120s
+    conditions:
+      - "[STATUS] == 200"
+      - "[CERTIFICATE_EXPIRATION] > 240h"
+    alerts:
+      - type: telegram
+
+  # ── Auth ────────────────────────────────────────────────────────────────────
   - name: Keycloak realm
     group: Auth
     url: https://id.gtfs.zone/realms/gtfs
@@ -146,17 +154,26 @@ endpoints:
     alerts:
       - type: telegram
 
+  - name: Dagster (gated)
+    group: Auth
+    url: https://dagster.gtfs.zone/
+    interval: 120s
+    conditions:
+      # 401 means oauth2-proxy-admin is still enforcing the gtfs-admins gate.
+      - "[STATUS] == 401"
+    alerts:
+      - type: telegram
+
   - name: ArgoCD
     group: Auth
     url: https://argocd.gtfs.zone/healthz
     interval: 120s
     conditions:
       - "[STATUS] == 200"
-
-  # ── Ingest ──────────────────────────────────────────────────────────────────
     alerts:
       - type: telegram
 
+  # ── Ingest ──────────────────────────────────────────────────────────────────
   - name: Traccar console
     group: Ingest
     url: https://traccar.gtfs.zone/api/server
@@ -181,11 +198,10 @@ endpoints:
     interval: 60s
     conditions:
       - "[STATUS] == 200"
-
-  # ── Data ────────────────────────────────────────────────────────────────────
     alerts:
       - type: telegram
 
+  # ── Data ────────────────────────────────────────────────────────────────────
   - name: Postgres
     group: Data
     url: tcp://postgres-rw.gtfs.svc.cluster.local:5432
@@ -201,11 +217,34 @@ endpoints:
     interval: 60s
     conditions:
       - "[CONNECTED] == true"
-
-  # ── DNS ─────────────────────────────────────────────────────────────────────
     alerts:
       - type: telegram
 
+  - name: Garage S3
+    group: Data
+    url: tcp://garage.gtfs.svc.cluster.local:3900
+    interval: 60s
+    conditions:
+      - "[CONNECTED] == true"
+    alerts:
+      - type: telegram
+
+  # Served by Garage's web endpoint, so this also covers the public bucket's
+  # Host-based routing. Freshness is the heartbeat below: conditions cannot
+  # compare generated_at against the current time.
+  - name: Catalog manifest
+    group: Data
+    url: https://data.gtfs.zone/manifest.json
+    interval: 300s
+    conditions:
+      - "[STATUS] == 200"
+      - "has([BODY].generated_at) == true"
+      - "has([BODY].run_id) == true"
+      - "[CERTIFICATE_EXPIRATION] > 240h"
+    alerts:
+      - type: telegram
+
+  # ── DNS ─────────────────────────────────────────────────────────────────────
   - name: Porkbun record for rt.gtfs.zone
     group: DNS
     url: 1.1.1.1
@@ -218,3 +257,19 @@ endpoints:
       - "[BODY] == 73.4.232.254"
     alerts:
       - type: telegram
+
+# Pushed, not polled: geometry-car POSTs success to
+# /api/v1/endpoints/data_catalog-publish/external after each publish. The
+# pipeline runs daily at 09:00 UTC; 30h leaves room for a slow run. Storage is
+# in-memory, so after a restart the first check is 30h out, by which time the
+# next daily push has landed.
+external-endpoints:
+  - name: Catalog publish
+    group: Data
+    token: "${GATUS_GEOMETRY_CAR_TOKEN}"
+    heartbeat:
+      interval: 30h
+    alerts:
+      - type: telegram
+        # Each miss is already a whole missed day.
+        failure-threshold: 1
