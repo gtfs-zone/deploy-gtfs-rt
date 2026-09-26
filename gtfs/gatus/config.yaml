@@ -124,6 +124,28 @@ endpoints:
     alerts:
       - type: telegram
 
+  # A feed page is the app shell with geometry-car's fragments included over
+  # SSI from Garage. Without the JSON-LD the include fell back to the home head.
+  - name: list.gtfs.zone feed page
+    group: Sites
+    url: https://list.gtfs.zone/feed/f-1f748c5476/mbta
+    interval: 1h
+    conditions:
+      - "[STATUS] == 200"
+      - "[BODY] == pat(*application/ld+json*)"
+    alerts:
+      - type: telegram
+
+  - name: list.gtfs.zone sitemap
+    group: Sites
+    url: https://list.gtfs.zone/sitemap.xml
+    interval: 1h
+    conditions:
+      - "[STATUS] == 200"
+      - "[BODY] == pat(*<urlset*)"
+    alerts:
+      - type: telegram
+
   # ── Auth ────────────────────────────────────────────────────────────────────
   - name: Keycloak realm
     group: Auth

@@ -7,6 +7,10 @@
 #
 # The catalogue data is not in this image: the site fetches it at runtime from
 # data.gtfs.zone (Garage's public bucket, written by geometry-car).
+#
+# /feed/<id>/<slug> pages and /sitemap.xml are proxied by the pod's nginx from
+# the same bucket, straight to Garage's web endpoint in-cluster (PAGES_UPSTREAM)
+# rather than out and back through the public hostname.
 apiVersion: apps/v1
 kind: Deployment
 metadata:
@@ -41,6 +45,9 @@ spec:
           ports:
             - name: http
               containerPort: 8080
+          env:
+            - name: PAGES_UPSTREAM
+              value: http://garage.gtfs.svc.cluster.local:3902
           securityContext:
             allowPrivilegeEscalation: false
             readOnlyRootFilesystem: true
