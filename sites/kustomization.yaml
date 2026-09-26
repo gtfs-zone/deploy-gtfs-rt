@@ -25,7 +25,7 @@ images:
 - digest: sha256:aaeb06c1f21a090545a009c5e3bddf8466551b516a5ce474f09a5528c4c087ec
   name: git.kcfam.us/gtfs.zone/coloring-book
   newName: git.kcfam.us/gtfs.zone/coloring-book
-- digest: sha256:df872f0d155381ae68b40d198892585ff4b3e559ae77098b5d1690225df274df
+- digest: sha256:39bffae35198dc4dbb1c272990a0b1e6fc476efd17ad90e84de669ef39c1d910
   name: git.kcfam.us/gtfs.zone/globe-of-contents
   newName: git.kcfam.us/gtfs.zone/globe-of-contents
 - digest: sha256:207b00a585912b2151ff47d73fe849b7598ec4f319b4fe960ca9cdbc17e86b2b
