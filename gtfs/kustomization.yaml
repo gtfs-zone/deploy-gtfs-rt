@@ -33,6 +33,6 @@ resources:
 # Written by geometry-car's CI after it pushes, so what is deployed is the
 # digest of exactly what was built rather than a moving tag.
 images:
-- digest: sha256:3f23f5ce1c49fda41a99130e14d34027423c905a6554b2d25a20fec6947c30ca
+- digest: sha256:f441c6784805717b52265dfea0a62408c7c2844532fb3a422997af95c281c14e
   name: git.kcfam.us/gtfs.zone/geometry-car
   newName: git.kcfam.us/gtfs.zone/geometry-car
