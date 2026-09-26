@@ -22,7 +22,7 @@ resources:
 - yard-master.yaml
 - list.yaml
 images:
-- digest: sha256:aaeb06c1f21a090545a009c5e3bddf8466551b516a5ce474f09a5528c4c087ec
+- digest: sha256:268813ec6addff48212ab1eede08cc83eeb8db8543ef6440b3e42c99963c635d
   name: git.kcfam.us/gtfs.zone/coloring-book
   newName: git.kcfam.us/gtfs.zone/coloring-book
 - digest: sha256:39bffae35198dc4dbb1c272990a0b1e6fc476efd17ad90e84de669ef39c1d910
