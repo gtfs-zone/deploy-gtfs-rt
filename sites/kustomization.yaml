@@ -28,7 +28,7 @@ images:
 - digest: sha256:39bffae35198dc4dbb1c272990a0b1e6fc476efd17ad90e84de669ef39c1d910
   name: git.kcfam.us/gtfs.zone/globe-of-contents
   newName: git.kcfam.us/gtfs.zone/globe-of-contents
-- digest: sha256:207b00a585912b2151ff47d73fe849b7598ec4f319b4fe960ca9cdbc17e86b2b
+- digest: sha256:92240977501a302bd63a4000206f3b02fa132c783fa63081038bbc78e36c9045
   name: git.kcfam.us/gtfs.zone/landing-zone
   newName: git.kcfam.us/gtfs.zone/landing-zone
 - digest: sha256:5b21d569dd59d89993b28692e233b81cf689d65865eafeb772b49a8b126c3323
