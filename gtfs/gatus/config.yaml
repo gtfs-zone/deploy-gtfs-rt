@@ -321,7 +321,7 @@ external-endpoints:
         failure-threshold: 1
 
   # cape-flier POSTs success to /api/v1/endpoints/data_sites-publish/external
-  # once every site has been built for the day; the schedule runs at 11:00 UTC.
+  # once 95% of sites have been built for the day; the schedule runs at 11:00 UTC.
   - name: Sites publish
     group: Data
     token: "${GATUS_CAPE_FLIER_TOKEN}"

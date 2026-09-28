@@ -5,7 +5,10 @@
 # schedule (11:00 UTC) sits after the catalog run (09:00 UTC).
 #
 # With DefaultRunLauncher a run executes inside this pod, so it carries the
-# instance config and the run storage credentials like geometry-car-code.
+# instance config and the run storage credentials like geometry-car-code. A run
+# builds its shard of sites in CAPE_FLIER_WORKERS processes, each capped at
+# CAPE_FLIER_WORKER_MEMORY bytes of address space, so the memory limit covers
+# the workers plus the code server.
 apiVersion: apps/v1
 kind: Deployment
 metadata:
@@ -66,7 +69,11 @@ spec:
                 secretKeyRef:
                   name: gtfs-app-secrets
                   key: CAPE_FLIER_S3_SECRET_KEY
-            # Heartbeat pushed once every site is built for the day.
+            - name: CAPE_FLIER_WORKERS
+              value: "4"
+            - name: CAPE_FLIER_WORKER_MEMORY
+              value: "2500000000"
+            # Heartbeat pushed once 95% of sites are built for the day.
             - name: GATUS_URL
               value: http://gatus:8080
             - name: GATUS_TOKEN
@@ -74,6 +81,12 @@ spec:
                 secretKeyRef:
                   name: gtfs-app-secrets
                   key: GATUS_CAPE_FLIER_TOKEN
+          resources:
+            requests:
+              cpu: "1"
+              memory: 1Gi
+            limits:
+              memory: 11Gi
           volumeMounts:
             - name: dagster-config
               mountPath: /app/dagster_home/dagster.yaml
