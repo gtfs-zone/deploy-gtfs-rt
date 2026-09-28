@@ -33,7 +33,7 @@ resources:
 # Written by geometry-car's CI after it pushes, so what is deployed is the
 # digest of exactly what was built rather than a moving tag.
 images:
-- digest: sha256:ce6f2f010f14f1fb88414f8b5f5283c52a1c397697daea860b823072060f46f0
+- digest: sha256:2066f9d21ce618f9a44d9cdb56525e28d1af0a6cda64d694f31533393c119d4f
   name: git.kcfam.us/gtfs.zone/cape-flier
   newName: git.kcfam.us/gtfs.zone/cape-flier
 - digest: sha256:7d3560e4f9b43be50be82c3bc07701be98d3b49d1684af315965bef44aa16320
