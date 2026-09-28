@@ -36,6 +36,6 @@ images:
 - digest: sha256:ce6f2f010f14f1fb88414f8b5f5283c52a1c397697daea860b823072060f46f0
   name: git.kcfam.us/gtfs.zone/cape-flier
   newName: git.kcfam.us/gtfs.zone/cape-flier
-- digest: sha256:f441c6784805717b52265dfea0a62408c7c2844532fb3a422997af95c281c14e
+- digest: sha256:7d3560e4f9b43be50be82c3bc07701be98d3b49d1684af315965bef44aa16320
   name: git.kcfam.us/gtfs.zone/geometry-car
   newName: git.kcfam.us/gtfs.zone/geometry-car
