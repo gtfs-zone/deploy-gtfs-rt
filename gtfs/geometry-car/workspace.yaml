@@ -7,3 +7,7 @@ load_from:
       host: geometry-car-code
       port: 4000
       location_name: geometry_car
+  - grpc_server:
+      host: cape-flier-code
+      port: 4000
+      location_name: cape_flier

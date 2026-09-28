@@ -59,6 +59,12 @@ spec:
                 secretKeyRef:
                   name: gtfs-app-secrets
                   key: GATUS_GEOMETRY_CAR_TOKEN
+            # Bearer token cape-flier pushes its publish heartbeat with.
+            - name: GATUS_CAPE_FLIER_TOKEN
+              valueFrom:
+                secretKeyRef:
+                  name: gtfs-app-secrets
+                  key: GATUS_CAPE_FLIER_TOKEN
           volumeMounts:
             - name: config
               mountPath: /config

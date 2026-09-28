@@ -72,6 +72,7 @@ data:
     BUCKETS="
     gtfs-feeds     gtfs         S3_ACCESS_KEY               S3_SECRET_KEY               no  no
     data.gtfs.zone geometry-car GEOMETRY_CAR_S3_ACCESS_KEY  GEOMETRY_CAR_S3_SECRET_KEY  yes yes
+    sites.gtfs.zone cape-flier  CAPE_FLIER_S3_ACCESS_KEY    CAPE_FLIER_S3_SECRET_KEY    yes no
     "
 
     api() {
@@ -330,6 +331,17 @@ spec:
                 secretKeyRef:
                   name: gtfs-app-secrets
                   key: GEOMETRY_CAR_S3_SECRET_KEY
+            # cape-flier's pair, scoped to the public sites.gtfs.zone bucket.
+            - name: CAPE_FLIER_S3_ACCESS_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: gtfs-app-secrets
+                  key: CAPE_FLIER_S3_ACCESS_KEY
+            - name: CAPE_FLIER_S3_SECRET_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: gtfs-app-secrets
+                  key: CAPE_FLIER_S3_SECRET_KEY
           volumeMounts:
             - name: config
               mountPath: /etc/garage

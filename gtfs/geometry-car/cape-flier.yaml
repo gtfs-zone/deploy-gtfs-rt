@@ -1,0 +1,108 @@
+# ── cape-flier (Dagster code location) ────────────────────────────────────────
+# Builds the static timetable sites at sites.gtfs.zone. A second code location
+# in geometry-car's Dagster instance: the webserver and daemon are geometry-car's,
+# and runs share its Postgres run storage and its single-run queue, so the daily
+# schedule (11:00 UTC) sits after the catalog run (09:00 UTC).
+#
+# With DefaultRunLauncher a run executes inside this pod, so it carries the
+# instance config and the run storage credentials like geometry-car-code.
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: cape-flier-code
+  namespace: gtfs
+  labels:
+    app: cape-flier-code
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: cape-flier-code
+  template:
+    metadata:
+      labels:
+        app: cape-flier-code
+    spec:
+      containers:
+        - name: cape-flier
+          image: git.kcfam.us/gtfs.zone/cape-flier:latest
+          command:
+            - dagster
+            - api
+            - grpc
+            - -h
+            - 0.0.0.0
+            - -p
+            - "4000"
+            - -m
+            - cape_flier.pipeline.definitions
+          ports:
+            - name: grpc
+              containerPort: 4000
+          env:
+            - name: DAGSTER_HOME
+              value: /app/dagster_home
+            - name: POSTGRES_GEOMETRY_CAR_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: postgres-geometry-car
+                  key: password
+            - name: DATABASE_URL
+              value: postgresql://geometry_car:$(POSTGRES_GEOMETRY_CAR_PASSWORD)@postgres-rw:5432/geometry_car
+            # The public sites bucket, with a key scoped to it alone.
+            - name: S3_ENDPOINT
+              value: http://garage:3900
+            - name: S3_BUCKET
+              value: sites.gtfs.zone
+            - name: S3_REGION
+              value: garage
+            - name: S3_ACCESS_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: gtfs-app-secrets
+                  key: CAPE_FLIER_S3_ACCESS_KEY
+            - name: S3_SECRET_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: gtfs-app-secrets
+                  key: CAPE_FLIER_S3_SECRET_KEY
+            # Heartbeat pushed once every site is built for the day.
+            - name: GATUS_URL
+              value: http://gatus:8080
+            - name: GATUS_TOKEN
+              valueFrom:
+                secretKeyRef:
+                  name: gtfs-app-secrets
+                  key: GATUS_CAPE_FLIER_TOKEN
+          volumeMounts:
+            - name: dagster-config
+              mountPath: /app/dagster_home/dagster.yaml
+              subPath: dagster.yaml
+              readOnly: true
+          readinessProbe:
+            tcpSocket:
+              port: grpc
+            initialDelaySeconds: 10
+            periodSeconds: 10
+          livenessProbe:
+            tcpSocket:
+              port: grpc
+            initialDelaySeconds: 30
+            periodSeconds: 20
+      volumes:
+        - name: dagster-config
+          configMap:
+            name: geometry-car-dagster
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: cape-flier-code
+  namespace: gtfs
+spec:
+  selector:
+    app: cape-flier-code
+  ports:
+    - name: grpc
+      port: 4000
+      targetPort: grpc

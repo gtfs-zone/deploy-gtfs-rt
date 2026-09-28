@@ -136,6 +136,17 @@ endpoints:
     alerts:
       - type: telegram
 
+  # cape-flier's sites, served from Garage; a route list means the build ran.
+  - name: sites.gtfs.zone Columbia County
+    group: Sites
+    url: https://sites.gtfs.zone/columbia-county/
+    interval: 1h
+    conditions:
+      - "[STATUS] == 200"
+      - "[BODY] == pat(*Columbia County*)"
+    alerts:
+      - type: telegram
+
   - name: list.gtfs.zone sitemap
     group: Sites
     url: https://list.gtfs.zone/sitemap.xml
@@ -307,4 +318,15 @@ external-endpoints:
     alerts:
       - type: telegram
         # Each miss is already a whole missed day.
+        failure-threshold: 1
+
+  # cape-flier POSTs success to /api/v1/endpoints/data_sites-publish/external
+  # once every site has been built for the day; the schedule runs at 11:00 UTC.
+  - name: Sites publish
+    group: Data
+    token: "${GATUS_CAPE_FLIER_TOKEN}"
+    heartbeat:
+      interval: 30h
+    alerts:
+      - type: telegram
         failure-threshold: 1

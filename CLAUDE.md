@@ -146,7 +146,7 @@ Internet :80/:443
    k3s single node ─────────────────────────────────┘
      Traefik (Helm), websecure entrypoint on host :8443 via ServiceLB
        └─ IngressRoute: rt · manage.rt · id · auth · status · traccar
-          · data (Garage s3_web :3902) · dagster (oauth2-proxy-admin)
+          · data + sites (Garage s3_web :3902) · dagster (oauth2-proxy-admin)
           · edit · viz · list (from sites/)
           (+ argocd, in the argocd namespace)
      cert-manager (Porkbun DNS-01) · external-dns · Longhorn · CNPG · ArgoCD
@@ -198,13 +198,13 @@ positions and an **empty `trip_updates.pb`**.
 | Edge | Traefik (Helm), `websecure` on host :8443; `IngressRoute`/`Middleware` CRDs |
 | TLS / DNS | cert-manager + Porkbun DNS-01 webhook; external-dns (Porkbun webhook) |
 | Storage | Longhorn (default StorageClass, 1 replica) |
-| Object storage | Garage (single-node StatefulSet; `garage-init` PostSync Job applies the layout, buckets and keys). Two buckets, each with its own key: `gtfs-feeds` is private, S3 API cluster-internal only (uploaded zips); `data.gtfs.zone` is public, served read-only over HTTP by Garage's `s3_web` endpoint at `data.gtfs.zone` (geometry-car's artifacts) |
+| Object storage | Garage (single-node StatefulSet; `garage-init` PostSync Job applies the layout, buckets and keys). Three buckets, each with its own key: `gtfs-feeds` is private, S3 API cluster-internal only (uploaded zips); `data.gtfs.zone` and `sites.gtfs.zone` are public, served read-only over HTTP by Garage's `s3_web` endpoint at their own hostnames (geometry-car's artifacts, cape-flier's timetable sites; `sites` goes through a Traefik `compress` middleware) |
 | Database | CloudNativePG `Cluster` `postgres` → `rt_api`, `keycloak`, `traccar`, `geometry_car` databases |
 | Cache | Redis (DB 0 oauth2-proxy, 1 rt-api+poser, 2 oauth2-proxy-admin, 3 celery broker, 4 celery result) |
 | Auth | Keycloak (OIDC, `id.gtfs.zone`, brokers GitHub/Google/GitLab) + two oauth2-proxy instances, each ForwardAuth via its own pair of Middlewares: `oauth2-proxy` (`oauth2-errors` + `oauth2-proxy`) admits any realm account and fronts `manage.rt`; `oauth2-proxy-admin` (`oauth2-admin-errors` + `oauth2-admin`) requires the `gtfs-admins` group and fronts `dagster`. Traccar is a separate Keycloak client with its own login, gated on the same group, see `gtfs/keycloak/CUTOVER.md` |
 | Application | rt-api (`gtfs-api` :8000 public, `gtfs-manager` :8001 protected), celery worker + beat |
 | Ingest | Traccar, vehicle-poser, trip-updogger, hell-gate-bridge ×2 |
-| Catalog | geometry-car: Dagster webserver (`dagster.gtfs.zone`), daemon and code server, Postgres run storage, publishing to the `data.gtfs.zone` bucket |
+| Catalog | geometry-car: Dagster webserver (`dagster.gtfs.zone`), daemon and code server, Postgres run storage, publishing to the `data.gtfs.zone` bucket. cape-flier is a second code location in the same instance (`cape-flier-code`), publishing to the `sites.gtfs.zone` bucket daily at 11:00 UTC |
 | Sites | nginx images in `sites/`, built by each repo's CI. The four map apps (edit, viz, manage.rt, list) share one app shell from `interlocking` |
 | Monitoring | Gatus, config-as-code in `gtfs/gatus/config.yaml`, public page at `status.gtfs.zone`, Telegram alerts |
 
@@ -220,6 +220,7 @@ positions and an **empty `trip_updates.pb`**.
 - **[landing-zone](https://git.kcfam.us/gtfs.zone/landing-zone)**: static homepage at the apex
 - **[geometry-car](https://git.kcfam.us/gtfs.zone/geometry-car)**: Dagster pipeline for the source catalog (Transitland Atlas + Mobility Database, reachability, logical feeds)
 - **[globe-of-contents](https://git.kcfam.us/gtfs.zone/globe-of-contents)**: `list.gtfs.zone`, the catalog as a list and a world map
+- **[cape-flier](https://git.kcfam.us/gtfs.zone/cape-flier)**: static timetable sites at `sites.gtfs.zone`, a Dagster code location in geometry-car's instance
 - **[interlocking](https://git.kcfam.us/gtfs.zone/interlocking)**: shared browser library and app shell for coloring-book, test-track, yard-master and globe-of-contents
 
 ### Source catalog
