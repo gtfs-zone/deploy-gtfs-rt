@@ -136,17 +136,6 @@ endpoints:
     alerts:
       - type: telegram
 
-  # cape-flier's sites, served from Garage; a route list means the build ran.
-  - name: sites.gtfs.zone Columbia County
-    group: Sites
-    url: https://sites.gtfs.zone/columbia-county/
-    interval: 1h
-    conditions:
-      - "[STATUS] == 200"
-      - "[BODY] == pat(*Columbia County*)"
-    alerts:
-      - type: telegram
-
   - name: list.gtfs.zone sitemap
     group: Sites
     url: https://list.gtfs.zone/sitemap.xml
