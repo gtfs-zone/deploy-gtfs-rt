@@ -220,6 +220,7 @@ spec:
 # the bucket's global alias, which is why the bucket is aliased literally
 # `data.gtfs.zone`. Deliberately NO Host-rewrite middleware: rewriting the Host
 # is rewriting the bucket name, and the answer is a 404 that never says why.
+# Garage serves the JSON uncompressed, so Traefik compresses it on the way out.
 apiVersion: traefik.io/v1alpha1
 kind: IngressRoute
 metadata:
@@ -232,6 +233,8 @@ spec:
   routes:
     - match: Host(`data.gtfs.zone`)
       kind: Rule
+      middlewares:
+        - name: compress
       services:
         - name: garage
           port: 3902
