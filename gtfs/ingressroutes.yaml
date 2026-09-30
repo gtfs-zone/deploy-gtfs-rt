@@ -221,6 +221,9 @@ spec:
 # `data.gtfs.zone`. Deliberately NO Host-rewrite middleware: rewriting the Host
 # is rewriting the bucket name, and the answer is a 404 that never says why.
 # Garage serves the JSON uncompressed, so Traefik compresses it on the way out.
+# data-cors replaces Garage's reflected Access-Control-Allow-Origin with a
+# constant `*`: Garage sends no `Vary: Origin`, so a copy cached by one gtfs.zone
+# app would otherwise fail the CORS check in another.
 apiVersion: traefik.io/v1alpha1
 kind: IngressRoute
 metadata:
@@ -234,6 +237,7 @@ spec:
     - match: Host(`data.gtfs.zone`)
       kind: Rule
       middlewares:
+        - name: data-cors
         - name: compress
       services:
         - name: garage
@@ -272,6 +276,16 @@ metadata:
 spec:
   compress:
     encodings: [zstd, br, gzip]
+---
+apiVersion: traefik.io/v1alpha1
+kind: Middleware
+metadata:
+  name: data-cors
+  namespace: gtfs
+spec:
+  headers:
+    customResponseHeaders:
+      Access-Control-Allow-Origin: "*"
 ---
 # Dagster's UI, behind the admin oauth2-proxy: it can launch runs and delete
 # history, so unlike manage.rt it is gated on the gtfs-admins group.
