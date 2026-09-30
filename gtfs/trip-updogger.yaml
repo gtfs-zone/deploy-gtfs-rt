@@ -39,7 +39,7 @@ spec:
     spec:
       containers:
         - name: trip-updogger
-          image: git.kcfam.us/gtfs.zone/trip-updogger:6e71988
+          image: git.kcfam.us/gtfs.zone/trip-updogger:fd0ea2b
           env:
             # DB1: where vehicle-poser and cafe-car's /ingest write positions.
             - name: REDIS_URL
