@@ -1,0 +1,6 @@
+[extend]
+useDefault = true
+
+[[allowlists]]
+description = "Env var names under a key: field, not values"
+regexes = ['''^[A-Z][A-Z0-9_]*_SECRET_KEY$''']
