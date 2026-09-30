@@ -14,17 +14,21 @@ The stack is built from these open-source projects:
 
 | Project | Role |
 |---------|------|
-| [cafe-car](https://git.kcfam.us/gtfs.zone/cafe-car) | Core API, serves GTFS-RT feeds and handles admin |
-| [vehicle-poser](https://git.kcfam.us/gtfs.zone/vehicle-poser) | Receives Traccar position forwards over HTTP → Redis |
-| [trip-updogger](https://git.kcfam.us/gtfs.zone/trip-updogger) | Sweeps live positions against the schedule → trip updates in Redis |
-| [hell-gate-bridge](https://git.kcfam.us/gtfs.zone/hell-gate-bridge) | Polls upstream feeds (Amtrak, Columbia County) → rt-api |
-| [schedule-foamer](https://git.kcfam.us/gtfs.zone/schedule-foamer) | Celery worker + beat scheduler for async static GTFS fetching |
-| [railroad-club](https://git.kcfam.us/gtfs.zone/railroad-club) | Shared SQLAlchemy models and Alembic migrations |
-| [music-student](https://git.kcfam.us/gtfs.zone/music-student) | Docker Compose stack for local development and testing |
-| [landing-zone](https://git.kcfam.us/gtfs.zone/landing-zone) | Static homepage at gtfs.zone |
-| [geometry-car](https://git.kcfam.us/gtfs.zone/geometry-car) | Dagster pipeline: the GTFS source catalog, its reachability checks and logical feeds, published to data.gtfs.zone |
-| [globe-of-contents](https://git.kcfam.us/gtfs.zone/globe-of-contents) | list.gtfs.zone, the source catalog as a list and a world map |
-| [interlocking](https://git.kcfam.us/gtfs.zone/interlocking) | Shared browser library and app shell for the four map frontends |
+| [cafe-car](https://github.com/gtfs-zone/cafe-car) | Core API, serves GTFS-RT feeds and handles admin |
+| [vehicle-poser](https://github.com/gtfs-zone/vehicle-poser) | Receives Traccar position forwards over HTTP → Redis |
+| [trip-updogger](https://github.com/gtfs-zone/trip-updogger) | Sweeps live positions against the schedule → trip updates in Redis |
+| [hell-gate-bridge](https://github.com/gtfs-zone/hell-gate-bridge) | Polls upstream feeds (Amtrak, Columbia County) → rt-api |
+| [schedule-foamer](https://github.com/gtfs-zone/schedule-foamer) | Celery worker + beat scheduler for async static GTFS fetching |
+| [railroad-club](https://github.com/gtfs-zone/railroad-club) | Shared SQLAlchemy models and Alembic migrations |
+| [music-student](https://github.com/gtfs-zone/music-student) | Docker Compose stack for local development and testing |
+| [landing-zone](https://github.com/gtfs-zone/landing-zone) | Static homepage at gtfs.zone |
+| [geometry-car](https://github.com/gtfs-zone/geometry-car) | Dagster pipeline: the GTFS source catalog, its reachability checks and logical feeds, published to data.gtfs.zone |
+| [globe-of-contents](https://github.com/gtfs-zone/globe-of-contents) | list.gtfs.zone, the source catalog as a list and a world map |
+| [coloring-book](https://github.com/gtfs-zone/coloring-book) | GTFS editor at edit.gtfs.zone |
+| [test-track](https://github.com/gtfs-zone/test-track) | Realtime visualiser at viz.rt.gtfs.zone |
+| [yard-master](https://github.com/gtfs-zone/yard-master) | Admin SPA at manage.rt.gtfs.zone, on cafe-car's JSON API |
+| [cape-flier](https://github.com/gtfs-zone/cape-flier) | Static timetable sites at sites.gtfs.zone, a Dagster code location in geometry-car's instance |
+| [interlocking](https://github.com/gtfs-zone/interlocking) | Shared browser library and app shell for coloring-book, test-track, yard-master and globe-of-contents |
 
 This repo provides the Kubernetes (k3s + ArgoCD) deployment that wires them
 together with supporting infrastructure.
@@ -65,7 +69,7 @@ flowchart LR
     gtfsd -.-|"mirrors for local dev"| ms
 ```
 
-**Issues & roadmap:** [issue tracker](https://git.kcfam.us/gtfs.zone/deploy-gtfs-rt/issues) · [project kanban](https://git.kcfam.us/gtfs.zone/-/projects/3)
+**Issues:** [issue tracker](https://github.com/gtfs-zone/deploy-gtfs-rt/issues)
 
 ---
 
@@ -184,7 +188,7 @@ flowchart LR
 
 ### Core data model
 
-All models defined in [railroad-club](https://git.kcfam.us/gtfs.zone/railroad-club) and shared across services.
+All models defined in [railroad-club](https://github.com/gtfs-zone/railroad-club) and shared across services.
 
 ```mermaid
 erDiagram
