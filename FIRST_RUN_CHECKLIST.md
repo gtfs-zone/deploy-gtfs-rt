@@ -55,7 +55,7 @@ kubectl get secret gtfs-app-secrets -n gtfs \
 
 > If you instead log in via Dex, you get a *manager* account, not an admin, and
 > it will see **no devices**: Traccar scopes device visibility per user and
-> cafe-car creates fleet devices as the admin. That is a known gap, not a bug.
+> rt-api creates fleet devices as the admin. That is a known gap, not a bug.
 > Share devices with `POST /api/permissions` if you need a manager to see them.
 
 ---
@@ -81,12 +81,12 @@ id, and a mismatch produces **no positions and no error anywhere**.
 
 | Poller Deployment | `INGEST_TRACKER_ID` | Tracker id you must create |
 |---|---|---|
-| `hell-gate-bridge-amtrak` | `amtrak-live` | **`amtrak-live`** |
-| `hell-gate-bridge-buswhere` | `columbia-county` | **`columbia-county`** |
+| `rt-pollers-amtrak` | `amtrak-live` | **`amtrak-live`** |
+| `rt-pollers-buswhere` | `columbia-county` | **`columbia-county`** |
 
 Confirm what the pods are actually set to rather than trusting this table:
 ```bash
-kubectl get deploy -n gtfs -l app.kubernetes.io/name=hell-gate-bridge \
+kubectl get deploy -n gtfs -l app.kubernetes.io/name=rt-pollers \
   -o jsonpath='{range .items[*]}{.metadata.name}{"\t"}{.spec.template.spec.containers[0].env[?(@.name=="INGEST_TRACKER_ID")].value}{"\n"}{end}'
 ```
 
@@ -108,7 +108,7 @@ The Amtrak poller was already confirmed posting `200 OK`. Once tracker
 being accepted and dropped.
 
 ```bash
-kubectl logs -n gtfs -l app=hell-gate-bridge-amtrak --tail=5
+kubectl logs -n gtfs -l app=rt-pollers-amtrak --tail=5
 ```
 Expect `POST http://gtfs-api:8000/ingest/position "HTTP/1.1 200 OK"` and a line
 like `amtrak: 135 vehicles → 135 positions, 135 trip-updates published`.
@@ -117,9 +117,9 @@ like `amtrak: 135 vehicles → 135 positions, 135 trip-updates published`.
 sends the literal string `Bearer None` rather than erroring, so 401 is the
 symptom to watch for.
 
-> **`hell-gate-bridge-buswhere` will keep failing** with
+> **`rt-pollers-buswhere` will keep failing** with
 > `ValueError: could not convert string to float: 'departed'`. That is a known
-> app bug, written up in the `hell-gate-bridge` repo as
+> app bug, written up in the `rt-pollers` repo as
 > `BUSWHERE_DEPARTED_BUG.md`. Columbia County will not report until it is fixed.
 > Amtrak is unaffected.
 
@@ -146,7 +146,7 @@ kubectl exec -n gtfs postgres-1 -c postgres -- \
   "select deviceid, latitude, longitude, devicetime from tc_positions order by id desc limit 3"
 ```
 
-**Verify (it reached Redis via vehicle-poser)**: this is the seam cafe-car reads;
+**Verify (it reached Redis via rt-traccar-receiver)**: this is the seam rt-api reads;
 keys carry a 60s TTL so check promptly after a report):
 ```bash
 kubectl exec -n gtfs deploy/redis -- redis-cli -n 1 --scan --pattern 'vehicle:*'
@@ -158,9 +158,9 @@ curl -sS https://rt.gtfs.zone/rt/vehicle-positions.pb | wc -c
 ```
 A non-trivial byte count means vehicles are being published.
 
-If Traccar has the position but Redis does not, look at vehicle-poser:
+If Traccar has the position but Redis does not, look at rt-traccar-receiver:
 ```bash
-kubectl logs -n gtfs -l app=vehicle-poser --tail=30
+kubectl logs -n gtfs -l app=rt-traccar-receiver --tail=30
 ```
 
 ---
@@ -168,8 +168,8 @@ kubectl logs -n gtfs -l app=vehicle-poser --tail=30
 ## 7. Celery: static GTFS loading
 
 ```bash
-kubectl logs -n gtfs -l app=celery-beat --tail=20
-kubectl logs -n gtfs -l app=celery-worker --tail=30
+kubectl logs -n gtfs -l app=static-importer-beat --tail=20
+kubectl logs -n gtfs -l app=static-importer-worker --tail=30
 ```
 
 Expect beat to enqueue scheduled tasks and the worker to pick them up. Then

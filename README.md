@@ -49,15 +49,15 @@ flowchart LR
     gtfsd --> apps
 
     subgraph registry["Container Registry"]
-        cc(["**cafe-car**<br>GTFS-RT API + admin"]):::repo
-        vp(["**vehicle-poser**<br>Traccar → Redis shim"]):::repo
-        tu(["**trip-updogger**<br>positions → trip updates"]):::repo
-        hgb(["**hell-gate-bridge**<br>upstream feed pollers"]):::repo
-        sf(["**schedule-foamer**<br>GTFS Static Downloader"]):::repo
-        gc(["**geometry-car**<br>source catalog pipeline"]):::repo
+        cc(["**rt-api**<br>GTFS-RT API + admin"]):::repo
+        vp(["**rt-traccar-receiver**<br>Traccar → Redis shim"]):::repo
+        tu(["**rt-delay-estimator**<br>positions → trip updates"]):::repo
+        hgb(["**rt-pollers**<br>upstream feed pollers"]):::repo
+        sf(["**static-importer**<br>GTFS Static Downloader"]):::repo
+        gc(["**feed-catalog**<br>source catalog pipeline"]):::repo
     end
 
-    rc(["**railroad-club**<br>SQLAlchemy models + migrations"]):::repo
+    rc(["**gtfs-zone-db-models**<br>SQLAlchemy models + migrations"]):::repo
     ms(["**music-student**<br>local dev Compose"]):::repo
 
     rc -->|"models + migrations"| cc
@@ -85,8 +85,8 @@ flowchart LR
 | `status.<domain>` | Public status page (Gatus) |
 | `argocd.<domain>` | ArgoCD UI |
 | `data.<domain>` | Public source-catalog artifacts (`feeds.json`, `sources.json`, ...) from Garage's public bucket |
-| `dagster.<domain>` | Dagster UI for geometry-car (gated on the `gtfs-admins` group) |
-| `list.<domain>` | Source catalog list and world map (globe-of-contents) |
+| `dagster.<domain>` | Dagster UI for feed-catalog (gated on the `gtfs-admins` group) |
+| `list.<domain>` | Source catalog list and world map (feed-list) |
 | `edit.<domain>` | GTFS editor (coloring-book) |
 | `viz.rt.<domain>` | Realtime visualiser (test-track) |
 
@@ -101,14 +101,14 @@ A position update travels from a driver's phone to a GTFS-RT consumer in under a
 sequenceDiagram
     actor driver as Driver<br>(Traccar Client app)
     actor operator as Operator
-    participant mgr as cafe-car admin
+    participant mgr as rt-api admin
     participant tc as Traccar
-    participant vp as vehicle-poser
-    participant tu as trip-updogger
-    participant hgb as hell-gate-bridge
+    participant vp as rt-traccar-receiver
+    participant tu as rt-delay-estimator
+    participant hgb as rt-pollers
     participant Redis@{ "type": "database" }
     participant postgres@{ "type": "database" }
-    participant pub as cafe-car public
+    participant pub as rt-api public
     actor consumer as GTFS Consumer<br>(Google Maps, etc.)
 
     Note over driver,tc: Device provisioning
@@ -183,7 +183,7 @@ flowchart LR
     stack -->|"DNS + cert management"| porkbun
     oauth -->|"OIDC tokens"| stack
     stack -->|"fetch schedule"| gtfs_src
-    upstream -->|"polled by hell-gate-bridge"| stack
+    upstream -->|"polled by rt-pollers"| stack
 ```
 
 ### Core data model
@@ -361,17 +361,17 @@ stateDiagram-v2
         kc : Keycloak<br>OIDC provider · brokers GitHub/Google/GitLab
     }
 
-    state "cafe-car" as application {
+    state "rt-api" as application {
         cp : gtfs-api<br>public GTFS-RT feed
         ca : gtfs-manager<br>admin interface
     }
 
     state "Workers" as workers {
-        vp : vehicle-poser
-        tu : trip-updogger
-        hgb : hell-gate-bridge ×2
-        sf : schedule-foamer<br>Celery worker + beat
-        gc : geometry-car<br>Dagster webserver · daemon · code server
+        vp : rt-traccar-receiver
+        tu : rt-delay-estimator
+        hgb : rt-pollers ×2
+        sf : static-importer<br>Celery worker + beat
+        gc : feed-catalog<br>Dagster webserver · daemon · code server
     }
 
     [*] --> Internet
@@ -404,9 +404,9 @@ buckets, each reached with its own access key, so a leaked pipeline credential
 reaches one bucket and not the other:
 
 - `gtfs-feeds` is **private**, reachable only over the cluster-internal S3 API.
-  It holds the GTFS zips uploaded through `manage.rt.gtfs.zone`: cafe-car writes
-  and serves them, schedule-foamer reads them to load the schedule.
-- `data.gtfs.zone` is **public**, written by geometry-car over the S3 API and
+  It holds the GTFS zips uploaded through `manage.rt.gtfs.zone`: rt-api writes
+  and serves them, static-importer reads them to load the schedule.
+- `data.gtfs.zone` is **public**, written by feed-catalog over the S3 API and
   served read-only over plain HTTP by Garage's `s3_web` endpoint at
   `data.gtfs.zone`. Garage picks the bucket from the Host header, which is why
   the bucket's alias is literally the hostname and why the IngressRoute must not
@@ -420,7 +420,7 @@ refuses every S3 call until that runs.
 
 ### Source catalog
 
-geometry-car ingests Transitland Atlas and the Mobility Database once a day,
+feed-catalog ingests Transitland Atlas and the Mobility Database once a day,
 checks whether each endpoint answers, keeps history per normalized URL in its
 own Postgres database, and publishes JSON to `data.gtfs.zone`. The frontends
 read those artifacts at runtime rather than shipping a catalog baked in at build
@@ -432,8 +432,8 @@ flowchart LR
     tl["Transitland Atlas"]
     mdb["Mobility Database"]
     ex["curated examples"]
-    gc["geometry-car<br>Dagster, daily"]
-    pg[("Postgres<br>geometry_car")]
+    gc["feed-catalog<br>Dagster, daily"]
+    pg[("Postgres<br>feed_catalog")]
     bucket[("data.gtfs.zone<br>public bucket")]
     edit["edit / viz<br>load modal"]
     list["list.gtfs.zone"]
@@ -460,8 +460,8 @@ flowchart LR
 
     subgraph ingest["Ingest"]
         traccar["Traccar<br>/osmand :5055 · console :8082"]
-        vp["vehicle-poser<br>HTTP /forward"]
-        hgb["hell-gate-bridge<br>Amtrak · Columbia County"]
+        vp["rt-traccar-receiver<br>HTTP /forward"]
+        hgb["rt-pollers<br>Amtrak · Columbia County"]
     end
 
     subgraph store["State"]
@@ -469,8 +469,8 @@ flowchart LR
         pg[("Postgres<br>trackers · trips · alerts")]
     end
 
-    tu["trip-updogger<br>positions → delays"]
-    api["cafe-car gtfs-api"]
+    tu["rt-delay-estimator<br>positions → delays"]
+    api["rt-api gtfs-api"]
     consumer(["GTFS-RT consumer"])
 
     driver -->|"HTTPS POST /osmand"| traccar
@@ -511,7 +511,7 @@ stateDiagram-v2
     Requesting --> Serving: authenticated
 
     state Serving {
-        [*] --> Protected: cafe-car admin
+        [*] --> Protected: rt-api admin
         Protected --> [*]: 200 OK
     }
 
@@ -651,10 +651,10 @@ Populate at minimum:
 - `gtfs/secrets/gtfs-app-secrets.enc.yaml`: session key, the two oauth2-proxy
   cookie secrets (`OAUTH2_PROXY_COOKIE_SECRET`,
   `OAUTH2_PROXY_ADMIN_COOKIE_SECRET`), the Keycloak↔oauth2-proxy, ↔Traccar,
-  ↔cafe-car and ↔ArgoCD client secrets (`KEYCLOAK_*_CLIENT_SECRET`), the
+  ↔rt-api and ↔ArgoCD client secrets (`KEYCLOAK_*_CLIENT_SECRET`), the
   Keycloak bootstrap admin password, OAuth connector credentials,
   `INGEST_API_TOKEN`, the `TRACCAR_ADMIN_*` pair, the Garage secrets and both
-  buckets' key pairs (`S3_*`, `GEOMETRY_CAR_S3_*`), geometry-car's
+  buckets' key pairs (`S3_*`, `FEED_CATALOG_S3_*`), feed-catalog's
   `MOBILITY_DB_REFRESH_TOKEN`, and the Gatus Telegram and heartbeat tokens.
 - `gtfs/secrets/postgres-*.enc.yaml`: CNPG role passwords.
 
@@ -700,7 +700,7 @@ group membership is per-user and not part of the realm import.
 4. Create feeds and their trackers, and make sure each poller's
    `INGEST_TRACKER_ID` matches a real tracker id: a mismatch produces no
    positions and no error.
-5. Trigger geometry-car's first run from `https://dagster.<domain>` rather than
+5. Trigger feed-catalog's first run from `https://dagster.<domain>` rather than
    waiting for the schedule; `data.<domain>/manifest.json` appears once it
    finishes, and the load modals and `list.<domain>` are empty until then.
 

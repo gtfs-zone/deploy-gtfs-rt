@@ -31,14 +31,14 @@ sidecar on the argocd-repo-server.
   (SOPS-encrypted Porkbun creds, one per consuming namespace).
 - `gtfs/`: the application stack (Kustomize): Postgres (CNPG), Redis, Garage,
   Keycloak, oauth2-proxy (plus `oauth2-proxy-admin`), rt-api, celery, Gatus,
-  Traccar, vehicle-poser, hell-gate-bridge, geometry-car (`geometry-car/` for
+  Traccar, rt-traccar-receiver, rt-pollers, feed-catalog (`feed-catalog/` for
   the three Dagster Deployments and their instance config,
-  `geometry-car-migrate.yaml` for its PreSync hook), IngressRoutes, and
-  SOPS-encrypted `secrets/*.enc.yaml`. geometry-car's CI writes its image
+  `feed-catalog-migrate.yaml` for its PreSync hook), IngressRoutes, and
+  SOPS-encrypted `secrets/*.enc.yaml`. feed-catalog's CI writes its image
   digest into `gtfs/kustomization.yaml`'s `images:` block.
 - `sites/`: the nginx-served sites (Kustomize, no secrets):
-  `manage.rt.gtfs.zone` (yard-master) and `list.gtfs.zone`
-  (globe-of-contents), plus `pages-dns.yaml`, the DNSEndpoint CNAMEs for
+  `manage.rt.gtfs.zone` (rt-manager) and `list.gtfs.zone`
+  (feed-list), plus `pages-dns.yaml`, the DNSEndpoint CNAMEs for
   `edit.gtfs.zone` and `viz.rt.gtfs.zone`, which GitHub Pages serves. The
   `gtfs.zone` apex is on Pages too, with its A/AAAA records kept by hand at
   Porkbun. Each nginx site is an nginx image
@@ -167,27 +167,27 @@ edge only passes bytes through. `gtfs.zone`, `edit.gtfs.zone` and
    └─ HTTPS traccar.gtfs.zone       ──▶ Traccar :8082 (Keycloak OIDC login)
                                             │ forward.type=json
                                             ▼
-                                 vehicle-poser :8080 /forward
+                                 rt-traccar-receiver :8080 /forward
                                  (resolve trip → Redis DB1, 60s TTL)
                                             │
- Amtrak feed  ── hell-gate-bridge (amtrak)  ─┤ POST /ingest/* (bearer token)
- Columbia Cty ── hell-gate-bridge (buswhere)─┤ (positions *and* trip updates)
+ Amtrak feed  ── rt-pollers (amtrak)  ──────┤ POST /ingest/* (bearer token)
+ Columbia Cty ── rt-pollers (buswhere) ─────┤ (positions *and* trip updates)
                                             │
                                             ├──▶ vehicle:{tracker}:* (DB1, 60s)
                                             │            │ sweep every 5s
-                                            │      trip-updogger
+                                            │      rt-delay-estimator
                                             │      (project fix on schedule)
                                             │            ▼
                                             ├──▶ trip_update:{tracker}:{trip} (DB1, 300s)
                                             ▼
-                                     cafe-car (rt-api)
+                                     rt-api
                                      GTFS-RT at rt.gtfs.zone
 ```
 
 **MQTT** is permanently retired: NanoMQ and OwnTracks are gone and are not
 coming back. Positions arrive over HTTP only; Redis is still the seam.
 
-`trip-updogger` is **not** retired; it came back in a different shape. It is now
+`rt-delay-estimator` is **not** retired; it came back in a different shape. It is now
 a Redis→Redis worker with no broker: it sweeps `vehicle:*`, loads the trip's
 scheduled `stop_times` from Postgres, and writes `trip_update:*`. It is what turns
 a raw position into a *delay*, so without it a Traccar-sourced feed serves
@@ -200,14 +200,14 @@ positions and an **empty `trip_updates.pb`**.
 | Edge | Traefik (Helm), `websecure` on host :8443; `IngressRoute`/`Middleware` CRDs |
 | TLS / DNS | cert-manager + Porkbun DNS-01 webhook; external-dns (Porkbun webhook) |
 | Storage | Longhorn (default StorageClass, 1 replica) |
-| Object storage | Garage (single-node StatefulSet; `garage-init` PostSync Job applies the layout, buckets and keys). Three buckets, each with its own key: `gtfs-feeds` is private, S3 API cluster-internal only (uploaded zips); `data.gtfs.zone` and `sites.gtfs.zone` are public, served read-only over HTTP by Garage's `s3_web` endpoint at their own hostnames (geometry-car's artifacts, cape-flier's timetable sites; `sites` goes through a Traefik `compress` middleware) |
-| Database | CloudNativePG `Cluster` `postgres` → `rt_api`, `keycloak`, `traccar`, `geometry_car` databases |
-| Cache | Redis (DB 0 oauth2-proxy, 1 rt-api+poser, 2 oauth2-proxy-admin, 3 celery broker, 4 celery result) |
+| Object storage | Garage (single-node StatefulSet; `garage-init` PostSync Job applies the layout, buckets and keys). Three buckets, each with its own key: `gtfs-feeds` is private, S3 API cluster-internal only (uploaded zips); `data.gtfs.zone` and `sites.gtfs.zone` are public, served read-only over HTTP by Garage's `s3_web` endpoint at their own hostnames (feed-catalog's artifacts, timetable-sites' timetable sites; `sites` goes through a Traefik `compress` middleware) |
+| Database | CloudNativePG `Cluster` `postgres` → `rt_api`, `keycloak`, `traccar`, `feed_catalog` databases |
+| Cache | Redis (DB 0 oauth2-proxy, 1 rt-api + rt-traccar-receiver, 2 oauth2-proxy-admin, 3 celery broker, 4 celery result) |
 | Auth | Keycloak (OIDC, `id.gtfs.zone`, brokers GitHub/Google/GitLab) + two oauth2-proxy instances, each ForwardAuth via its own pair of Middlewares: `oauth2-proxy` (`oauth2-errors` + `oauth2-proxy`) admits any realm account and fronts `manage.rt`; `oauth2-proxy-admin` (`oauth2-admin-errors` + `oauth2-admin`) requires the `gtfs-admins` group and fronts `dagster`. Traccar is a separate Keycloak client with its own login, gated on the same group, see `gtfs/keycloak/CUTOVER.md` |
 | Application | rt-api (`gtfs-api` :8000 public, `gtfs-manager` :8001 protected), celery worker + beat |
-| Ingest | Traccar, vehicle-poser, trip-updogger, hell-gate-bridge ×2 |
-| Catalog | geometry-car: Dagster webserver (`dagster.gtfs.zone`), daemon and code server, Postgres run storage, publishing to the `data.gtfs.zone` bucket. cape-flier is a second code location in the same instance (`cape-flier-code`), publishing to the `sites.gtfs.zone` bucket daily at 11:00 UTC |
-| Sites | nginx images in `sites/`, built by each repo's CI. The four map apps (edit, viz, manage.rt, list) share one app shell from `interlocking` |
+| Ingest | Traccar, rt-traccar-receiver, rt-delay-estimator, rt-pollers ×2 |
+| Catalog | feed-catalog: Dagster webserver (`dagster.gtfs.zone`), daemon and code server, Postgres run storage, publishing to the `data.gtfs.zone` bucket. timetable-sites is a second code location in the same instance (`timetable-sites-code`), publishing to the `sites.gtfs.zone` bucket daily at 11:00 UTC |
+| Sites | nginx images in `sites/`, built by each repo's CI. The four map apps (edit, viz, manage.rt, list) share one app shell from `gtfs-zone-web-common` |
 | Monitoring | Gatus, config-as-code in `gtfs/gatus/config.yaml`, public page at `status.gtfs.zone`, Telegram alerts |
 
 ### Related repositories
@@ -227,15 +227,15 @@ positions and an **empty `trip_updates.pb`**.
 
 ### Source catalog
 
-geometry-car is the one thing that inspects the world of GTFS. Once a day it
+feed-catalog is the one thing that inspects the world of GTFS. Once a day it
 ingests Transitland Atlas and the Mobility Database, checks every endpoint
 (HEAD, falling back to a ranged GET when the origin rejects HEAD; no feed bodies
-are stored), keeps history in its own `geometry_car` database, and publishes
+are stored), keeps history in its own `feed_catalog` database, and publishes
 JSON to the public bucket:
 
 ```
  Transitland Atlas ─┐                       ┌─▶ data.gtfs.zone/feeds.json ──▶ edit/viz load modal
- Mobility Database ─┼─▶ geometry-car ──────▶├─▶ sources.json, status.json,   globe-of-contents
+ Mobility Database ─┼─▶ feed-catalog ──────▶├─▶ sources.json, status.json,   feed-list
  curated examples ──┘   (Dagster, daily)    │   examples.json, summary.json  (list.gtfs.zone)
                                             └─▶ manifest.json, written last
 ```
@@ -243,7 +243,7 @@ JSON to the public bucket:
 The catalog is a **published artifact, not a baked file**. The frontends used to
 ship a ~1MB `atlas-feeds.json` generated at build time; now every consumer
 fetches the same live artifacts at runtime, and the curated examples (edited in
-geometry-car's `src/geometry_car/data/examples.yaml`) get the same daily check
+feed-catalog's `src/gtfs_zone_feed_catalog/data/examples.yaml`) get the same daily check
 as everything else.
 
 Three layers, each built on the one below:
@@ -263,7 +263,7 @@ Three layers, each built on the one below:
 Dated snapshots under `snapshots/` are deduped and retention-pruned; with the
 uploaded zips on the same 40Gi Garage volume, that retention is load-bearing.
 Gatus watches the result: `Data / Catalog publish` is an external-endpoint
-heartbeat geometry-car pushes after writing `manifest.json` (30h), and the
+heartbeat feed-catalog pushes after writing `manifest.json` (30h), and the
 manifest and `feeds.json` are polled for shape.
 
 ## Patterns worth knowing
@@ -291,14 +291,14 @@ docker run --rm -e TELEGRAM_BOT_TOKEN=1:x -e TELEGRAM_CHAT_ID=1 \
   twinproduction/gatus:v5.36.0
 ```
 
-The in-cluster checks (Postgres, Redis, vehicle-poser, the osmand port) fail
+The in-cluster checks (Postgres, Redis, rt-traccar-receiver, the osmand port) fail
 under that local run, by design; the public ones are real. Public hostnames are
 checked by their real URL, not Service DNS, so a check exercises DNS, the edge
 passthrough and the cert; hairpin NAT back to `73.4.232.254` works from inside
 the cluster.
 
 **Database migrations** run as an ArgoCD **PreSync hook Job**
-(`gtfs/rt-api-migrate.yaml`) using the `railroad-club` migrations, so Alembic
+(`gtfs/rt-api-migrate.yaml`) using the `gtfs-zone-db-models` migrations, so Alembic
 completes before any rollout. If a hook Job wedges, ArgoCD's `hook-finalizer`
 deadlocks against its own stuck operation; clear the operation
 (`kubectl patch app <n> -n argocd --type merge -p '{"operation":null}'`)
@@ -375,7 +375,7 @@ Each of these cost real debugging time.
   bucket.
 - **`DAGSTER_HOME` must be a directory the image owns.** `/app` is root-owned and
   the image runs as `bridge`, so the default lands somewhere unwritable and fails
-  late and confusingly, not at startup: the same trap as celery-beat's
+  late and confusingly, not at startup: the same trap as static-importer-beat's
   `--schedule`. It is `/app/dagster_home`, and the instance config is mounted into
   it by `subPath` so the directory itself stays writable.
 - **Dagster runs live inside the code-server pod.** With `DefaultRunLauncher`, an
@@ -403,19 +403,19 @@ Each of these cost real debugging time.
 ## Known gaps
 
 - **Two producers share the `trip_update:*` namespace,** and they divide it by a
-  `source` stamp, not by key prefix. `trip-updogger` stamps every record it writes
-  `source: trip-updogger` and refuses to touch a key that lacks that stamp, so
-  hell-gate-bridge's richer per-stop predictions always win and trip-updogger only
-  fills the gaps. cafe-car's `/ingest/trip-update` writes **no** `source` field,
+  `source` stamp, not by key prefix. `rt-delay-estimator` stamps every record it writes
+  `source: rt-delay-estimator` and refuses to touch a key that lacks that stamp, so
+  rt-pollers' richer per-stop predictions always win and rt-delay-estimator only
+  fills the gaps. rt-api's `/ingest/trip-update` writes **no** `source` field,
   which is what makes this work; if a future producer ever starts writing that
   field, it will silently start losing its records to the sweeper.
 - **`compute_delay` has no notion of a trip that hasn't started.** For a trip whose
   first stop is still hours away it projects the parked vehicle onto a later stop
   and reports a large bogus "early" delay (observed: −11700s on an Amtrak trip 3h
-  before departure). Only visible on trips hell-gate-bridge did not itself predict,
-  since those keys are deferred to. Fix belongs in `trip-updogger`'s `trip_math.py`.
+  before departure). Only visible on trips rt-pollers did not itself predict,
+  since those keys are deferred to. Fix belongs in `rt-delay-estimator`'s `trip_math.py`.
 - The `columbia-county` poller crashes every cycle on a `"departed"` string in
-  buswhere's `stop_eta` (app bug; written up in `hell-gate-bridge`'s
+  buswhere's `stop_eta` (app bug; written up in `rt-pollers`'
   `BUSWHERE_DEPARTED_BUG.md`). Amtrak is unaffected.
 - `infra-longhorn`'s CRDs and `gtfs`'s `Cluster/postgres` no longer show spurious
   OutOfSync, see `ignoreDifferences` in `apps/infra-longhorn.yaml` and
@@ -433,19 +433,19 @@ Each of these cost real debugging time.
   Settings) but the device list is still driven by the `tc_user_device` join
   table, so a fresh OIDC admin logs in and sees zero devices until each one is
   shared with `POST /api/permissions`. Confirmed the hard way: all 7 devices were
-  linked only to `admin@gtfs.zone` (cafe-car's service account), and the first
+  linked only to `admin@gtfs.zone` (rt-api's service account), and the first
   real OIDC admin login saw none of them. The table is many-to-many, so granting
   a second user does not take access away from the first.
 
   Mitigated, not closed: every device now belongs to the Traccar group **All
-  Vehicles** (`settings.traccar_device_group`, set by cafe-car's
+  Vehicles** (`settings.traccar_device_group`, set by rt-api's
   `ensure_device`), so a new admin is one share of that group rather than one
   share per device. That share is still manual, in the UI or
   `POST /api/permissions {"userId": N, "groupId": G}`. A device created outside
-  cafe-car, by hand in the Traccar UI, gets no group and stays invisible.
+  rt-api, by hand in the Traccar UI, gets no group and stays invisible.
 - **Logical feed grouping can false-merge,** and there is no override file yet.
   Grouping is by URL and host/path shape only, so unrelated systems that share a
   download URL become one feed (the largest group seen is 9, PTV's nested zips on
-  one download). The fix belongs in geometry-car.
+  one download). The fix belongs in feed-catalog.
 - No backups yet. CNPG scheduled backups + Longhorn snapshots are the obvious
   next step now that Traccar keeps durable position history.

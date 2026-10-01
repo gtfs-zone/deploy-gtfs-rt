@@ -50,7 +50,7 @@ so the rollback is a revert rather than a redeploy.
    match them strongly. The cheapest way is to have each person log in once at
    `id.gtfs.zone` while the old stack is still serving.
 
-3. **Dry-run the remap** (from cafe-car, against the production database):
+3. **Dry-run the remap** (from rt-api, against the production database):
 
    ```bash
    uv run scripts/remap_identities_to_keycloak.py \
@@ -59,7 +59,7 @@ so the rollback is a revert rather than a redeploy.
    ```
 
    It refuses to write if any row is unmatched, or if two rows would map to one
-   Keycloak subject. That second case means two cafe-car principals for one
+   Keycloak subject. That second case means two rt-api principals for one
    human: merge them at `manage.rt.gtfs.zone/account` **before** the cutover,
    because afterwards the second row is unreachable.
 
