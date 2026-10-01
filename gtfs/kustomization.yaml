@@ -33,7 +33,7 @@ resources:
 # Written by geometry-car's CI after it pushes, so what is deployed is the
 # digest of exactly what was built rather than a moving tag.
 images:
-- digest: sha256:bfa3353103c6a98e1d110940acc463f7329e6748ab53d70ce8d3c7f0b7e4fc97
+- digest: sha256:6b97cd12a4ed0aeb567ae09813c27742a33d13ea2eb2cd5741dd12170f4771ee
   name: ghcr.io/gtfs-zone/gtfs-zone-feed-catalog
   newName: ghcr.io/gtfs-zone/gtfs-zone-feed-catalog
 - digest: sha256:1689ef56ea00e0877007f2c019c560ce8917e9ac227882c261848a69513fd688
