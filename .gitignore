@@ -22,3 +22,4 @@ tf-monitors/secrets.auto.tfvars
 age.key
 *.agekey
 
+.envrc
