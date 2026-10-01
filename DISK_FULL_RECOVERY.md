@@ -5,7 +5,7 @@ by an agent or a human, in order, one phase at a time.
 
 **Most of the work is in the sibling `~/Documents/home-docker` repo**, not this one.
 That repo manages the Docker host declaratively with OpenTofu over `ssh://kcfam`.
-Cross-repo work is allowed (see `CLAUDE.md`). Every home-docker change is an edit
+Cross-repo work is allowed (see `AGENTS.md`). Every home-docker change is an edit
 followed by:
 
 ```bash

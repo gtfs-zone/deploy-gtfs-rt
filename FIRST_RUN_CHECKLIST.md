@@ -211,6 +211,6 @@ kubectl get pods -n gtfs
 All four URLs should return **200**, and every Application and pod should be
 **Synced/Healthy** and **Running** respectively, `infra-longhorn` and `gtfs`
 included, thanks to the `ignoreDifferences` entries in their Application
-manifests (see CLAUDE.md § Known gaps). If either shows OutOfSync, it means a
+manifests (see docs/traps.md § Known gaps). If either shows OutOfSync, it means a
 chart/operator upgrade introduced a new self-defaulted field not yet covered by
 those entries; investigate rather than assuming it's cosmetic.
