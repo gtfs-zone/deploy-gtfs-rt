@@ -80,8 +80,7 @@ helm template <release> <repo>/<chart> --version <v> -n <ns> -f infra/<comp>/val
 **Editing a secret:** use `sops set` (it does not print plaintext). You rarely
 need to decrypt: SOPS leaves key names readable.
 
-**Images:** CI publishes `:latest` + `:<short-sha>` only; there is **no `:main`
-tag**. Bumping an image is a manifest edit plus a commit. The `ghcr.io/gtfs-zone`
+**Images:** CI publishes `:vX.Y.Z` + `:latest` on `v*` tags only. Bumping an image is a manifest edit plus a commit. The `ghcr.io/gtfs-zone`
 packages are public (anonymously pullable), so no `imagePullSecrets` are used.
 
 ## Patterns worth knowing

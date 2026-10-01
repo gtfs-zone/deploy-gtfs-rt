@@ -43,7 +43,7 @@ Invariants:
   with `helm upgrade` and a pinned chart version.
 - **Secrets**: edit with `sops set`, which prints no plaintext. `age.key` is
   gitignored.
-- **Images**: CI publishes `:latest` and `:<short-sha>`; there is no `:main`.
+- **Images**: CI publishes `:vX.Y.Z` and `:latest` on `v*` tags only.
   A bump is a manifest edit and a commit (the sites' and some apps' CI commit it
   themselves), so the kustomizations are the deploy record and rollback is
   pointing an image back at an earlier digest.

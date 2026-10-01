@@ -713,6 +713,6 @@ immediately with:
 kubectl annotate app <name> -n argocd argocd.argoproj.io/refresh=hard --overwrite
 ```
 
-Image tags are pinned per workload. CI publishes `:latest` and `:<short-sha>`
-only; **there is no `:main` tag**, so bumping a version is a manifest edit and
+Image tags are pinned per workload. CI publishes `:vX.Y.Z` and `:latest` on
+`v*` tags only, so bumping a version is a manifest edit and
 a commit, not a redeploy.
