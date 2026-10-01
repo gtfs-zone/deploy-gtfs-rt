@@ -14,21 +14,21 @@ The stack is built from these open-source projects:
 
 | Project | Role |
 |---------|------|
-| [cafe-car](https://github.com/gtfs-zone/cafe-car) | Core API, serves GTFS-RT feeds and handles admin |
-| [vehicle-poser](https://github.com/gtfs-zone/vehicle-poser) | Receives Traccar position forwards over HTTP → Redis |
-| [trip-updogger](https://github.com/gtfs-zone/trip-updogger) | Sweeps live positions against the schedule → trip updates in Redis |
-| [hell-gate-bridge](https://github.com/gtfs-zone/hell-gate-bridge) | Polls upstream feeds (Amtrak, Columbia County) → rt-api |
-| [schedule-foamer](https://github.com/gtfs-zone/schedule-foamer) | Celery worker + beat scheduler for async static GTFS fetching |
-| [railroad-club](https://github.com/gtfs-zone/railroad-club) | Shared SQLAlchemy models and Alembic migrations |
-| [music-student](https://github.com/gtfs-zone/music-student) | Docker Compose stack for local development and testing |
-| [landing-zone](https://github.com/gtfs-zone/landing-zone) | Static homepage at gtfs.zone |
-| [geometry-car](https://github.com/gtfs-zone/geometry-car) | Dagster pipeline: the GTFS source catalog, its reachability checks and logical feeds, published to data.gtfs.zone |
-| [globe-of-contents](https://github.com/gtfs-zone/globe-of-contents) | list.gtfs.zone, the source catalog as a list and a world map |
-| [coloring-book](https://github.com/gtfs-zone/coloring-book) | GTFS editor at edit.gtfs.zone |
-| [test-track](https://github.com/gtfs-zone/test-track) | Realtime visualiser at viz.rt.gtfs.zone |
-| [yard-master](https://github.com/gtfs-zone/yard-master) | Admin SPA at manage.rt.gtfs.zone, on cafe-car's JSON API |
-| [cape-flier](https://github.com/gtfs-zone/cape-flier) | Static timetable sites at sites.gtfs.zone, a Dagster code location in geometry-car's instance |
-| [interlocking](https://github.com/gtfs-zone/interlocking) | Shared browser library and app shell for coloring-book, test-track, yard-master and globe-of-contents |
+| [gtfs-zone-rt-api](https://github.com/gtfs-zone/gtfs-zone-rt-api) | Core API, serves GTFS-RT feeds and handles admin |
+| [gtfs-zone-rt-traccar-receiver](https://github.com/gtfs-zone/gtfs-zone-rt-traccar-receiver) | Receives Traccar position forwards over HTTP → Redis |
+| [gtfs-zone-rt-delay-estimator](https://github.com/gtfs-zone/gtfs-zone-rt-delay-estimator) | Sweeps live positions against the schedule → trip updates in Redis |
+| [gtfs-zone-rt-pollers](https://github.com/gtfs-zone/gtfs-zone-rt-pollers) | Polls upstream feeds (Amtrak, Columbia County) → rt-api |
+| [gtfs-zone-static-importer](https://github.com/gtfs-zone/gtfs-zone-static-importer) | Celery worker + beat scheduler for async static GTFS fetching |
+| [gtfs-zone-db-models](https://github.com/gtfs-zone/gtfs-zone-db-models) | Shared SQLAlchemy models and Alembic migrations |
+| [gtfs-zone-dev-stack](https://github.com/gtfs-zone/gtfs-zone-dev-stack) | Docker Compose stack for local development and testing |
+| [gtfs-zone-homepage](https://github.com/gtfs-zone/gtfs-zone-homepage) | Static homepage at gtfs.zone |
+| [gtfs-zone-feed-catalog](https://github.com/gtfs-zone/gtfs-zone-feed-catalog) | Dagster pipeline: the GTFS source catalog, its reachability checks and logical feeds, published to data.gtfs.zone |
+| [gtfs-zone-feed-list](https://github.com/gtfs-zone/gtfs-zone-feed-list) | list.gtfs.zone, the source catalog as a list and a world map |
+| [gtfs-zone-editor](https://github.com/gtfs-zone/gtfs-zone-editor) | GTFS editor at edit.gtfs.zone |
+| [gtfs-zone-rt-viewer](https://github.com/gtfs-zone/gtfs-zone-rt-viewer) | Realtime visualiser at viz.rt.gtfs.zone |
+| [gtfs-zone-rt-manager](https://github.com/gtfs-zone/gtfs-zone-rt-manager) | Admin SPA at manage.rt.gtfs.zone, on rt-api's JSON API |
+| [gtfs-zone-timetable-sites](https://github.com/gtfs-zone/gtfs-zone-timetable-sites) | Static timetable sites at sites.gtfs.zone, a Dagster code location in feed-catalog's instance |
+| [gtfs-zone-web-common](https://github.com/gtfs-zone/gtfs-zone-web-common) | Shared browser library and app shell for the editor, rt-viewer, rt-manager and feed-list |
 
 This repo provides the Kubernetes (k3s + ArgoCD) deployment that wires them
 together with supporting infrastructure.
@@ -69,7 +69,7 @@ flowchart LR
     gtfsd -.-|"mirrors for local dev"| ms
 ```
 
-**Issues:** [issue tracker](https://github.com/gtfs-zone/deploy-gtfs-rt/issues)
+**Issues:** [issue tracker](https://github.com/gtfs-zone/gtfs-zone-infra/issues)
 
 ---
 
@@ -188,7 +188,7 @@ flowchart LR
 
 ### Core data model
 
-All models defined in [railroad-club](https://github.com/gtfs-zone/railroad-club) and shared across services.
+All models defined in [gtfs-zone-db-models](https://github.com/gtfs-zone/gtfs-zone-db-models) and shared across services.
 
 ```mermaid
 erDiagram

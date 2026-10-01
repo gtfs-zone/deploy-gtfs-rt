@@ -212,18 +212,18 @@ positions and an **empty `trip_updates.pb`**.
 
 ### Related repositories
 
-- **[cafe-car](https://git.kcfam.us/gtfs.zone/cafe-car)**: GTFS-RT API + manager
-- **[vehicle-poser](https://git.kcfam.us/gtfs.zone/vehicle-poser)**: HTTP forward receiver (Traccar → Redis)
-- **[trip-updogger](https://git.kcfam.us/gtfs.zone/trip-updogger)**: schedule-delay worker (positions → trip updates)
-- **[hell-gate-bridge](https://git.kcfam.us/gtfs.zone/hell-gate-bridge)**: Amtrak + Columbia County pollers
-- **[schedule-foamer](https://git.kcfam.us/gtfs.zone/schedule-foamer)**: Celery worker/beat
-- **[railroad-club](https://git.kcfam.us/gtfs.zone/railroad-club)**: shared SQLAlchemy models + Alembic migrations
-- **[music-student](https://git.kcfam.us/gtfs.zone/music-student)**: Docker Compose stack for local dev
-- **[landing-zone](https://git.kcfam.us/gtfs.zone/landing-zone)**: static homepage at the apex
-- **[geometry-car](https://git.kcfam.us/gtfs.zone/geometry-car)**: Dagster pipeline for the source catalog (Transitland Atlas + Mobility Database, reachability, logical feeds)
-- **[globe-of-contents](https://git.kcfam.us/gtfs.zone/globe-of-contents)**: `list.gtfs.zone`, the catalog as a list and a world map
-- **[cape-flier](https://git.kcfam.us/gtfs.zone/cape-flier)**: static timetable sites at `sites.gtfs.zone`, a Dagster code location in geometry-car's instance
-- **[interlocking](https://git.kcfam.us/gtfs.zone/interlocking)**: shared browser library and app shell for coloring-book, test-track, yard-master and globe-of-contents
+- **[gtfs-zone-rt-api](https://github.com/gtfs-zone/gtfs-zone-rt-api)**: GTFS-RT API + manager
+- **[gtfs-zone-rt-traccar-receiver](https://github.com/gtfs-zone/gtfs-zone-rt-traccar-receiver)**: HTTP forward receiver (Traccar → Redis)
+- **[gtfs-zone-rt-delay-estimator](https://github.com/gtfs-zone/gtfs-zone-rt-delay-estimator)**: schedule-delay worker (positions → trip updates)
+- **[gtfs-zone-rt-pollers](https://github.com/gtfs-zone/gtfs-zone-rt-pollers)**: Amtrak + Columbia County pollers
+- **[gtfs-zone-static-importer](https://github.com/gtfs-zone/gtfs-zone-static-importer)**: Celery worker/beat
+- **[gtfs-zone-db-models](https://github.com/gtfs-zone/gtfs-zone-db-models)**: shared SQLAlchemy models + Alembic migrations
+- **[gtfs-zone-dev-stack](https://github.com/gtfs-zone/gtfs-zone-dev-stack)**: Docker Compose stack for local dev
+- **[gtfs-zone-homepage](https://github.com/gtfs-zone/gtfs-zone-homepage)**: static homepage at the apex
+- **[gtfs-zone-feed-catalog](https://github.com/gtfs-zone/gtfs-zone-feed-catalog)**: Dagster pipeline for the source catalog (Transitland Atlas + Mobility Database, reachability, logical feeds)
+- **[gtfs-zone-feed-list](https://github.com/gtfs-zone/gtfs-zone-feed-list)**: `list.gtfs.zone`, the catalog as a list and a world map
+- **[gtfs-zone-timetable-sites](https://github.com/gtfs-zone/gtfs-zone-timetable-sites)**: static timetable sites at `sites.gtfs.zone`, a Dagster code location in feed-catalog's instance
+- **[gtfs-zone-web-common](https://github.com/gtfs-zone/gtfs-zone-web-common)**: shared browser library and app shell for the editor, rt-viewer, rt-manager and feed-list
 
 ### Source catalog
 
