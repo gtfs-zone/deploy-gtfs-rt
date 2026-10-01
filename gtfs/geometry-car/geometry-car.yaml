@@ -34,7 +34,7 @@ spec:
     spec:
       containers:
         - name: geometry-car
-          image: git.kcfam.us/gtfs.zone/geometry-car:75becfe
+          image: ghcr.io/gtfs-zone/gtfs-zone-feed-catalog
           # The image's own CMD, spelled out because this is the pod where it
           # matters: the webserver and the daemon both override it.
           command:
@@ -155,7 +155,7 @@ spec:
     spec:
       containers:
         - name: geometry-car
-          image: git.kcfam.us/gtfs.zone/geometry-car:75becfe
+          image: ghcr.io/gtfs-zone/gtfs-zone-feed-catalog
           command: ["dagster-daemon", "run", "-w", "/app/dagster_home/workspace.yaml"]
           env:
             - name: DAGSTER_HOME
@@ -213,7 +213,7 @@ spec:
     spec:
       containers:
         - name: geometry-car
-          image: git.kcfam.us/gtfs.zone/geometry-car:75becfe
+          image: ghcr.io/gtfs-zone/gtfs-zone-feed-catalog
           command:
             - dagster-webserver
             - -h

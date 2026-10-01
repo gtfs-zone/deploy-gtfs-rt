@@ -41,7 +41,7 @@ spec:
           type: RuntimeDefault
       containers:
         - name: nginx
-          image: git.kcfam.us/gtfs.zone/globe-of-contents
+          image: ghcr.io/gtfs-zone/gtfs-zone-feed-list
           ports:
             - name: http
               containerPort: 8080

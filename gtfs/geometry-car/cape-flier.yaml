@@ -28,7 +28,7 @@ spec:
     spec:
       containers:
         - name: cape-flier
-          image: git.kcfam.us/gtfs.zone/cape-flier:latest
+          image: ghcr.io/gtfs-zone/gtfs-zone-timetable-sites
           command:
             - dagster
             - api

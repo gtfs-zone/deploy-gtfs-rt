@@ -40,7 +40,7 @@ sidecar on the argocd-repo-server.
   (landing-zone), `edit.gtfs.zone` (coloring-book), `viz.rt.gtfs.zone`
   (test-track), `manage.rt.gtfs.zone` (yard-master) and `list.gtfs.zone`
   (globe-of-contents). Each is an nginx image
-  built by its own repo's CI and pushed to the Forgejo registry; that CI runs
+  built by its own repo's CI and pushed to ghcr.io; that CI runs
   `kustomize edit set image` here and commits, so `sites/kustomization.yaml` is
   the deploy record. Rollback = point the image back at an earlier digest.
   Their IngressRoutes deliberately live in the `gtfs` namespace, where the TLS
@@ -132,7 +132,7 @@ helm template <release> <repo>/<chart> --version <v> -n <ns> -f infra/<comp>/val
 need to decrypt: SOPS leaves key names readable.
 
 **Images:** CI publishes `:latest` + `:<short-sha>` only; there is **no `:main`
-tag**. Bumping an image is a manifest edit plus a commit. The `git.kcfam.us`
+tag**. Bumping an image is a manifest edit plus a commit. The `ghcr.io/gtfs-zone`
 packages are public (anonymously pullable), so no `imagePullSecrets` are used.
 
 ## Architecture

@@ -6,7 +6,7 @@
 ## `gtfs` namespace, which the gtfs Application also creates.
 ##
 ## Plain Kustomize source (no ksops plugin): this tree holds no encrypted files.
-## Images are public in the Forgejo registry, so no imagePullSecret is needed.
+## Images are public on ghcr.io, so no imagePullSecret is needed.
 apiVersion: argoproj.io/v1alpha1
 kind: Application
 metadata:

@@ -8,7 +8,7 @@
 #
 # The `images:` block below is the deploy trigger. Each site's CI, after pushing
 # a new image, runs
-#   kustomize edit set image git.kcfam.us/gtfs.zone/<repo>=<repo>@sha256:<digest>
+#   kustomize edit set image ghcr.io/gtfs-zone/<repo>=ghcr.io/gtfs-zone/<repo>@sha256:<digest>
 # in this directory and commits, so what is deployed is always a digest recorded
 # in git. `newTag` is only the human-readable starting point; once CI has run at
 # least once these entries carry digests.
@@ -31,15 +31,9 @@ images:
 - digest: sha256:351ad681f9aaab3fdcb07ab5ae122a631b2133c431cd5b056360a9894ac6ae86
   name: git.kcfam.us/gtfs.zone/coloring-book
   newName: git.kcfam.us/gtfs.zone/coloring-book
-- digest: sha256:bcaec92c1fb6da3893212e1dadc2966319c6af7fe1e88557a2a13ada3d085baf
-  name: git.kcfam.us/gtfs.zone/globe-of-contents
-  newName: git.kcfam.us/gtfs.zone/globe-of-contents
 - digest: sha256:160025b706e02f1391560f8fde140655b216be1ae89516388ae5033b3fdad91b
   name: git.kcfam.us/gtfs.zone/landing-zone
   newName: git.kcfam.us/gtfs.zone/landing-zone
 - digest: sha256:9fe5284b5fecf1793463c9f74a00fe55550d8484f67bb3424563386fbaae4030
   name: git.kcfam.us/gtfs.zone/test-track
   newName: git.kcfam.us/gtfs.zone/test-track
-- digest: sha256:c7f787223f46452379b0ee6b1636471f09bdfa6f8f189a0919f66d9cc1cd9b9d
-  name: git.kcfam.us/gtfs.zone/yard-master
-  newName: git.kcfam.us/gtfs.zone/yard-master

@@ -39,9 +39,3 @@ images:
 - digest: sha256:d48fa87a94770d2384af863baacbcbc8c2a5b6717b33295bb0f61d79da2fc807
   name: ghcr.io/gtfs-zone/gtfs-zone-timetable-sites
   newName: ghcr.io/gtfs-zone/gtfs-zone-timetable-sites
-- digest: sha256:15a5b815bb21e26b4069d1b1b876b9488c6357d18fb6fd2c51f2e498f8312d90
-  name: git.kcfam.us/gtfs.zone/cape-flier
-  newName: git.kcfam.us/gtfs.zone/cape-flier
-- digest: sha256:bece02a7445a1e778058acfc9147a6904e3c2101ae0e7dabee7b3ba3fd61b4e9
-  name: git.kcfam.us/gtfs.zone/geometry-car
-  newName: git.kcfam.us/gtfs.zone/geometry-car

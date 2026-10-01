@@ -1,49 +1,57 @@
 #!/usr/bin/env bash
-# Checks origin/main on sibling gtfs.zone repos against the SHA deployed in
-# this repo's manifests, and offers to bump the manifest to the latest SHA.
+# Checks the short-SHA tag deployed in this repo's manifests against the one
+# ghcr.io's `latest` carries for each service image, and offers to bump the
+# manifest to it. Needs `gh` logged in with the read:packages scope.
 set -euo pipefail
 
 cd "$(dirname "${BASH_SOURCE[0]}")/.."
 
-REPOS=(cafe-car vehicle-poser trip-updogger hell-gate-bridge schedule-foamer)
-SIBLINGS_DIR="$(realpath ..)"
+ORG=gtfs-zone
+# Image name and GitHub repo name are the same for each service.
+IMAGES=(
+  gtfs-zone-rt-api
+  gtfs-zone-rt-traccar-receiver
+  gtfs-zone-rt-delay-estimator
+  gtfs-zone-rt-pollers
+  gtfs-zone-static-importer
+)
 
-for repo in "${REPOS[@]}"; do
-  repo_path="$SIBLINGS_DIR/$repo"
-  if [[ ! -d "$repo_path/.git" ]]; then
-    echo "== $repo: skipping, no repo at $repo_path"
-    continue
-  fi
+for image in "${IMAGES[@]}"; do
+  ref="ghcr.io/$ORG/$image"
+  echo "== $image"
 
-  echo "== $repo"
-  git -C "$repo_path" fetch --quiet origin main
-  remote_sha="$(git -C "$repo_path" rev-parse origin/main)"
-  remote_short="${remote_sha:0:7}"
-
-  files="$(grep -rl "git\.kcfam\.us/gtfs\.zone/$repo:" gtfs/ || true)"
+  files="$(grep -rl "$ref:" gtfs/ || true)"
   if [[ -z "$files" ]]; then
-    echo "   no manifest references git.kcfam.us/gtfs.zone/$repo, skipping"
+    echo "   no manifest references $ref, skipping"
     continue
   fi
 
-  deployed_sha="$(grep -hoP "(?<=git\.kcfam\.us/gtfs\.zone/$repo:)[0-9a-f]+" $files | head -1)"
+  deployed_sha="$(grep -hoP "(?<=${ref//./\\.}:)[0-9a-f]{7}\b" $files | head -1)"
 
-  if [[ "$deployed_sha" == "$remote_short" ]]; then
+  # The short-SHA tag on the same version as `latest`.
+  latest_sha="$(gh api "/orgs/$ORG/packages/container/$image/versions?per_page=100" \
+    --jq '[.[] | .metadata.container.tags | select(index("latest")) | .[] | select(test("^[0-9a-f]{7}$"))][0] // empty')"
+  if [[ -z "$latest_sha" ]]; then
+    echo "   no short-SHA tag next to latest on $ref, skipping"
+    continue
+  fi
+
+  if [[ "$deployed_sha" == "$latest_sha" ]]; then
     echo "   up to date ($deployed_sha)"
     continue
   fi
 
   echo "   deployed: $deployed_sha"
-  echo "   origin/main: $remote_short"
-  if git -C "$repo_path" cat-file -e "$deployed_sha" 2>/dev/null; then
-    echo "   commits between deployed and origin/main:"
-    git -C "$repo_path" log --oneline "$deployed_sha..$remote_sha" | sed 's/^/     /'
-  fi
+  echo "   latest:   $latest_sha"
+  echo "   commits between deployed and latest:"
+  gh api "repos/$ORG/$image/compare/$deployed_sha...$latest_sha" \
+    --jq '.commits[] | "     \(.sha[0:7]) \(.commit.message | split("\n")[0])"' \
+    || echo "     (compare failed)"
 
-  read -r -p "   bump $repo -> $remote_short in $(echo "$files" | tr '\n' ' ')? [y/N] " ans
+  read -r -p "   bump $image -> $latest_sha in $(echo "$files" | tr '\n' ' ')? [y/N] " ans
   if [[ "$ans" =~ ^[Yy]$ ]]; then
     for f in $files; do
-      sed -i "s/git\.kcfam\.us\/gtfs\.zone\/$repo:$deployed_sha/git.kcfam.us\/gtfs.zone\/$repo:$remote_short/g" "$f"
+      sed -i "s|$ref:$deployed_sha|$ref:$latest_sha|g" "$f"
     done
     echo "   bumped. review the diff and commit when ready."
   else
