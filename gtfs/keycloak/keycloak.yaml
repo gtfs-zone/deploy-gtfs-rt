@@ -1,5 +1,5 @@
 # ── Keycloak (OIDC provider) ──────────────────────────────────────────────────
-# Replaced Dex (see gtfs/keycloak/CUTOVER.md). Dex could not link accounts:
+# Replaced Dex. Dex could not link accounts:
 # each connector mints its own opaque `sub` and Dex has no notion of one person
 # with two connectors, so signing in with GitHub and with Google produced two
 # unrelated accounts. Keycloak brokers GitHub / Google / GitLab behind one
