@@ -18,36 +18,33 @@ on:
 env:
   KUBECONFORM_VERSION: "0.6.7"
 
+permissions:
+  contents: read
+
 jobs:
   validate:
-    runs-on: alpine-3.23
+    runs-on: ubuntu-latest
 
     steps:
-      # nodejs is required by actions/checkout (a JS action); the alpine-3.23
-      # runner image ships without it. kustomize comes from apk.
-      - name: Install dependencies
-        run: |
-          apk add --no-cache nodejs curl tar git kustomize
-
+      # kustomize ships with the ubuntu runner image.
       - name: Install kubeconform + ksops stub
         run: |
+          kustomize version
           curl -sL "https://github.com/yannh/kubeconform/releases/download/v${KUBECONFORM_VERSION}/kubeconform-linux-amd64.tar.gz" \
-            | tar xz -C /usr/local/bin kubeconform
+            | sudo tar xz -C /usr/local/bin kubeconform
           # Stand-in for the real KSOPS exec plugin. kustomize invokes it as a KRM
           # generator and expects a ResourceList on stdout; emitting an empty one
           # drops the encrypted Secrets without needing the age private key.
-          cat > /usr/local/bin/ksops <<'STUB'
+          sudo tee /usr/local/bin/ksops > /dev/null <<'STUB'
           #!/bin/sh
           echo 'apiVersion: config.kubernetes.io/v1'
           echo 'kind: ResourceList'
           echo 'items: []'
           STUB
-          chmod +x /usr/local/bin/ksops
+          sudo chmod +x /usr/local/bin/ksops
 
       - name: Checkout
-        uses: actions/checkout@v6
-        with:
-          github-server-url: https://git.kcfam.us
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
 
       # The *.enc.yaml files route the tree through the ksops exec generator, so
       # the alpha exec plugin flags are still required, same command as the
