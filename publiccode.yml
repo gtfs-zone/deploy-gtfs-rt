@@ -1,0 +1,45 @@
+publiccodeYmlVersion: "0.4"
+
+name: GTFS.zone Infra
+url: "https://github.com/gtfs-zone/gtfs-zone-infra"
+
+platforms:
+  - linux
+
+categories:
+  - cloud-management
+  - it-service-management
+
+developmentStatus: beta
+
+softwareType: "standalone/other"
+
+description:
+  en:
+    shortDescription: >
+      The Kubernetes deployment of the gtfs.zone stack: k3s, ArgoCD and the manifests for every service.
+    longDescription: >
+      GTFS.zone Infra is the k3s and ArgoCD deployment that wires the
+      gtfs.zone services together: the realtime API and workers, the feed
+      catalog, the web apps, PostgreSQL, Redis, Keycloak, oauth2-proxy and
+      Traefik. ArgoCD watches the repo and reconciles the cluster to it, and
+      secrets are encrypted with SOPS. It is for operators who want to run
+      their own instance of gtfs.zone.
+    features:
+      - k3s and ArgoCD GitOps deployment
+      - Manifests for every gtfs.zone service
+      - SOPS-encrypted secrets
+
+legal:
+  license: AGPL-3.0-or-later
+
+maintenance:
+  type: community
+  contacts:
+    - name: Max Katz-Christy
+      email: maxkatzchristy@gmail.com
+
+localisation:
+  localisationReady: false
+  availableLanguages:
+    - en
