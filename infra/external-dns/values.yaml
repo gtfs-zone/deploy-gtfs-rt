@@ -5,7 +5,8 @@
 ## Source = Traefik IngressRoute (traefik-proxy). Each gtfs IngressRoute (Phase 7)
 ## carries an `external-dns.alpha.kubernetes.io/target: <server_ip>` annotation, so
 ## external-dns creates the matching *.gtfs.zone records at Porkbun, retiring the
-## old dns.tf. Porkbun creds come from the `porkbun-secret` Secret in the
+## old dns.tf. The `crd` source adds DNSEndpoint resources, used for records
+## with no IngressRoute behind them (sites/pages-dns.yaml). Porkbun creds come from the `porkbun-secret` Secret in the
 ## external-dns namespace (SOPS Secret, Phase 4; keys API_KEY / API_SECRET).
 provider:
   name: webhook
@@ -16,7 +17,7 @@ provider:
       # zone a second time, so the apex's new-format ownership TXT was written as
       # `a-gtfs.zone.gtfs.zone`. external-dns never sees `a-gtfs.zone`, keeps the
       # registry migration open, and forces an update of the apex A record every
-      # reconcile -- the one edit this webhook cannot make (see sites/apex.yaml).
+      # reconcile -- the one edit this webhook cannot make (see `policy` below).
       # v0.2.19 applied UpdateOld before anything else, so that one failure
       # aborted the batch and froze the whole zone: no record anywhere in
       # gtfs.zone was created or pruned for hours. v0.3.0 applies deletes and
@@ -70,9 +71,10 @@ provider:
 domainFilters:
   - gtfs.zone
 
-# Watch Traefik IngressRoute CRDs (adds the needed RBAC).
+# Watch Traefik IngressRoutes and DNSEndpoints (adds the needed RBAC).
 sources:
   - traefik-proxy
+  - crd
 
 # The traefik-proxy source watches BOTH the modern `traefik.io` API group and the
 # legacy `traefik.containo.us` one. Traefik v3 (chart 35.x) only ships the former,
@@ -84,14 +86,31 @@ extraArgs:
   - --traefik-disable-legacy
   # Match the webhook sidecar's LISTEN_ADDRESS above (default would be :8888).
   - --webhook-provider-url=http://localhost:8080
+  # Only write the typed ownership TXT (`cname-edit`, `a-list`, ...). The legacy
+  # one sits at the record's own name, which a CNAME cannot share.
+  - --txt-new-format-only
 
 # Full ownership: create AND delete records to match cluster state, tagged with a
 # TXT owner record so external-dns only touches records it created.
 #
-# gtfs.zone's own apex A record is deliberately outside this: it carries no
-# ownership TXT and no IngressRoute target annotation, so it is neither owned
-# nor desired and `sync` leaves it alone. See sites/apex.yaml for why it cannot
-# be managed here.
+# gtfs.zone's own apex records (GitHub Pages' A/AAAA set) are deliberately
+# outside this: they carry no ownership TXT and nothing in the cluster declares
+# them, so they are neither owned nor desired and `sync` leaves them alone. They
+# are kept by hand at Porkbun, because external-dns cannot manage the apex here,
+# for two reasons that compound:
+#   - Its ownership TXT would have to be named `a-gtfs.zone`. external-dns
+#     builds that name by prefixing `a-` to the first label, which at a
+#     two-label apex lands outside the zone entirely: `a-gtfs.zone` is a
+#     different registrable domain, not a name in gtfs.zone. It cannot be
+#     created at Porkbun, and the webhook's attempt to force it back in wrote
+#     `a-gtfs.zone.gtfs.zone`, which external-dns never looks for.
+#   - The Porkbun webhook cannot EDIT an apex record regardless: it derives the
+#     record name by trimming the zone off the FQDN, leaving "" at the apex, and
+#     Record.Name is `json:"name,omitempty"`, so `/dns/edit` goes out with no
+#     name and Porkbun answers 400 EDIT_ERROR.
+# With the apex missing its marker, external-dns forced that impossible edit
+# every 60s, and a failed record fails the whole zone's batch. Leaving the apex
+# alone is what keeps every other name in gtfs.zone reconciling.
 policy: sync
 registry: txt
 txtOwnerId: gtfs-k3s

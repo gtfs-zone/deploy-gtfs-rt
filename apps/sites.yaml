@@ -1,5 +1,5 @@
-## apps/sites.yaml: the static sites (gtfs.zone, edit.gtfs.zone,
-## viz.rt.gtfs.zone), migrated off the home-docker `static-sites` container.
+## apps/sites.yaml: the nginx-served sites (list.gtfs.zone, manage.rt.gtfs.zone)
+## and the DNS records for the sites on GitHub Pages (edit, viz.rt).
 ##
 ## Wave 3, same as the gtfs stack: it needs Traefik's IngressRoute CRD (wave 1)
 ## and the cert-manager Certificates (wave 2), and its IngressRoutes land in the

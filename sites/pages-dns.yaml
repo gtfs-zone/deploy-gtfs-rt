@@ -1,0 +1,22 @@
+# DNS for the sites GitHub Pages serves: edit.gtfs.zone (gtfs-zone-editor) and
+# viz.rt.gtfs.zone (gtfs-zone-rt-viewer). Read by external-dns's `crd` source,
+# so these records are owned and reconciled like the IngressRoute ones.
+#
+# gtfs.zone itself (gtfs-zone-homepage) is also on Pages, but its A/AAAA records
+# are kept by hand at Porkbun: see infra/external-dns/values.yaml for why
+# external-dns cannot manage the apex.
+apiVersion: externaldns.k8s.io/v1alpha1
+kind: DNSEndpoint
+metadata:
+  name: pages
+  namespace: sites
+spec:
+  endpoints:
+    - dnsName: edit.gtfs.zone
+      recordType: CNAME
+      targets:
+        - gtfs-zone.github.io
+    - dnsName: viz.rt.gtfs.zone
+      recordType: CNAME
+      targets:
+        - gtfs-zone.github.io

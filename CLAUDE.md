@@ -36,10 +36,12 @@ sidecar on the argocd-repo-server.
   `geometry-car-migrate.yaml` for its PreSync hook), IngressRoutes, and
   SOPS-encrypted `secrets/*.enc.yaml`. geometry-car's CI writes its image
   digest into `gtfs/kustomization.yaml`'s `images:` block.
-- `sites/`: the five static sites (Kustomize, no secrets): `gtfs.zone`
-  (landing-zone), `edit.gtfs.zone` (coloring-book), `viz.rt.gtfs.zone`
-  (test-track), `manage.rt.gtfs.zone` (yard-master) and `list.gtfs.zone`
-  (globe-of-contents). Each is an nginx image
+- `sites/`: the nginx-served sites (Kustomize, no secrets):
+  `manage.rt.gtfs.zone` (yard-master) and `list.gtfs.zone`
+  (globe-of-contents), plus `pages-dns.yaml`, the DNSEndpoint CNAMEs for
+  `edit.gtfs.zone` and `viz.rt.gtfs.zone`, which GitHub Pages serves. The
+  `gtfs.zone` apex is on Pages too, with its A/AAAA records kept by hand at
+  Porkbun. Each nginx site is an nginx image
   built by its own repo's CI and pushed to ghcr.io; that CI runs
   `kustomize edit set image` here and commits, so `sites/kustomization.yaml` is
   the deploy record. Rollback = point the image back at an earlier digest.
@@ -140,21 +142,21 @@ packages are public (anonymously pullable), so no `imagePullSecrets` are used.
 ```
 Internet :80/:443
    └─ home-docker Traefik (Docker, still owns 80/443)
-        ├─ *.kcfam.us + gtfs.zone apex → terminated locally
+        ├─ *.kcfam.us → terminated locally
         └─ *.gtfs.zone → TCP SNI passthrough → 172.18.0.1:8443
                                                    │
    k3s single node ─────────────────────────────────┘
      Traefik (Helm), websecure entrypoint on host :8443 via ServiceLB
        └─ IngressRoute: rt · manage.rt · id · auth · status · traccar
           · data + sites (Garage s3_web :3902) · dagster (oauth2-proxy-admin)
-          · edit · viz · list (from sites/)
+          · list (from sites/)
           (+ argocd, in the argocd namespace)
      cert-manager (Porkbun DNS-01) · external-dns · Longhorn · CNPG · ArgoCD
 ```
 
 TLS for `*.gtfs.zone` is owned end to end by cert-manager in the cluster; the
-edge only passes bytes through. The bare apex `gtfs.zone` is deliberately **not**
-passed through: it stays on home-docker's static-sites container.
+edge only passes bytes through. `gtfs.zone`, `edit.gtfs.zone` and
+`viz.rt.gtfs.zone` are on GitHub Pages and never reach this machine.
 
 ### Ingest data flow
 

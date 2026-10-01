@@ -1,6 +1,12 @@
 # ── list.gtfs.zone (globe-of-contents) ────────────────────────────────────────
-# Same shape as edit.yaml (see it for the rationale on the image workflow, the
-# unprivileged nginx, and why the IngressRoute lives in `gtfs`).
+# Static site served from an immutable image: CI builds `dist/` into
+# `ghcr.io/gtfs-zone/gtfs-zone-feed-list` on a `v*` tag, pushes it, then commits
+# the new digest into sites/kustomization.yaml, and ArgoCD rolls it out. A deploy
+# is an image swap, and a rollback is `kustomize edit set image` back to the
+# previous digest.
+#
+# The image is `nginxinc/nginx-unprivileged` based, so it listens on :8080 as
+# uid 101 and needs no root anywhere in the chain.
 #
 # TLS: list.gtfs.zone is one label deep, so the `*.gtfs.zone` SAN on
 # gtfs-zone-tls covers it.
@@ -95,6 +101,10 @@ spec:
       port: 80
       targetPort: http
 ---
+# The route lives in `gtfs`, not `sites`: Traefik resolves `tls.secretName` in
+# the IngressRoute's own namespace, and the cert-manager Secrets are there.
+# Pointing at a Service in another namespace is fine: the chart runs with
+# `providers.kubernetesCRD.allowCrossNamespace: true`.
 apiVersion: traefik.io/v1alpha1
 kind: IngressRoute
 metadata:

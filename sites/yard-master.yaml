@@ -1,7 +1,7 @@
 # ── yard-master ─────────────────────────────────────────────────────────────
-# Same shape as edit.yaml/viz.yaml for the Deployment and Service (see edit.yaml
-# for the image-workflow rationale, the unprivileged nginx, and why the
-# IngressRoute lives in `gtfs`).
+# Same shape as list.yaml for the Deployment and Service (see list.yaml for the
+# image-workflow rationale, the unprivileged nginx, and why the IngressRoute
+# lives in `gtfs`).
 #
 # yard-master is not a standalone static site: it is the SPA half of the same
 # app cafe-car's `gtfs-manager` serves the JSON API for, same-origin. It is
