@@ -34,7 +34,7 @@
 # is a confidential-client code flow that sends none, so sign-in fails with
 # "Missing parameter: code_challenge_method".
 #
-# trustEmail is true on all three brokers, and that is load-bearing: cafe-car
+# trustEmail is true on all three brokers, and that is load-bearing: rt-api
 # matches a person to a pending feed invite, and to an account-link candidate,
 # only on a *verified* address. With trustEmail false, first-broker-login stores
 # emailVerified=false and a feed shared by email silently never reaches a

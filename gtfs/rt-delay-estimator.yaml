@@ -1,28 +1,28 @@
-# ── trip-updogger (schedule-delay worker) ─────────────────────────────────────
+# ── rt-delay-estimator (schedule-delay worker) ────────────────────────────────
 # Turns live positions into GTFS-RT Trip Updates. No broker: it sweeps
 # `vehicle:*` in Redis DB1 every POLL_INTERVAL, loads the trip's scheduled
 # stop_times from Postgres, projects the fix onto the route with `compute_delay`,
 # and writes
 #   trip_update:{tracker_id}:{trip_id}[:{start_date}]  → Redis DB1, 300s TTL
-# which is the key cafe-car's gtfs_rt.py::trip_updates reads. Without this,
+# which is the key rt-api's gtfs_rt.py::trip_updates reads. Without this,
 # Traccar-sourced feeds serve positions but an empty trip_updates.pb: only
-# hell-gate-bridge writes trip updates, and only for its own upstream feeds.
+# rt-pollers writes trip updates, and only for its own upstream feeds.
 #
 # It never clobbers a richer producer: every record it writes is stamped
-# `source: trip-updogger`, and it skips any key it does not already own, so
-# hell-gate-bridge's per-stop Amtrak predictions win and this fills the gaps.
+# `source: rt-delay-estimator`, and it skips any key it does not already own, so
+# rt-pollers' per-stop Amtrak predictions win and this fills the gaps.
 #
 # Internal only, no HTTP server, so no Service and no probes (same shape as
-# celery-worker). REDIS_URL and DATABASE_URL are read with os.environ[...] at
+# static-importer-worker). REDIS_URL and DATABASE_URL are read with os.environ[...] at
 # *module* scope, so a missing value crashes the pod at import rather than
 # failing silently; both are set explicitly below.
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: trip-updogger
+  name: rt-delay-estimator
   namespace: gtfs
   labels:
-    app: trip-updogger
+    app: rt-delay-estimator
 spec:
   # Exactly one sweeper. Two would race to own the same trip_update: keys, and
   # the SOURCE stamp cannot arbitrate between two instances of ourselves.
@@ -31,17 +31,17 @@ spec:
     type: Recreate
   selector:
     matchLabels:
-      app: trip-updogger
+      app: rt-delay-estimator
   template:
     metadata:
       labels:
-        app: trip-updogger
+        app: rt-delay-estimator
     spec:
       containers:
-        - name: trip-updogger
-          image: ghcr.io/gtfs-zone/gtfs-zone-rt-delay-estimator:2d92a17
+        - name: rt-delay-estimator
+          image: ghcr.io/gtfs-zone/gtfs-zone-rt-delay-estimator:v0.2.0
           env:
-            # DB1: where vehicle-poser and cafe-car's /ingest write positions.
+            # DB1: where rt-traccar-receiver and rt-api's /ingest write positions.
             - name: REDIS_URL
               value: redis://redis:6379/1
             - name: POLL_INTERVAL

@@ -1,5 +1,5 @@
 # ── rt-api migrate (Alembic) ──────────────────────────────────────────────────
-# Replaces the TF `gtfs-migrate` init container. Runs `railroad-club-migrate`
+# Replaces the TF `gtfs-migrate` init container. Runs `gtfs-zone-db-models-migrate`
 # (Alembic) against the rt_api database as an ArgoCD **PreSync hook**; it
 # completes before the gtfs-api/gtfs-manager Deployments roll. Re-running is safe:
 # Alembic tracks applied versions. HookDeletePolicy replaces the Job each sync so
@@ -22,8 +22,8 @@ spec:
       restartPolicy: Never
       containers:
         - name: gtfs-migrate
-          image: ghcr.io/gtfs-zone/gtfs-zone-rt-api:53f3145
-          command: ["railroad-club-migrate"]
+          image: ghcr.io/gtfs-zone/gtfs-zone-rt-api:v0.2.0
+          command: ["gtfs-zone-db-models-migrate"]
           env:
             - name: REDIS_URL
               value: redis://redis:6379/1

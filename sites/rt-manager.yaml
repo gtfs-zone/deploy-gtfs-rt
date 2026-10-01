@@ -1,20 +1,20 @@
-# ── yard-master ─────────────────────────────────────────────────────────────
+# ── rt-manager ────────────────────────────────────────────────────────────────
 # Same shape as list.yaml for the Deployment and Service (see list.yaml for the
 # image-workflow rationale, the unprivileged nginx, and why the IngressRoute
 # lives in `gtfs`).
 #
-# yard-master is not a standalone static site: it is the SPA half of the same
-# app cafe-car's `gtfs-manager` serves the JSON API for, same-origin. It is
+# rt-manager is not a standalone static site: it is the SPA half of the same
+# app rt-api's `gtfs-manager` serves the JSON API for, same-origin. It is
 # `manage.rt.gtfs.zone` itself now; its IngressRoute lives in
 # `gtfs/ingressroutes.yaml` alongside the rest of that host's routing, not
 # here.
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: yard-master
+  name: rt-manager
   namespace: sites
   labels:
-    app: yard-master
+    app: rt-manager
 spec:
   replicas: 1
   strategy:
@@ -24,11 +24,11 @@ spec:
       maxSurge: 1
   selector:
     matchLabels:
-      app: yard-master
+      app: rt-manager
   template:
     metadata:
       labels:
-        app: yard-master
+        app: rt-manager
     spec:
       securityContext:
         runAsNonRoot: true
@@ -79,11 +79,11 @@ spec:
 apiVersion: v1
 kind: Service
 metadata:
-  name: yard-master
+  name: rt-manager
   namespace: sites
 spec:
   selector:
-    app: yard-master
+    app: rt-manager
   ports:
     - name: http
       port: 80

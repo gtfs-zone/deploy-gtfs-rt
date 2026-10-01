@@ -1,5 +1,5 @@
-# ── rt-api (cafe-car) ─────────────────────────────────────────────────────────
-# The single cafe-car image runs as two Deployments, matching the TF split:
+# ── rt-api ────────────────────────────────────────────────────────────────────
+# The single rt-api image runs as two Deployments, matching the TF split:
 #   gtfs-api      (:8000, public)  : unauthenticated GTFS-RT feed at rt.gtfs.zone
 #   gtfs-manager  (:8001, admin)   : oauth2-protected UI at manage.rt.gtfs.zone
 # Shared env mirrors the TF `local.rt_api_env`. The DATABASE_URL password is
@@ -26,8 +26,8 @@ spec:
     spec:
       containers:
         - name: gtfs-api
-          image: ghcr.io/gtfs-zone/gtfs-zone-rt-api:53f3145
-          command: ["fastapi", "run", "src/cafe_car/main.py", "--port", "8000"]
+          image: ghcr.io/gtfs-zone/gtfs-zone-rt-api:v0.2.0
+          command: ["fastapi", "run", "src/gtfs_zone_rt_api/main.py", "--port", "8000"]
           ports:
             - name: http
               containerPort: 8000
@@ -50,7 +50,7 @@ spec:
                 secretKeyRef:
                   name: gtfs-app-secrets
                   key: SESSION_SECRET_KEY
-            # Traccar device provisioning. cafe-car auto-creates a Traccar device
+            # Traccar device provisioning. rt-api auto-creates a Traccar device
             # per Tracker over REST using the admin account, and bakes
             # TRACCAR_CLIENT_BASE into the org.traccar.client://config deep link
             # it renders as a QR, so that URL must be reachable from the driver's
@@ -69,7 +69,7 @@ spec:
                 secretKeyRef:
                   name: gtfs-app-secrets
                   key: TRACCAR_ADMIN_PASSWORD
-            # Shared bearer guarding /ingest/* (hell-gate-bridge is the producer).
+            # Shared bearer guarding /ingest/* (rt-pollers is the producer).
             - name: INGEST_API_TOKEN
               valueFrom:
                 secretKeyRef:
@@ -145,11 +145,11 @@ spec:
     spec:
       containers:
         - name: gtfs-manager
-          image: ghcr.io/gtfs-zone/gtfs-zone-rt-api:53f3145
+          image: ghcr.io/gtfs-zone/gtfs-zone-rt-api:v0.2.0
           command:
             - fastapi
             - run
-            - src/cafe_car/admin_main.py
+            - src/gtfs_zone_rt_api/admin_main.py
             - --port
             - "8001"
             - --proxy-headers
@@ -176,7 +176,7 @@ spec:
                 secretKeyRef:
                   name: gtfs-app-secrets
                   key: SESSION_SECRET_KEY
-            # Traccar device provisioning. cafe-car auto-creates a Traccar device
+            # Traccar device provisioning. rt-api auto-creates a Traccar device
             # per Tracker over REST using the admin account, and bakes
             # TRACCAR_CLIENT_BASE into the org.traccar.client://config deep link
             # it renders as a QR, so that URL must be reachable from the driver's
@@ -195,7 +195,7 @@ spec:
                 secretKeyRef:
                   name: gtfs-app-secrets
                   key: TRACCAR_ADMIN_PASSWORD
-            # Shared bearer guarding /ingest/* (hell-gate-bridge is the producer).
+            # Shared bearer guarding /ingest/* (rt-pollers is the producer).
             - name: INGEST_API_TOKEN
               valueFrom:
                 secretKeyRef:
@@ -211,12 +211,12 @@ spec:
             - name: KEYCLOAK_REALM
               value: gtfs
             - name: KEYCLOAK_CLIENT_ID
-              value: cafe-car
+              value: rt-api
             - name: KEYCLOAK_CLIENT_SECRET
               valueFrom:
                 secretKeyRef:
                   name: gtfs-app-secrets
-                  key: KEYCLOAK_CAFE_CAR_CLIENT_SECRET
+                  key: KEYCLOAK_RT_API_CLIENT_SECRET
             - name: KEYCLOAK_ACCOUNT_URL
               value: https://id.gtfs.zone/realms/gtfs/account
             # Object storage for uploaded GTFS zips. garage-init imports this

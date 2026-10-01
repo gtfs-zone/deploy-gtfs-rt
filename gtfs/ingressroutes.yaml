@@ -8,8 +8,8 @@
 #
 # Auth: the two oauth2 Middlewares (oauth2-proxy.yaml) replace the TF ForwardAuth
 # labels. Public by design: rt (the GTFS-RT feed), status (the Gatus status page),
-# id + auth (the login flow itself), data (geometry-car's published artifacts),
-# sites (cape-flier's timetable sites)
+# id + auth (the login flow itself), data (feed-catalog's published artifacts),
+# sites (timetable-sites' timetable sites)
 # and both Traccar routes.
 #
 # TLS reaches this cluster untouched: home-docker's Traefik does SNI passthrough
@@ -50,7 +50,7 @@ spec:
       services:
         - name: oauth2-proxy
           port: 4180
-    # yard-master's JSON API, same-origin against cafe-car's gtfs-manager.
+    # rt-manager's JSON API, same-origin against rt-api's gtfs-manager.
     - match: Host(`manage.rt.gtfs.zone`) && PathPrefix(`/api`)
       kind: Rule
       middlewares:
@@ -65,7 +65,7 @@ spec:
         - name: oauth2-errors
         - name: oauth2-proxy
       services:
-        - name: yard-master
+        - name: rt-manager
           namespace: sites
           port: 80
   tls:
@@ -215,7 +215,7 @@ spec:
     secretName: gtfs-zone-tls
 ---
 # The public artifact bucket, served by Garage's own s3_web endpoint rather than
-# the S3 API: geometry-car's JSON is meant to be fetched by a browser with no
+# the S3 API: feed-catalog's JSON is meant to be fetched by a browser with no
 # credentials. Garage picks the bucket from the Host header, matching it against
 # the bucket's global alias, which is why the bucket is aliased literally
 # `data.gtfs.zone`. Deliberately NO Host-rewrite middleware: rewriting the Host
@@ -245,7 +245,7 @@ spec:
   tls:
     secretName: gtfs-zone-tls
 ---
-# cape-flier's timetable sites, from the sites.gtfs.zone bucket over the same
+# timetable-sites' timetable sites, from the sites.gtfs.zone bucket over the same
 # s3_web endpoint as data.gtfs.zone. Garage stores and serves the pages
 # uncompressed, so Traefik compresses them on the way out.
 apiVersion: traefik.io/v1alpha1
@@ -313,7 +313,7 @@ spec:
         - name: oauth2-admin-errors
         - name: oauth2-admin
       services:
-        - name: geometry-car-webserver
+        - name: feed-catalog-webserver
           port: 3000
   tls:
     secretName: gtfs-zone-tls

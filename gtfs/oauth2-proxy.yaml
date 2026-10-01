@@ -60,14 +60,14 @@ spec:
             - name: OAUTH2_PROXY_OIDC_JWKS_URL
               value: http://keycloak:8080/realms/gtfs/protocol/openid-connect/certs
             # `groups` puts the Keycloak group claim in the access token, which
-            # reaches cafe-car as X-Auth-Request-Access-Token; that is how it
+            # reaches rt-api as X-Auth-Request-Access-Token; that is how it
             # decides who is a gtfs-admins admin. Deliberately NO
             # OAUTH2_PROXY_ALLOWED_GROUPS: manage.rt and uptime stay open to
-            # every realm account, and only cafe-car's own scoping narrows what
+            # every realm account, and only rt-api's own scoping narrows what
             # they see. Admin-only gating for Traccar lives in Traccar, not here.
             - name: OAUTH2_PROXY_SCOPE
               value: openid email profile groups
-            # X-Auth-Request-User carries this claim, and it is what cafe-car
+            # X-Auth-Request-User carries this claim, and it is what rt-api
             # keys an Identity on. It MUST be `sub`, the stable Keycloak UUID.
             # Dev previously used `name`, which is mutable and not unique across
             # connectors; anything but `sub` reintroduces that.
@@ -82,7 +82,7 @@ spec:
             # in-cluster, so the SSO session dies too.
             - name: OAUTH2_PROXY_BACKEND_LOGOUT_URL
               value: http://keycloak:8080/realms/gtfs/protocol/openid-connect/logout?id_token_hint={id_token}
-            # Pass JWT to upstream so cafe-car's auth.py can decode email/name
+            # Pass JWT to upstream so rt-api's auth.py can decode email/name
             - name: OAUTH2_PROXY_SET_XAUTHREQUEST
               value: "true"
             - name: OAUTH2_PROXY_PASS_ACCESS_TOKEN
@@ -160,7 +160,7 @@ spec:
 # ── oauth2-proxy-admin ────────────────────────────────────────────────────────
 # A second instance, for the hosts that must be admin-only. The instance above
 # is deliberately ungated and stays that way: manage.rt is meant to be reachable
-# by any realm account, with cafe-car scoping what each one sees. A UI that can
+# by any realm account, with rt-api scoping what each one sees. A UI that can
 # launch pipeline runs and delete history is a different question, so it gets
 # its own proxy with OAUTH2_PROXY_ALLOWED_GROUPS instead.
 #

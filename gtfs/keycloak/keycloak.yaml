@@ -49,7 +49,7 @@ spec:
               vars=(
                 KC_OAUTH2_PROXY_CLIENT_SECRET
                 KC_TRACCAR_CLIENT_SECRET
-                KC_CAFE_CAR_CLIENT_SECRET
+                KC_RT_API_CLIENT_SECRET
                 KC_ARGOCD_CLIENT_SECRET
                 KC_GITHUB_CLIENT_ID KC_GITHUB_CLIENT_SECRET
                 KC_GOOGLE_CLIENT_ID KC_GOOGLE_CLIENT_SECRET
@@ -88,11 +88,11 @@ spec:
                 secretKeyRef:
                   name: gtfs-app-secrets
                   key: KEYCLOAK_TRACCAR_CLIENT_SECRET
-            - name: KC_CAFE_CAR_CLIENT_SECRET
+            - name: KC_RT_API_CLIENT_SECRET
               valueFrom:
                 secretKeyRef:
                   name: gtfs-app-secrets
-                  key: KEYCLOAK_CAFE_CAR_CLIENT_SECRET
+                  key: KEYCLOAK_RT_API_CLIENT_SECRET
             # Must equal `clientSecret` in infra/secrets/argocd-oidc.enc.yaml,
             # which is what argocd-server actually reads.
             - name: KC_ARGOCD_CLIENT_SECRET

@@ -1,4 +1,4 @@
-# ── geometry-car (Dagster) ────────────────────────────────────────────────────
+# ── feed-catalog (Dagster) ────────────────────────────────────────────────────
 # The pipeline that inventories the world of GTFS: it ingests the Transitland
 # Atlas DMFR corpus and the Mobility Database daily, checks whether each feed
 # endpoint still answers, keeps the history in Postgres, and publishes the JSON
@@ -6,34 +6,34 @@
 #
 # Three Deployments off one image, which is how Dagster is meant to be run:
 #
-#   geometry-car-code       gRPC code server; the run itself executes here
-#   geometry-car-daemon     schedule ticks and the run queue
-#   geometry-car-webserver  the UI, behind oauth2-proxy-admin at dagster.gtfs.zone
+#   feed-catalog-code       gRPC code server; the run itself executes here
+#   feed-catalog-daemon     schedule ticks and the run queue
+#   feed-catalog-webserver  the UI, behind oauth2-proxy-admin at dagster.gtfs.zone
 #
 # DAGSTER_HOME is /app/dagster_home because /app is root-owned and the image
 # runs as `bridge`: the image creates and chowns exactly that directory. The
 # instance config is mounted into it by subPath, so the directory itself stays
-# writable. This is the same trap as celery-beat's --schedule flag, and it
+# writable. This is the same trap as static-importer-beat's --schedule flag, and it
 # fails late and confusingly rather than at startup.
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: geometry-car-code
+  name: feed-catalog-code
   namespace: gtfs
   labels:
-    app: geometry-car-code
+    app: feed-catalog-code
 spec:
   replicas: 1
   selector:
     matchLabels:
-      app: geometry-car-code
+      app: feed-catalog-code
   template:
     metadata:
       labels:
-        app: geometry-car-code
+        app: feed-catalog-code
     spec:
       containers:
-        - name: geometry-car
+        - name: feed-catalog
           image: ghcr.io/gtfs-zone/gtfs-zone-feed-catalog
           # The image's own CMD, spelled out because this is the pod where it
           # matters: the webserver and the daemon both override it.
@@ -46,20 +46,20 @@ spec:
             - -p
             - "4000"
             - -m
-            - geometry_car.definitions
+            - gtfs_zone_feed_catalog.definitions
           ports:
             - name: grpc
               containerPort: 4000
           env:
             - name: DAGSTER_HOME
               value: /app/dagster_home
-            - name: POSTGRES_GEOMETRY_CAR_PASSWORD
+            - name: POSTGRES_FEED_CATALOG_PASSWORD
               valueFrom:
                 secretKeyRef:
-                  name: postgres-geometry-car
+                  name: postgres-feed-catalog
                   key: password
             - name: DATABASE_URL
-              value: postgresql://geometry_car:$(POSTGRES_GEOMETRY_CAR_PASSWORD)@postgres-rw:5432/geometry_car
+              value: postgresql://feed_catalog:$(POSTGRES_FEED_CATALOG_PASSWORD)@postgres-rw:5432/feed_catalog
             # The public artifact bucket, not gtfs-feeds. S3_REGION is part of
             # the SigV4 signature, so a mismatch with garage.toml's s3_region
             # is a 403, not a redirect.
@@ -73,12 +73,12 @@ spec:
               valueFrom:
                 secretKeyRef:
                   name: gtfs-app-secrets
-                  key: GEOMETRY_CAR_S3_ACCESS_KEY
+                  key: FEED_CATALOG_S3_ACCESS_KEY
             - name: S3_SECRET_KEY
               valueFrom:
                 secretKeyRef:
                   name: gtfs-app-secrets
-                  key: GEOMETRY_CAR_S3_SECRET_KEY
+                  key: FEED_CATALOG_S3_SECRET_KEY
             # A refresh token, exchanged for a short-lived access token at the
             # start of each run. Empty is not an error: the run then covers
             # Transitland and the curated set alone.
@@ -94,7 +94,7 @@ spec:
               valueFrom:
                 secretKeyRef:
                   name: gtfs-app-secrets
-                  key: GATUS_GEOMETRY_CAR_TOKEN
+                  key: GATUS_FEED_CATALOG_TOKEN
           volumeMounts:
             - name: dagster-config
               mountPath: /app/dagster_home/dagster.yaml
@@ -116,16 +116,16 @@ spec:
       volumes:
         - name: dagster-config
           configMap:
-            name: geometry-car-dagster
+            name: feed-catalog-dagster
 ---
 apiVersion: v1
 kind: Service
 metadata:
-  name: geometry-car-code
+  name: feed-catalog-code
   namespace: gtfs
 spec:
   selector:
-    app: geometry-car-code
+    app: feed-catalog-code
   ports:
     - name: grpc
       port: 4000
@@ -133,40 +133,40 @@ spec:
 ---
 # The daemon: schedule ticks and the run queue. replicas 1 and Recreate, never
 # two: a second daemon submits the daily schedule a second time, the same
-# reason celery-beat is pinned to one.
+# reason static-importer-beat is pinned to one.
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: geometry-car-daemon
+  name: feed-catalog-daemon
   namespace: gtfs
   labels:
-    app: geometry-car-daemon
+    app: feed-catalog-daemon
 spec:
   replicas: 1
   strategy:
     type: Recreate
   selector:
     matchLabels:
-      app: geometry-car-daemon
+      app: feed-catalog-daemon
   template:
     metadata:
       labels:
-        app: geometry-car-daemon
+        app: feed-catalog-daemon
     spec:
       containers:
-        - name: geometry-car
+        - name: feed-catalog
           image: ghcr.io/gtfs-zone/gtfs-zone-feed-catalog
           command: ["dagster-daemon", "run", "-w", "/app/dagster_home/workspace.yaml"]
           env:
             - name: DAGSTER_HOME
               value: /app/dagster_home
-            - name: POSTGRES_GEOMETRY_CAR_PASSWORD
+            - name: POSTGRES_FEED_CATALOG_PASSWORD
               valueFrom:
                 secretKeyRef:
-                  name: postgres-geometry-car
+                  name: postgres-feed-catalog
                   key: password
             - name: DATABASE_URL
-              value: postgresql://geometry_car:$(POSTGRES_GEOMETRY_CAR_PASSWORD)@postgres-rw:5432/geometry_car
+              value: postgresql://feed_catalog:$(POSTGRES_FEED_CATALOG_PASSWORD)@postgres-rw:5432/feed_catalog
           volumeMounts:
             - name: dagster-config
               mountPath: /app/dagster_home/dagster.yaml
@@ -189,7 +189,7 @@ spec:
       volumes:
         - name: dagster-config
           configMap:
-            name: geometry-car-dagster
+            name: feed-catalog-dagster
 ---
 # The UI. Public exposure is dagster.gtfs.zone, gated by oauth2-proxy-admin on
 # the gtfs-admins group: this UI can launch runs and delete history, so it is
@@ -197,22 +197,22 @@ spec:
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: geometry-car-webserver
+  name: feed-catalog-webserver
   namespace: gtfs
   labels:
-    app: geometry-car-webserver
+    app: feed-catalog-webserver
 spec:
   replicas: 1
   selector:
     matchLabels:
-      app: geometry-car-webserver
+      app: feed-catalog-webserver
   template:
     metadata:
       labels:
-        app: geometry-car-webserver
+        app: feed-catalog-webserver
     spec:
       containers:
-        - name: geometry-car
+        - name: feed-catalog
           image: ghcr.io/gtfs-zone/gtfs-zone-feed-catalog
           command:
             - dagster-webserver
@@ -228,13 +228,13 @@ spec:
           env:
             - name: DAGSTER_HOME
               value: /app/dagster_home
-            - name: POSTGRES_GEOMETRY_CAR_PASSWORD
+            - name: POSTGRES_FEED_CATALOG_PASSWORD
               valueFrom:
                 secretKeyRef:
-                  name: postgres-geometry-car
+                  name: postgres-feed-catalog
                   key: password
             - name: DATABASE_URL
-              value: postgresql://geometry_car:$(POSTGRES_GEOMETRY_CAR_PASSWORD)@postgres-rw:5432/geometry_car
+              value: postgresql://feed_catalog:$(POSTGRES_FEED_CATALOG_PASSWORD)@postgres-rw:5432/feed_catalog
           volumeMounts:
             - name: dagster-config
               mountPath: /app/dagster_home/dagster.yaml
@@ -259,16 +259,16 @@ spec:
       volumes:
         - name: dagster-config
           configMap:
-            name: geometry-car-dagster
+            name: feed-catalog-dagster
 ---
 apiVersion: v1
 kind: Service
 metadata:
-  name: geometry-car-webserver
+  name: feed-catalog-webserver
   namespace: gtfs
 spec:
   selector:
-    app: geometry-car-webserver
+    app: feed-catalog-webserver
   ports:
     - name: http
       port: 3000

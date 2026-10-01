@@ -4,10 +4,10 @@
 # that fails to import takes out one location rather than the UI.
 load_from:
   - grpc_server:
-      host: geometry-car-code
+      host: feed-catalog-code
       port: 4000
-      location_name: geometry_car
+      location_name: feed_catalog
   - grpc_server:
-      host: cape-flier-code
+      host: timetable-sites-code
       port: 4000
-      location_name: cape_flier
+      location_name: timetable_sites

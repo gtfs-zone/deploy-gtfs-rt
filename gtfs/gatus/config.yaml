@@ -65,7 +65,7 @@ endpoints:
     interval: 120s
     conditions:
       - "[STATUS] == 200"
-      # Empty here is the trip-updogger failure mode: positions fine, delays gone.
+      # Empty here is the rt-delay-estimator failure mode: positions fine, delays gone.
       - "len([BODY].entity) > 0"
     alerts:
       - type: telegram
@@ -124,7 +124,7 @@ endpoints:
     alerts:
       - type: telegram
 
-  # A feed page is the app shell with geometry-car's fragments included over
+  # A feed page is the app shell with feed-catalog's fragments included over
   # SSI from Garage. Without the JSON-LD the include fell back to the home head.
   - name: list.gtfs.zone feed page
     group: Sites
@@ -214,9 +214,9 @@ endpoints:
     alerts:
       - type: telegram
 
-  - name: vehicle-poser
+  - name: rt-traccar-receiver
     group: Ingest
-    url: http://vehicle-poser.gtfs.svc.cluster.local:8080/health
+    url: http://rt-traccar-receiver.gtfs.svc.cluster.local:8080/health
     interval: 60s
     conditions:
       - "[STATUS] == 200"
@@ -293,7 +293,7 @@ endpoints:
     alerts:
       - type: telegram
 
-# Pushed, not polled: geometry-car POSTs success to
+# Pushed, not polled: feed-catalog POSTs success to
 # /api/v1/endpoints/data_catalog-publish/external after each publish. The
 # pipeline runs daily at 09:00 UTC; 30h leaves room for a slow run. Storage is
 # in-memory, so after a restart the first check is 30h out, by which time the
@@ -301,7 +301,7 @@ endpoints:
 external-endpoints:
   - name: Catalog publish
     group: Data
-    token: "${GATUS_GEOMETRY_CAR_TOKEN}"
+    token: "${GATUS_FEED_CATALOG_TOKEN}"
     heartbeat:
       interval: 30h
     alerts:
@@ -309,11 +309,11 @@ external-endpoints:
         # Each miss is already a whole missed day.
         failure-threshold: 1
 
-  # cape-flier POSTs success to /api/v1/endpoints/data_sites-publish/external
+  # timetable-sites POSTs success to /api/v1/endpoints/data_sites-publish/external
   # once 95% of sites have been built for the day; the schedule runs at 11:00 UTC.
   - name: Sites publish
     group: Data
-    token: "${GATUS_CAPE_FLIER_TOKEN}"
+    token: "${GATUS_TIMETABLE_SITES_TOKEN}"
     heartbeat:
       interval: 30h
     alerts:

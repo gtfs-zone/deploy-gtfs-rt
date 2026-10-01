@@ -16,8 +16,8 @@ kind: Kustomization
 resources:
 - namespace.yaml
 - pages-dns.yaml
-- yard-master.yaml
-- list.yaml
+- rt-manager.yaml
+- feed-list.yaml
 images:
 - digest: sha256:9445d00e6cd6f2cb52351367573de28293f8bab2d0f4a80bfb73a71d1c273dae
   name: ghcr.io/gtfs-zone/gtfs-zone-feed-list

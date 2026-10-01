@@ -4,11 +4,11 @@
 #
 # Phase 5 wired the stateful layer (Postgres + Redis) + secrets. Phase 6 adds the
 # application layer (Keycloak, oauth2-proxy, rt-api + migrate hook, celery, uptime-kuma).
-# Phase 6a adds the ingest layer (Traccar, vehicle-poser, hell-gate-bridge ×2).
+# Phase 6a adds the ingest layer (Traccar, rt-traccar-receiver, rt-pollers ×2).
 # The IngressRoutes that expose these are added in Phase 7.
 #
 # The list below is flat rather than indented because `kustomize edit set image`
-# rewrites this whole file, and geometry-car's CI runs it here on every push.
+# rewrites this whole file, and feed-catalog's CI runs it here on every push.
 apiVersion: kustomize.config.k8s.io/v1beta1
 kind: Kustomization
 resources:
@@ -21,16 +21,16 @@ resources:
 - oauth2-proxy.yaml
 - rt-api.yaml
 - rt-api-migrate.yaml
-- celery.yaml
+- static-importer.yaml
 - gatus
 - traccar
-- vehicle-poser.yaml
-- trip-updogger.yaml
-- hell-gate-bridge.yaml
-- geometry-car
-- geometry-car-migrate.yaml
+- rt-traccar-receiver.yaml
+- rt-delay-estimator.yaml
+- rt-pollers.yaml
+- feed-catalog
+- feed-catalog-migrate.yaml
 - ingressroutes.yaml
-# Written by geometry-car's CI after it pushes, so what is deployed is the
+# Written by feed-catalog's CI after it pushes, so what is deployed is the
 # digest of exactly what was built rather than a moving tag.
 images:
 - digest: sha256:6b97cd12a4ed0aeb567ae09813c27742a33d13ea2eb2cd5741dd12170f4771ee

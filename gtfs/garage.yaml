@@ -1,6 +1,6 @@
 # ── Garage ────────────────────────────────────────────────────────────────────
 # S3-compatible object storage, holding the GTFS zips somebody uploads through
-# manage.rt.gtfs.zone. cafe-car writes and reads them; schedule-foamer reads
+# manage.rt.gtfs.zone. rt-api writes and reads them; static-importer reads
 # them to load the schedule. Both talk the S3 API, not Garage's own, so this can
 # be swapped for AWS, R2 or B2 by changing S3_ENDPOINT alone.
 #
@@ -70,9 +70,9 @@ data:
     # key change that one bucket's config: Garage refuses PutBucketCors from a
     # key without it.
     BUCKETS="
-    gtfs-feeds     gtfs         S3_ACCESS_KEY               S3_SECRET_KEY               no  no
-    data.gtfs.zone geometry-car GEOMETRY_CAR_S3_ACCESS_KEY  GEOMETRY_CAR_S3_SECRET_KEY  yes yes
-    sites.gtfs.zone cape-flier  CAPE_FLIER_S3_ACCESS_KEY    CAPE_FLIER_S3_SECRET_KEY    yes no
+    gtfs-feeds      gtfs            S3_ACCESS_KEY                 S3_SECRET_KEY                 no  no
+    data.gtfs.zone  feed-catalog    FEED_CATALOG_S3_ACCESS_KEY    FEED_CATALOG_S3_SECRET_KEY    yes yes
+    sites.gtfs.zone timetable-sites TIMETABLE_SITES_S3_ACCESS_KEY TIMETABLE_SITES_S3_SECRET_KEY yes no
     "
 
     api() {
@@ -143,8 +143,8 @@ data:
 
       # Website access is what the s3_web endpoint serves from; without it a
       # GET on data.gtfs.zone is a 404 that never mentions the setting. The
-      # CORS rule is set by geometry-car, not here: it is an S3 call, and the
-      # admin API has no equivalent. That is why geometry-car's key is owner.
+      # CORS rule is set by feed-catalog, not here: it is an S3 call, and the
+      # admin API has no equivalent. That is why feed-catalog's key is owner.
       if [ "$WEBSITE" = yes ]; then
         echo "==> enabling website access on ${BUCKET}"
         api POST "/UpdateBucket?id=${bucket_id}" -d "$(jq -nc \
@@ -319,29 +319,29 @@ spec:
                 secretKeyRef:
                   name: gtfs-app-secrets
                   key: S3_SECRET_KEY
-            # geometry-car's own pair, scoped to the public data.gtfs.zone
+            # feed-catalog's own pair, scoped to the public data.gtfs.zone
             # bucket so the pipeline cannot reach the private gtfs-feeds.
-            - name: GEOMETRY_CAR_S3_ACCESS_KEY
+            - name: FEED_CATALOG_S3_ACCESS_KEY
               valueFrom:
                 secretKeyRef:
                   name: gtfs-app-secrets
-                  key: GEOMETRY_CAR_S3_ACCESS_KEY
-            - name: GEOMETRY_CAR_S3_SECRET_KEY
+                  key: FEED_CATALOG_S3_ACCESS_KEY
+            - name: FEED_CATALOG_S3_SECRET_KEY
               valueFrom:
                 secretKeyRef:
                   name: gtfs-app-secrets
-                  key: GEOMETRY_CAR_S3_SECRET_KEY
-            # cape-flier's pair, scoped to the public sites.gtfs.zone bucket.
-            - name: CAPE_FLIER_S3_ACCESS_KEY
+                  key: FEED_CATALOG_S3_SECRET_KEY
+            # timetable-sites' pair, scoped to the public sites.gtfs.zone bucket.
+            - name: TIMETABLE_SITES_S3_ACCESS_KEY
               valueFrom:
                 secretKeyRef:
                   name: gtfs-app-secrets
-                  key: CAPE_FLIER_S3_ACCESS_KEY
-            - name: CAPE_FLIER_S3_SECRET_KEY
+                  key: TIMETABLE_SITES_S3_ACCESS_KEY
+            - name: TIMETABLE_SITES_S3_SECRET_KEY
               valueFrom:
                 secretKeyRef:
                   name: gtfs-app-secrets
-                  key: CAPE_FLIER_S3_SECRET_KEY
+                  key: TIMETABLE_SITES_S3_SECRET_KEY
           volumeMounts:
             - name: config
               mountPath: /etc/garage

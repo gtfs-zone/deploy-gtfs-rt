@@ -1,33 +1,33 @@
-# ── cape-flier (Dagster code location) ────────────────────────────────────────
+# ── timetable-sites (Dagster code location) ───────────────────────────────────
 # Builds the static timetable sites at sites.gtfs.zone. A second code location
-# in geometry-car's Dagster instance: the webserver and daemon are geometry-car's,
+# in feed-catalog's Dagster instance: the webserver and daemon are feed-catalog's,
 # and runs share its Postgres run storage and its single-run queue, so the daily
 # schedule (11:00 UTC) sits after the catalog run (09:00 UTC).
 #
 # With DefaultRunLauncher a run executes inside this pod, so it carries the
-# instance config and the run storage credentials like geometry-car-code. A run
-# builds its shard of sites in CAPE_FLIER_WORKERS processes, each capped at
-# CAPE_FLIER_WORKER_MEMORY bytes of address space, so the memory limit covers
+# instance config and the run storage credentials like feed-catalog-code. A run
+# builds its shard of sites in TIMETABLE_SITES_WORKERS processes, each capped at
+# TIMETABLE_SITES_WORKER_MEMORY bytes of address space, so the memory limit covers
 # the workers plus the code server.
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: cape-flier-code
+  name: timetable-sites-code
   namespace: gtfs
   labels:
-    app: cape-flier-code
+    app: timetable-sites-code
 spec:
   replicas: 1
   selector:
     matchLabels:
-      app: cape-flier-code
+      app: timetable-sites-code
   template:
     metadata:
       labels:
-        app: cape-flier-code
+        app: timetable-sites-code
     spec:
       containers:
-        - name: cape-flier
+        - name: timetable-sites
           image: ghcr.io/gtfs-zone/gtfs-zone-timetable-sites
           command:
             - dagster
@@ -38,20 +38,20 @@ spec:
             - -p
             - "4000"
             - -m
-            - cape_flier.pipeline.definitions
+            - gtfs_zone_timetable_sites.pipeline.definitions
           ports:
             - name: grpc
               containerPort: 4000
           env:
             - name: DAGSTER_HOME
               value: /app/dagster_home
-            - name: POSTGRES_GEOMETRY_CAR_PASSWORD
+            - name: POSTGRES_FEED_CATALOG_PASSWORD
               valueFrom:
                 secretKeyRef:
-                  name: postgres-geometry-car
+                  name: postgres-feed-catalog
                   key: password
             - name: DATABASE_URL
-              value: postgresql://geometry_car:$(POSTGRES_GEOMETRY_CAR_PASSWORD)@postgres-rw:5432/geometry_car
+              value: postgresql://feed_catalog:$(POSTGRES_FEED_CATALOG_PASSWORD)@postgres-rw:5432/feed_catalog
             # The public sites bucket, with a key scoped to it alone.
             - name: S3_ENDPOINT
               value: http://garage:3900
@@ -63,15 +63,15 @@ spec:
               valueFrom:
                 secretKeyRef:
                   name: gtfs-app-secrets
-                  key: CAPE_FLIER_S3_ACCESS_KEY
+                  key: TIMETABLE_SITES_S3_ACCESS_KEY
             - name: S3_SECRET_KEY
               valueFrom:
                 secretKeyRef:
                   name: gtfs-app-secrets
-                  key: CAPE_FLIER_S3_SECRET_KEY
-            - name: CAPE_FLIER_WORKERS
+                  key: TIMETABLE_SITES_S3_SECRET_KEY
+            - name: TIMETABLE_SITES_WORKERS
               value: "4"
-            - name: CAPE_FLIER_WORKER_MEMORY
+            - name: TIMETABLE_SITES_WORKER_MEMORY
               value: "2500000000"
             # Heartbeat pushed once 95% of sites are built for the day.
             - name: GATUS_URL
@@ -80,7 +80,7 @@ spec:
               valueFrom:
                 secretKeyRef:
                   name: gtfs-app-secrets
-                  key: GATUS_CAPE_FLIER_TOKEN
+                  key: GATUS_TIMETABLE_SITES_TOKEN
           resources:
             requests:
               cpu: "1"
@@ -105,16 +105,16 @@ spec:
       volumes:
         - name: dagster-config
           configMap:
-            name: geometry-car-dagster
+            name: feed-catalog-dagster
 ---
 apiVersion: v1
 kind: Service
 metadata:
-  name: cape-flier-code
+  name: timetable-sites-code
   namespace: gtfs
 spec:
   selector:
-    app: cape-flier-code
+    app: timetable-sites-code
   ports:
     - name: grpc
       port: 4000

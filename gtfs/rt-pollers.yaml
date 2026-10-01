@@ -1,13 +1,13 @@
-# ── hell-gate-bridge (external feed pollers) ──────────────────────────────────
+# ── rt-pollers (external feed pollers) ────────────────────────────────────────
 # Two Deployments off one image, one per SOURCE. Each polls an upstream operator
-# feed and POSTs to cafe-car's /ingest/* with a shared bearer token; they do NOT
+# feed and POSTs to rt-api's /ingest/* with a shared bearer token; they do NOT
 # go through Traccar or Redis directly.
 #
 #   amtrak    → Amtrak's getTrainsData blob
 #   buswhere  → Columbia County's buswhere API + its published GTFS
 #
 # INGEST_TRACKER_ID must equal a provisioned Tracker.id in the target feed: the
-# opaque uuid4 hex surrogate key, never the human-readable device_key. cafe-car
+# opaque uuid4 hex surrogate key, never the human-readable device_key. rt-api
 # reads the live keyspace as `vehicle:{tracker_id}[:{vehicle_id}]` and
 # /ingest/alerts rejects an id it cannot resolve, so a mismatch loses positions
 # and trip updates silently and only alerts 403. INGEST_VEHICLE_ID is the old
@@ -28,23 +28,23 @@
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: hell-gate-bridge-amtrak
+  name: rt-pollers-amtrak
   namespace: gtfs
   labels:
-    app: hell-gate-bridge-amtrak
+    app: rt-pollers-amtrak
 spec:
   replicas: 1
   selector:
     matchLabels:
-      app: hell-gate-bridge-amtrak
+      app: rt-pollers-amtrak
   template:
     metadata:
       labels:
-        app: hell-gate-bridge-amtrak
+        app: rt-pollers-amtrak
     spec:
       containers:
-        - name: hell-gate-bridge
-          image: ghcr.io/gtfs-zone/gtfs-zone-rt-pollers:9208e28
+        - name: rt-pollers
+          image: ghcr.io/gtfs-zone/gtfs-zone-rt-pollers:v0.2.0
           env:
             - name: SOURCE
               value: amtrak
@@ -55,7 +55,7 @@ spec:
               value: fbacbb1b6c1cfc37a37342f5db7b1f14
             - name: INGEST_VEHICLE_ID
               value: fbacbb1b6c1cfc37a37342f5db7b1f14
-            - name: CAFE_CAR_INGEST_URL
+            - name: RT_API_INGEST_URL
               value: http://gtfs-api:8000
             - name: INGEST_API_TOKEN
               valueFrom:
@@ -66,23 +66,23 @@ spec:
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: hell-gate-bridge-buswhere
+  name: rt-pollers-buswhere
   namespace: gtfs
   labels:
-    app: hell-gate-bridge-buswhere
+    app: rt-pollers-buswhere
 spec:
   replicas: 1
   selector:
     matchLabels:
-      app: hell-gate-bridge-buswhere
+      app: rt-pollers-buswhere
   template:
     metadata:
       labels:
-        app: hell-gate-bridge-buswhere
+        app: rt-pollers-buswhere
     spec:
       containers:
-        - name: hell-gate-bridge
-          image: ghcr.io/gtfs-zone/gtfs-zone-rt-pollers:9208e28
+        - name: rt-pollers
+          image: ghcr.io/gtfs-zone/gtfs-zone-rt-pollers:v0.2.0
           env:
             - name: SOURCE
               value: buswhere
@@ -92,10 +92,10 @@ spec:
             - name: INGEST_VEHICLE_ID
               value: eac865d0127347eccc850b894baa6048
             # The raw.githubusercontent.com host, not github.com/.../raw/, the
-            # latter 302s and hell-gate's httpx client does not follow redirects.
+            # latter 302s and rt-pollers' httpx client does not follow redirects.
             - name: GTFS_URL
               value: https://raw.githubusercontent.com/columbia-county-ny-transit/gtfs-generator/refs/heads/main/columbia_county_gtfs.zip
-            - name: CAFE_CAR_INGEST_URL
+            - name: RT_API_INGEST_URL
               value: http://gtfs-api:8000
             - name: INGEST_API_TOKEN
               valueFrom:

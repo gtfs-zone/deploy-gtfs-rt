@@ -1,4 +1,4 @@
-# ── list.gtfs.zone (globe-of-contents) ────────────────────────────────────────
+# ── list.gtfs.zone (feed-list) ────────────────────────────────────────────────
 # Static site served from an immutable image: CI builds `dist/` into
 # `ghcr.io/gtfs-zone/gtfs-zone-feed-list` on a `v*` tag, pushes it, then commits
 # the new digest into sites/kustomization.yaml, and ArgoCD rolls it out. A deploy
@@ -12,7 +12,7 @@
 # gtfs-zone-tls covers it.
 #
 # The catalogue data is not in this image: the site fetches it at runtime from
-# data.gtfs.zone (Garage's public bucket, written by geometry-car).
+# data.gtfs.zone (Garage's public bucket, written by feed-catalog).
 #
 # /feed/<id>/<slug> pages and /sitemap.xml are proxied by the pod's nginx from
 # the same bucket, straight to Garage's web endpoint in-cluster (PAGES_UPSTREAM)
@@ -20,10 +20,10 @@
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: list
+  name: feed-list
   namespace: sites
   labels:
-    app: list
+    app: feed-list
 spec:
   replicas: 1
   strategy:
@@ -33,11 +33,11 @@ spec:
       maxSurge: 1
   selector:
     matchLabels:
-      app: list
+      app: feed-list
   template:
     metadata:
       labels:
-        app: list
+        app: feed-list
     spec:
       securityContext:
         runAsNonRoot: true
@@ -91,11 +91,11 @@ spec:
 apiVersion: v1
 kind: Service
 metadata:
-  name: list
+  name: feed-list
   namespace: sites
 spec:
   selector:
-    app: list
+    app: feed-list
   ports:
     - name: http
       port: 80
@@ -108,7 +108,7 @@ spec:
 apiVersion: traefik.io/v1alpha1
 kind: IngressRoute
 metadata:
-  name: list
+  name: feed-list
   namespace: gtfs
   annotations:
     external-dns.alpha.kubernetes.io/target: "73.4.232.254"
@@ -118,7 +118,7 @@ spec:
     - match: Host(`list.gtfs.zone`)
       kind: Rule
       services:
-        - name: list
+        - name: feed-list
           namespace: sites
           port: 80
   tls:

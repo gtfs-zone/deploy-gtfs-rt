@@ -1,17 +1,17 @@
-# ── geometry-car migrate ──────────────────────────────────────────────────────
+# ── feed-catalog migrate ──────────────────────────────────────────────────────
 # Two migrations in one PreSync hook, in this order:
 #
 #   dagster instance migrate  → Dagster's own run, event-log and schedule tables
 #   alembic upgrade head      → this repo's source/check_run/source_state tables
 #
-# Both live in the geometry_car database and neither touches the other's tables;
-# geometry-car's alembic env.py filters autogenerate down to its own so a
+# Both live in the feed_catalog database and neither touches the other's tables;
+# feed-catalog's alembic env.py filters autogenerate down to its own so a
 # revision here can never propose dropping Dagster's.
 #
 # PostSync, not PreSync like gtfs-migrate, and the difference is load-bearing.
 # ArgoCD applies ordinary resources only after the hooks they were gated behind
 # have completed, so at PreSync time none of what this Job needs exists yet:
-# not the postgres-geometry-car Secret it takes its password from, and not the
+# not the postgres-feed-catalog Secret it takes its password from, and not the
 # CNPG role and Database the password is for. A PreSync hook here does not fail,
 # it hangs - CreateContainerConfigError on the missing Secret, forever, taking
 # the whole sync with it. garage-init is PostSync for the same reason.
@@ -23,7 +23,7 @@
 # migrate` is a no-op on an up-to-date schema.
 #
 # The instance config is written here rather than mounted from the
-# geometry-car-dagster ConfigMap so the Job depends on nothing but its image and
+# feed-catalog-dagster ConfigMap so the Job depends on nothing but its image and
 # the Secret. Only the storage block is duplicated, and both copies read the
 # same DATABASE_URL, so they cannot point at different databases.
 #
@@ -34,7 +34,7 @@
 apiVersion: batch/v1
 kind: Job
 metadata:
-  name: geometry-car-migrate
+  name: feed-catalog-migrate
   namespace: gtfs
   annotations:
     argocd.argoproj.io/hook: PostSync
@@ -44,11 +44,11 @@ spec:
   template:
     metadata:
       labels:
-        app: geometry-car-migrate
+        app: feed-catalog-migrate
     spec:
       restartPolicy: Never
       containers:
-        - name: geometry-car-migrate
+        - name: feed-catalog-migrate
           image: ghcr.io/gtfs-zone/gtfs-zone-feed-catalog
           command: ["/bin/sh", "-c"]
           args:
@@ -66,17 +66,17 @@ spec:
                 if dagster instance migrate && alembic upgrade head; then
                   exit 0
                 fi
-                echo "waiting for the geometry_car database"
+                echo "waiting for the feed_catalog database"
                 sleep 10
               done
               exit 1
           env:
             - name: DAGSTER_HOME
               value: /app/dagster_home
-            - name: POSTGRES_GEOMETRY_CAR_PASSWORD
+            - name: POSTGRES_FEED_CATALOG_PASSWORD
               valueFrom:
                 secretKeyRef:
-                  name: postgres-geometry-car
+                  name: postgres-feed-catalog
                   key: password
             - name: DATABASE_URL
-              value: postgresql://geometry_car:$(POSTGRES_GEOMETRY_CAR_PASSWORD)@postgres-rw:5432/geometry_car
+              value: postgresql://feed_catalog:$(POSTGRES_FEED_CATALOG_PASSWORD)@postgres-rw:5432/feed_catalog
