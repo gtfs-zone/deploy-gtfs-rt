@@ -18,7 +18,7 @@ spec:
   source:
     # Repo is anonymously readable over HTTPS, so no ArgoCD repo credential is
     # needed. (Switch to an SSH/token creds Secret here if the repo goes private.)
-    repoURL: https://git.kcfam.us/gtfs.zone/deploy-gtfs-rt.git
+    repoURL: https://github.com/gtfs-zone/gtfs-zone-infra.git
     targetRevision: main
     path: apps
     directory:
