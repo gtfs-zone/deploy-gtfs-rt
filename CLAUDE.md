@@ -397,8 +397,8 @@ Each of these cost real debugging time.
   the markup and must stay the first import in `index.ts`, since other modules
   look element ids up at evaluation time. The shell stylesheet's `@import` must
   directly follow `@import 'tailwindcss'`: postcss rejects an `@import` after any
-  other statement. An interlocking tag pushed to only one remote breaks
-  `pnpm install` for every app that repins; push tags to both.
+  other statement. A gtfs-zone-web-common tag left unpushed breaks
+  `pnpm install` for every app that repins; push it with `--follow-tags`.
 
 ## Known gaps
 

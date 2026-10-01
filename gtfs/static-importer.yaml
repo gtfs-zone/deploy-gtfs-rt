@@ -1,7 +1,7 @@
 # ── Celery (static-importer) ──────────────────────────────────────────────────
 # Replaces the TF `celery-worker` + `celery-beat` containers. Two Deployments off
-# the static-importer image, internal only (no Service). Env mirrors the TF
-# `local.schedule_foamer_env`; DATABASE_URL uses the psycopg2 driver and CNPG's
+# the static-importer image, internal only (no Service). DATABASE_URL uses the
+# psycopg2 driver and CNPG's
 # `postgres-rw` Service, password injected via dependent env var.
 #   worker → executes feed download/parse tasks (concurrency 2, recycle every 10)
 #   beat   → periodic scheduler, enqueues stale/failed feeds

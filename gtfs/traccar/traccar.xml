@@ -1,7 +1,7 @@
 <?xml version='1.0' encoding='UTF-8'?>
 <!DOCTYPE properties SYSTEM 'http://java.sun.com/dtd/properties.dtd'>
 <!--
-  Traccar configuration, ported from music-student's dev/traccar/traccar.xml.
+  Traccar configuration, ported from gtfs-zone-dev-stack's dev/traccar/traccar.xml.
 
   Secrets are deliberately ABSENT from this file: the Deployment sets
   CONFIG_USE_ENVIRONMENT_VARIABLES=true, so DATABASE_PASSWORD and

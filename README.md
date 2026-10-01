@@ -1,4 +1,4 @@
-# deploy-gtfs-rt
+# gtfs-zone-infra
 
 **GTFS.Zone** is a "public option" for transit operators to publish real-time
 GTFS feeds. The goal is to make it as simple, lightweight, and inexpensive as
@@ -58,7 +58,7 @@ flowchart LR
     end
 
     rc(["**gtfs-zone-db-models**<br>SQLAlchemy models + migrations"]):::repo
-    ms(["**music-student**<br>local dev Compose"]):::repo
+    ms(["**gtfs-zone-dev-stack**<br>local dev Compose"]):::repo
 
     rc -->|"models + migrations"| cc
     rc -->|"models"| vp
@@ -87,8 +87,8 @@ flowchart LR
 | `data.<domain>` | Public source-catalog artifacts (`feeds.json`, `sources.json`, ...) from Garage's public bucket |
 | `dagster.<domain>` | Dagster UI for feed-catalog (gated on the `gtfs-admins` group) |
 | `list.<domain>` | Source catalog list and world map (feed-list) |
-| `edit.<domain>` | GTFS editor (coloring-book) |
-| `viz.rt.<domain>` | Realtime visualiser (test-track) |
+| `edit.<domain>` | GTFS editor (gtfs-zone-editor) |
+| `viz.rt.<domain>` | Realtime visualiser (gtfs-zone-rt-viewer) |
 
 
 ## System Diagrams

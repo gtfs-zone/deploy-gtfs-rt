@@ -1,4 +1,4 @@
--- Traccar position-history retention. Ported verbatim from music-student's
+-- Traccar position-history retention. Ported verbatim from gtfs-zone-dev-stack's
 -- scripts/traccar_retention.sql, with the psql \set replaced by a :days variable
 -- passed in by the CronJob (psql -v days=...).
 --
