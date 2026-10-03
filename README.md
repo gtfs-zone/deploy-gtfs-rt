@@ -1,5 +1,7 @@
 # gtfs-zone-infra
 
+[![CI](https://img.shields.io/github/actions/workflow/status/gtfs-zone/gtfs-zone-infra/check.yml?branch=main&label=CI)](https://github.com/gtfs-zone/gtfs-zone-infra/actions/workflows/check.yml?query=branch%3Amain) [![License: AGPL-3.0-or-later](https://img.shields.io/badge/license-AGPL--3.0--or--later-blue)](LICENSE.txt)
+
 **GTFS.Zone** is a "public option" for transit operators to publish real-time
 GTFS feeds. The goal is to make it as simple, lightweight, and inexpensive as
 possible: a small agency with minimal technical resources should be able to
